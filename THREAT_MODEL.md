@@ -143,3 +143,18 @@ Additional threats considered:
 Controls in v0.8 include local-image-only execution (`--pull never`), immutable local image-ID pinning, network disabled for evaluation, capability dropping, `no-new-privileges`, read-only container root, bounded `/tmp`, PID/CPU/RAM limits, Unix UID/GID mapping, no runtime socket mount, localhost-only canary port publication, internal canary networks, separate startup/observation probes and exact commit matching before promotion, and secret-bearing environment-variable filtering for evaluation/canary subprocesses.
 
 These controls reduce risk but do **not** make containers equivalent to a VM boundary. Untrusted hostile binaries still belong in a disposable VM or dedicated sandbox host.
+
+
+## v0.9 Experience-memory threats
+
+### Memory poisoning
+A malicious webpage, log, repository comment or one-off failure could try to cause a dangerous lesson. Automatic traces therefore start as low-confidence candidates and external observations do not become verified lessons merely because they contain instructions.
+
+### Stale operational knowledge
+Projects change. Unconfirmed lessons decay over time, negative verification lowers confidence, contradictions are surfaced, and lessons can be superseded/rejected.
+
+### Secret persistence
+Tool arguments/results and lessons apply common credential redaction before persistence. The experience store is not a secret manager and should never be intentionally used as one.
+
+### Authority confusion
+Retrieved experiences are labeled advisory evidence. They cannot override command policy, approvals, workspace restrictions, database policy, Security Guardian controls or promotion gates.

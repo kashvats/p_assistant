@@ -32,12 +32,13 @@ personal_app = typer.Typer(help='Quiet hours, focus mode and personal operating 
 briefing_app = typer.Typer(help='Morning/evening deterministic briefings.')
 session_app = typer.Typer(help='Local conversation/session history.')
 integration_app = typer.Typer(help='Connector metadata and future external integrations.')
+experience_app = typer.Typer(help='Evidence-weighted lessons from past mistakes and successful recoveries.')
 for sub, name in [
     (project_app,'project'),(group_app,'group'),(security_app,'security'),(approval_app,'approval'),
     (watch_app,'watch'),(skill_app,'skill'),(todo_app,'todo'),(quarantine_app,'quarantine'),
     (git_app,'git'),(desktop_app,'desktop'),(browser_app,'browser'),(voice_app,'voice'),
     (routine_app,'routine'),(improve_app,'improve'),(calendar_app,'calendar'),(personal_app,'personal'),
-    (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration')]:
+    (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration'),(experience_app,'experience')]:
     app.add_typer(sub, name=name)
 
 @app.command()
@@ -93,14 +94,14 @@ def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                   routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian).run_forever()
+                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, experiences=rt.experiences).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                                 routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian).tick())
+                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, experiences=rt.experiences).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -728,5 +729,68 @@ def integration_disable(name: str):
 @integration_app.command('remove')
 def integration_remove(name: str):
     console.print({'ok':build_runtime(interactive=False).connectors.remove(name)})
+
+
+@experience_app.command('add')
+def experience_add(kind: str, situation: str, lesson: str,
+                   project: str | None = typer.Option(None,'--project'),
+                   action: str | None = typer.Option(None,'--action'),
+                   outcome: str | None = typer.Option(None,'--outcome'),
+                   root_cause: str | None = typer.Option(None,'--root-cause'),
+                   better_action: str | None = typer.Option(None,'--better-action'),
+                   confirmed: bool = typer.Option(False,'--confirmed')):
+    if kind not in {'failure','success','procedure'}:
+        console.print('[red]kind must be failure, success or procedure[/red]'); raise typer.Exit(2)
+    if confirmed and input('Store this as a user-confirmed high-confidence lesson? [y/N]: ').strip().lower() not in {'y','yes'}:
+        raise typer.Exit(1)
+    rt=build_runtime(interactive=False)
+    console.print(rt.experiences.record(kind,situation,lesson,project,action,outcome,root_cause,better_action,
+                                        verified=confirmed,source='user_cli',user_confirmed=confirmed))
+
+@experience_app.command('list')
+def experience_list(status: str = 'active', project: str | None = None, limit: int = 100):
+    rt=build_runtime(interactive=False)
+    console.print(rt.experiences.list(None if status=='all' else status,project,limit))
+
+@experience_app.command('show')
+def experience_show(experience_id: str):
+    console.print(build_runtime(interactive=False).experiences.get(experience_id))
+
+@experience_app.command('search')
+def experience_search(query: str, project: str | None = None, include_candidates: bool = False, limit: int = 10):
+    console.print(build_runtime(interactive=False).experiences.search(query,project,limit,include_candidates))
+
+@experience_app.command('confirm')
+def experience_confirm(experience_id: str, notes: str | None = None):
+    if input(f'Confirm experience {experience_id} as trusted? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
+    console.print(build_runtime(interactive=False).experiences.confirm(experience_id,notes))
+
+@experience_app.command('verify')
+def experience_verify(experience_id: str, useful: bool = typer.Option(...,'--useful/--not-useful'), evidence: str | None = None):
+    console.print(build_runtime(interactive=False).experiences.verify(experience_id,useful,evidence))
+
+@experience_app.command('reject')
+def experience_reject(experience_id: str, reason: str | None = None):
+    console.print(build_runtime(interactive=False).experiences.reject(experience_id,reason))
+
+@experience_app.command('supersede')
+def experience_supersede(old_id: str, new_id: str):
+    console.print(build_runtime(interactive=False).experiences.supersede(old_id,new_id))
+
+@experience_app.command('episodes')
+def experience_episodes(limit: int = 100, failures_only: bool = False):
+    console.print(build_runtime(interactive=False).experiences.episodes(limit,False if failures_only else None))
+
+@experience_app.command('patterns')
+def experience_patterns(limit: int = 20, min_count: int = 2):
+    console.print(build_runtime(interactive=False).experiences.failure_patterns(limit,min_count))
+
+@experience_app.command('stats')
+def experience_stats():
+    console.print(build_runtime(interactive=False).experiences.stats())
+
+@experience_app.command('maintenance')
+def experience_maintenance():
+    console.print(build_runtime(interactive=False).experiences.maintenance())
 
 if __name__ == '__main__': app()

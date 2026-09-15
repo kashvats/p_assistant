@@ -13,11 +13,11 @@ class NervousSystem:
     def __init__(self, config: dict, memory: MemoryStore, processes: ProcessRegistry | None = None,
                  watches: WatchRegistry | None = None, notifier: Notifier | None = None,
                  routines: RoutineRegistry | None = None, orchestrator=None, model_manager=None,
-                 briefings=None, sessions=None, guardian=None):
+                 briefings=None, sessions=None, guardian=None, experiences=None):
         self.config=config; self.cfg=config.get('daemon',{}); self.memory=memory
         self.processes=processes or ProcessRegistry(); self.watches=watches or WatchRegistry()
         self.notifier=notifier or Notifier(); self.routines=routines or RoutineRegistry()
-        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian
+        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.experiences=experiences
         self.last_ports=set(); self.previous_running={}; self.health_failures={}; self.restart_exhausted_notified=set()
         self.last_maintenance=0.0; self.last_security_scan=0.0; self.last_security_posture_scan=0.0
 
@@ -110,6 +110,11 @@ class NervousSystem:
         if self.sessions is not None and now-self.last_maintenance>=3600:
             pruned=self.sessions.prune()
             if pruned: self.memory.add_event('session_history_pruned',{'count':pruned})
+            if self.experiences is not None:
+                try:
+                    ex=self.experiences.maintenance()
+                    if ex.get('episodes_pruned'): self.memory.add_event('experience_episodes_pruned',ex)
+                except Exception: pass
             self.last_maintenance=now
         return events
 

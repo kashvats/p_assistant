@@ -169,3 +169,13 @@ security_guardian:
   integrity_max_file_mb: 20
   notify_min_severity: medium
   process_alert_score: 60
+
+experience:
+  enabled: true
+  auto_capture: true
+  min_inject_confidence: 0.55
+  confidence_half_life_days: 120
+  confirmed_half_life_days: 365
+  auto_promote_repeats: 2
+  episode_retention_days: 30
+  max_context_lessons: 5

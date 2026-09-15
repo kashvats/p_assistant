@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from .runtime import build_runtime
 
-app = FastAPI(title='Living Assistant Local API', version='0.8.0')
+app = FastAPI(title='Living Assistant Local API', version='0.9.0')
 runtime = None
 
 class AskRequest(BaseModel):
@@ -60,6 +60,25 @@ class CanaryRequest(BaseModel):
     max_memory_regression_pct: float | None = None
     min_health_success_pct: float | None = None
 
+class ExperienceRecordRequest(BaseModel):
+    kind: str
+    situation: str
+    lesson: str
+    project: str | None = None
+    action_taken: str | None = None
+    outcome: str | None = None
+    root_cause: str | None = None
+    better_action: str | None = None
+    verified: bool = False
+    evidence: str | None = None
+
+class ExperienceVerifyRequest(BaseModel):
+    useful: bool
+    evidence: str | None = None
+
+class ExperienceConfirmRequest(BaseModel):
+    notes: str | None = None
+
 
 def _rt():
     global runtime
@@ -71,7 +90,7 @@ def _auth(authorization: str | None):
     if token and authorization != f'Bearer {token}': raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.8.0'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.9.0'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}
@@ -278,6 +297,45 @@ def queued_notifications(authorization: str | None=Header(default=None)): _auth(
 @app.post('/notifications/flush')
 def flush_notifications(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().notifier.flush(50)
 
+@app.get('/experiences')
+def experiences(status: str='active', project: str | None=None, limit: int=100, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.list(None if status=='all' else status,project,limit)
+
+@app.get('/experiences/search')
+def experience_search(q: str, project: str | None=None, include_candidates: bool=False, limit: int=10, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.search(q,project,limit,include_candidates)
+
+@app.get('/experiences/patterns')
+def experience_patterns(limit: int=20, min_count: int=2, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.failure_patterns(limit,min_count)
+
+@app.get('/experiences/stats')
+def experience_stats(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.stats()
+
+@app.get('/experiences/{experience_id}')
+def experience_get(experience_id: str, authorization: str | None=Header(default=None)):
+    _auth(authorization); item=_rt().experiences.get(experience_id)
+    if not item: raise HTTPException(status_code=404,detail='Unknown experience id')
+    return item
+
+@app.post('/experiences')
+def experience_record(req: ExperienceRecordRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.record(req.kind,req.situation,req.lesson,req.project,req.action_taken,req.outcome,req.root_cause,req.better_action,req.verified,req.evidence,source='api')
+
+@app.post('/experiences/{experience_id}/verify')
+def experience_verify(experience_id: str, req: ExperienceVerifyRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.verify(experience_id,req.useful,req.evidence)
+
+@app.post('/experiences/{experience_id}/confirm')
+def experience_confirm(experience_id: str, req: ExperienceConfirmRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.confirm(experience_id,req.notes)
+
+@app.delete('/experiences/{experience_id}')
+def experience_reject(experience_id: str, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().experiences.reject(experience_id,'Rejected through local API')
+
+
 @app.get('/dashboard',response_class=HTMLResponse)
 def dashboard():
     if os.environ.get('ASSISTANT_API_TOKEN'):
@@ -291,9 +349,9 @@ def dashboard():
 <section><h2>Projects</h2><pre id="projects"></pre></section><section><h2>Processes</h2><pre id="processes"></pre></section>
 <section><h2>Recent events</h2><pre id="events"></pre></section><section><h2>Todos</h2><pre id="todos"></pre></section>
 <section><h2>Routines</h2><pre id="routines"></pre></section><section><h2>Queued notifications</h2><pre id="notifications"></pre></section>
-<section><h2>Security Guardian</h2><pre id="security"></pre></section><section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section><section><h2>Evaluation suites</h2><pre id="improvement-suites"></pre></section><section><h2>Evaluated improvements</h2><pre id="improvement-evaluations"></pre></section><section><h2>Sandbox</h2><pre id="sandbox"></pre></section><section><h2>Canaries</h2><pre id="canaries"></pre></section>
+<section><h2>Security Guardian</h2><pre id="security"></pre></section><section><h2>Experience memory</h2><pre id="experiences"></pre></section><section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section><section><h2>Evaluation suites</h2><pre id="improvement-suites"></pre></section><section><h2>Evaluated improvements</h2><pre id="improvement-evaluations"></pre></section><section><h2>Sandbox</h2><pre id="sandbox"></pre></section><section><h2>Canaries</h2><pre id="canaries"></pre></section>
 </div><script>
 async function j(u,opt){let r=await fetch(u,opt);return await r.json()}async function decide(id,approved){await j('/approvals/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});load()}
-async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements','improvement-suites','improvement-evaluations','canaries']){let el=document.getElementById(k);if(el)el.textContent=JSON.stringify(await j('/'+k),null,2)}document.getElementById('sandbox').textContent=JSON.stringify(await j('/sandbox/status'),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('security').textContent=JSON.stringify(await j('/security/summary'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
+async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements','improvement-suites','improvement-evaluations','canaries','experiences']){let el=document.getElementById(k);if(el)el.textContent=JSON.stringify(await j('/'+k),null,2)}document.getElementById('sandbox').textContent=JSON.stringify(await j('/sandbox/status'),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('security').textContent=JSON.stringify(await j('/security/summary'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
 </script></body></html>'''
     return HTMLResponse(page)

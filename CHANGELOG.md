@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.9.0
+
+- Added evidence-weighted Experience Engine for learning from past mistakes and successful recoveries.
+- Added short-lived redacted tool episodes and repeated automatic recovery candidates.
+- Added verified/user-confirmed lessons, confidence updates, stale-lesson decay and contradiction tracking.
+- Added project-scoped retrieval of trusted lessons before model reasoning.
+- Added failure-pattern clustering from recent failed episodes.
+- Added experience search/confirm/verify/reject/supersede/stats/maintenance CLI commands.
+- Added Experience Engine agent tools and localhost API/dashboard surfaces.
+- Added hourly episode-retention maintenance through the deterministic daemon.
+- Added tests for memory poisoning resistance properties, redaction, conflicts, decay and end-to-end orchestrator retrieval.
+
+
 ## 0.8.0
 
 - Added optional Docker/Podman container execution provider for evaluated improvements.

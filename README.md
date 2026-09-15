@@ -1,6 +1,27 @@
-# Living Assistant v0.8 — Hardened Evaluation + Canary Operations
+# Living Assistant v0.9 — Experience Engine + Past-Mistake Learning
 
 A local-first, hardware-adaptive personal operating assistant for Windows, Ubuntu/Linux and macOS. Its low-resource **nervous system** handles monitoring, routines, reminders, project supervision and defensive security while local SLMs stay asleep until reasoning is actually needed.
+
+v0.9 adds an **Experience Engine** on top of the v0.8 hardened evaluation/canary platform. The assistant now keeps short-lived tool episodes, extracts repeated recovery candidates, stores verified postmortems, retrieves relevant past lessons before acting, decays stale knowledge, tracks contradictions and lets the user confirm/supersede/reject what it learned.
+
+## v0.9 highlights
+
+- Bounded local tool-outcome episodes with common-secret redaction.
+- Automatic low-confidence recovery candidates when a failed tool attempt is followed by a successful variant.
+- One automatic occurrence is **not** trusted; repeated evidence or explicit verification is required before automatic injection.
+- Structured failure/success/procedure lessons with project scope, root cause, better action and evidence.
+- Confidence scoring, positive/negative verification and age-based confidence decay.
+- User-confirmed lessons receive high confidence and a slower decay window.
+- Contradictory procedures are marked and injected with a verify-first warning.
+- Old lessons can be superseded or rejected without deleting their audit history.
+- Recurring failed-tool signatures are clustered into failure patterns.
+- Relevant active lessons are retrieved before reasoning, in a bounded advisory section that cannot override policy.
+- Experience episode retention is configurable and maintained by the model-free daemon.
+- CLI, local API, dashboard and agent tools expose the experience layer.
+
+See `EXPERIENCE_ENGINE.md` for the full learning model.
+
+
 
 
 
@@ -110,7 +131,7 @@ Everything from v0.6 remains, plus:
 - Security/policy/evaluation core files can be measured but are still blocked from automatic promotion.
 - Promoted Git changes can be rolled back with an approval-gated `git revert`, preserving history.
 - Evaluation reports are exposed through CLI, local API and dashboard.
-- Full regression suite: **75 passing tests**.
+- Full regression suite includes all prior releases plus v0.9 experience-learning tests.
 
 ## Why this architecture
 
@@ -182,9 +203,9 @@ The same safety gates still apply. Browser and voice remain optional/disabled by
 
 `power` defaults to more measured repetitions while retaining one-change-at-a-time promotion and the same approval model.
 
-## Upgrade from v0.6
+## Upgrade from v0.8
 
-v0.8 uses additive SQLite tables for evaluation suites and evaluation reports. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
+v0.9 adds experience lessons and tool-episode tables to the existing local SQLite database. Evaluation/canary tables remain compatible. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
 
 Back up your assistant data directory before upgrading a machine you depend on.
 

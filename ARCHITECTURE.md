@@ -128,3 +128,20 @@ An available-RAM floor is checked before evaluation starts.
 `security_policy.py`, `security_guardian.py`, `approval.py`, `improvements.py`, `evaluation.py`, `workspace.py`, `quarantine.py` and `assistant.yaml` are protected from automatic proposal application/promotion.
 
 External content remains untrusted observation data. Evaluation commands are not taken as trusted merely because they appear in a proposal; the exact plan is approval-gated.
+
+
+## v0.9 Experience Engine
+
+```text
+Task -> retrieve active relevant lessons -> orchestrator/tools
+                                      |
+Tool outcomes -> redacted episodes -> repeated recovery candidate
+                                      |
+                        verify/repeat/user confirm
+                                      v
+                                active lesson
+                                      |
+                         confidence decay/conflicts
+```
+
+Experience memory is advisory. Current tool evidence and deterministic policy always have higher authority. Automatic traces start below the normal context-injection threshold and only become influential after repeated evidence or verification.

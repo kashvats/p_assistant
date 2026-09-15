@@ -1,3 +1,18 @@
+# Roadmap after v0.9
+
+The core personal-agent architecture, defensive guardian, evaluated improvement/canary pipeline and past-mistake learning engine are now implemented. The next milestone should be **real-machine validation leading to v1.0**, not another architecture-heavy release.
+
+Recommended v1.0 work:
+
+- run v0.9 daily on Windows/Ubuntu/macOS hardware and collect real failure patterns;
+- tune experience confidence/decay from observed behavior;
+- polished installer/updater and first-run model/profile setup;
+- native desktop task timeline and approval UX;
+- connector plugins for email/calendar/cloud files;
+- backup/restore/export controls for assistant state;
+- release migration tests and crash recovery;
+- signed release artifacts where practical.
+
 # Roadmap
 
 ## Current: v0.8 — Hardened Evaluation + Canary Operations

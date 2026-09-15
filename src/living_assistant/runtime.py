@@ -28,6 +28,7 @@ from .sessions import SessionStore
 from .connectors import ConnectorRegistry
 from .briefing import BriefingEngine
 from .security_guardian import SecurityGuardian
+from .experience import ExperienceEngine
 from .tools.filesystem import build_filesystem_tools
 from .tools.shell import build_shell_tools, ProcessRegistry
 from .tools.projects import build_project_tools, ProjectRegistry
@@ -46,6 +47,7 @@ from .tools.calendartools import build_calendar_tools
 from .tools.personalstate import build_personal_state_tools
 from .tools.briefingtools import build_briefing_tools
 from .tools.sessiontools import build_session_tools
+from .tools.experiencetools import build_experience_tools
 
 @dataclass
 class Runtime:
@@ -77,6 +79,7 @@ class Runtime:
     connectors: ConnectorRegistry
     briefings: BriefingEngine
     guardian: SecurityGuardian
+    experiences: ExperienceEngine
     orchestrator: Orchestrator
     model_manager: ModelManager
 
@@ -114,6 +117,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     connectors=ConnectorRegistry()
     briefings=BriefingEngine(cfg,personal,memory,calendar,projects,processes,approvals,notifier)
     guardian=SecurityGuardian(cfg,approval=approval)
+    experiences=ExperienceEngine(config=cfg)
 
     provider=OllamaProvider(base_url=cfg['ollama']['base_url']); mm=ModelManager(provider)
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
@@ -135,6 +139,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_personal_state_tools(personal)
     tools += build_briefing_tools(briefings)
     tools += build_session_tools(sessions)
+    tools += build_experience_tools(experiences)
     tools += build_routine_tools(routines)
     tools += build_improvement_tools(improvements, evaluations, canaries)
     tools += build_voice_tools(voice)
@@ -146,7 +151,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     orchestrator=Orchestrator(mm,pcfg['models']['orchestrator'],tools,specialists,
                               keep_alive=keep_alive,max_steps=int(pcfg['max_tool_steps']),context_tokens=context_tokens,
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
-                              max_session_messages=int(session_cfg.get('max_context_messages',12)))
+                              max_session_messages=int(session_cfg.get('max_context_messages',12)), experiences=experiences)
     return Runtime(cfg,profile,hw,ws,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,canaries,browser,
-                   personal,calendar,sessions,connectors,briefings,guardian,orchestrator,mm)
+                   personal,calendar,sessions,connectors,briefings,guardian,experiences,orchestrator,mm)
