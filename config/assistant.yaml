@@ -1,0 +1,64 @@
+profile: auto
+workspace_roots:
+  - ./workspace
+
+ollama:
+  base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
+  keep_alive_seconds: 45
+
+profiles:
+  lite:
+    min_ram_gb: 0
+    context_tokens: 4096
+    max_handoffs: 1
+    max_tool_steps: 6
+    models:
+      orchestrator: qwen3.5:0.8b
+      general: qwen3.5:0.8b
+      coder: qwen3.5:0.8b
+      researcher: qwen3.5:0.8b
+      security: qwen3.5:0.8b
+      database: qwen3.5:0.8b
+      planner: qwen3.5:0.8b
+
+  balanced:
+    min_ram_gb: 12
+    context_tokens: 8192
+    max_handoffs: 2
+    max_tool_steps: 10
+    models:
+      orchestrator: qwen3.5:4b
+      general: qwen3.5:4b
+      coder: qwen3.5:4b
+      researcher: qwen3.5:2b
+      security: qwen3.5:2b
+      database: qwen3.5:2b
+      planner: qwen3.5:2b
+
+  power:
+    min_ram_gb: 48
+    context_tokens: 16384
+    max_handoffs: 3
+    max_tool_steps: 16
+    models:
+      orchestrator: qwen3.5:9b
+      general: qwen3.5:9b
+      coder: qwen3.5:9b
+      researcher: qwen3.5:4b
+      security: qwen3.5:4b
+      database: qwen3.5:4b
+      planner: qwen3.5:4b
+
+policy:
+  require_execute_approval: true
+  require_write_approval: false
+  max_download_mb: 25
+  max_web_text_chars: 120000
+  max_db_rows: 200
+  command_timeout_seconds: 120
+
+daemon:
+  poll_seconds: 15
+  high_memory_percent: 88
+  high_cpu_percent: 92
+  alert_on_new_listening_port: true
