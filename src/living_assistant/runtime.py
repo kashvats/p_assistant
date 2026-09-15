@@ -19,6 +19,7 @@ from .voice import VoiceEngine
 from .routines import RoutineRegistry
 from .improvements import ImprovementStore, ImprovementEngine
 from .evaluation import EvaluationStore, EvaluationEngine
+from .canary import CanaryEngine, CanaryStore
 from .browser import BrowserController
 from .groups import ProjectGroupRegistry, ProjectGroupController
 from .personal_state import PersonalState
@@ -68,6 +69,7 @@ class Runtime:
     routines: RoutineRegistry
     improvements: ImprovementEngine
     evaluations: EvaluationEngine
+    canaries: CanaryEngine
     browser: BrowserController
     personal: PersonalState
     calendar: CalendarStore
@@ -103,6 +105,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     resources=ResourceManager(profile,cfg); quarantine=QuarantineVault(); routines=RoutineRegistry()
     improvement_store=ImprovementStore(); improvements=ImprovementEngine(ws,approval,improvement_store)
     evaluation_store=EvaluationStore(); evaluations=EvaluationEngine(ws,approval,improvements,evaluation_store,cfg,profile=profile)
+    canary_store=CanaryStore(); canaries=CanaryEngine(ws,approval,improvements,evaluations,canary_store,cfg,profile=profile); evaluations.canary_store=canary_store
     voice=VoiceEngine(ws,approval,cfg,profile); groups=ProjectGroupRegistry()
     group_controller=ProjectGroupController(groups,projects,processes,approval)
     calendar=CalendarStore()
@@ -133,7 +136,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_briefing_tools(briefings)
     tools += build_session_tools(sessions)
     tools += build_routine_tools(routines)
-    tools += build_improvement_tools(improvements, evaluations)
+    tools += build_improvement_tools(improvements, evaluations, canaries)
     tools += build_voice_tools(voice)
     tools += build_security_tools(ws,approval,guardian)
     if bool(cfg.get('desktop',{}).get('enabled',True)): tools += build_desktop_tools(ws,approval)
@@ -145,5 +148,5 @@ def build_runtime(interactive: bool = True) -> Runtime:
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
                               max_session_messages=int(session_cfg.get('max_context_messages',12)))
     return Runtime(cfg,profile,hw,ws,memory,projects,groups,group_controller,processes,approvals,
-                   approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,browser,
+                   approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,canaries,browser,
                    personal,calendar,sessions,connectors,briefings,guardian,orchestrator,mm)

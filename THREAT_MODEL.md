@@ -1,4 +1,4 @@
-# Threat Model — v0.7
+# Threat Model — v0.8
 
 ## Protected assets
 
@@ -113,7 +113,7 @@ Controls:
 
 ## Non-goals
 
-v0.7 does not provide:
+v0.8 does not provide:
 
 - kernel/container-grade sandboxing;
 - proof that a benchmark represents production behavior;
@@ -122,3 +122,24 @@ v0.7 does not provide:
 - unrestricted recursive self-modification.
 
 Use containers/VMs for untrusted code and retain OS security controls, backups and normal code review.
+
+
+## v0.8: container and canary threats
+
+Additional threats considered:
+
+- malicious or unexpectedly changed container images,
+- image auto-pull introducing unreviewed code,
+- container escape attempts,
+- evaluation code using outbound network access,
+- Docker/Podman socket exposure,
+- root-owned artifacts written into the source tree,
+- canary port exposure beyond localhost,
+- unhealthy startup being confused with steady-state health,
+- a canary result being reused after the evaluated branch changed,
+- resource exhaustion through fork bombs or memory/CPU pressure,
+- accidental credential exposure through inherited environment variables.
+
+Controls in v0.8 include local-image-only execution (`--pull never`), immutable local image-ID pinning, network disabled for evaluation, capability dropping, `no-new-privileges`, read-only container root, bounded `/tmp`, PID/CPU/RAM limits, Unix UID/GID mapping, no runtime socket mount, localhost-only canary port publication, internal canary networks, separate startup/observation probes and exact commit matching before promotion, and secret-bearing environment-variable filtering for evaluation/canary subprocesses.
+
+These controls reduce risk but do **not** make containers equivalent to a VM boundary. Untrusted hostile binaries still belong in a disposable VM or dedicated sandbox host.

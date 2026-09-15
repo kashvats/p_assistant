@@ -1,4 +1,4 @@
-# Living Assistant v0.7 Architecture
+# Living Assistant v0.8 Architecture
 
 ```text
                          User / Voice / API / Tray
@@ -36,6 +36,39 @@
                       ▼
                  active checkout
 ```
+
+
+## v0.8 hardening layer
+
+```text
+Improvement proposal
+        │
+        ▼
+Evaluation plan + approval
+        │
+   ┌────┴─────────────┐
+   │                  │
+Host provider     Container provider
+worktree/copy     worktree/copy mounted /workspace
+   │              network none / cap-drop ALL
+   │              read-only root / RAM+CPU+PID limits
+   └────┬─────────────┘
+        ▼
+Tests + lint + benchmarks
+        │
+        ▼
+Optional required paired canary
+ baseline service → observe → stop
+ candidate service → observe → stop
+        │
+        ▼
+Exact-commit canary gate
+        │
+        ▼
+Separate promotion approval
+```
+
+Container evaluation pins an already-installed image ID and does not mount the container-engine socket. Canary container networking is created as a temporary internal network and only the health/service port is published to `127.0.0.1`.
 
 ## Nervous system
 

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS improvement_proposals(
 );
 """
 
-PROTECTED_CORE_NAMES = {'security_policy.py','security_guardian.py','approval.py','improvements.py','evaluation.py','workspace.py','quarantine.py','assistant.yaml'}
+PROTECTED_CORE_NAMES = {'security_policy.py','security_guardian.py','approval.py','improvements.py','evaluation.py','sandbox.py','canary.py','workspace.py','quarantine.py','assistant.yaml'}
 MAX_PROPOSAL_CHARS = 2_000_000
 
 def _sha(data: bytes) -> str:

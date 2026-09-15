@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0
+
+- Added optional Docker/Podman container execution provider for evaluated improvements.
+- Added local-image-only policy and immutable image-ID pinning.
+- Added no-network evaluation containers with capability, privilege, PID, CPU, RAM and rootfs restrictions.
+- Added secret-bearing environment filtering for evaluation/canary subprocesses.
+- Added host/container paired canary engine with health, latency, CPU and RSS metrics.
+- Added internal-network + localhost-only port mapping for container canaries.
+- Added required-canary promotion gate bound to the exact evaluated commit IDs.
+- Added sandbox/canary CLI, API, dashboard and orchestrator tools.
+- Disabled container execution by default for the lite hardware profile.
+- Fixed readiness probes being incorrectly counted against steady-state canary health percentage.
+- Protected `sandbox.py` and `canary.py` from automated self-promotion.
+
+
 ## 0.7.0
 
 - Added persistent evaluated-self-improvement suites with tests, lint/static checks, benchmarks and regression budgets.

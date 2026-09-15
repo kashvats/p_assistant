@@ -246,3 +246,10 @@ Maintain regression tests for all earlier safety boundaries and additionally tes
 Return a runnable repository with source package, config, README, architecture, threat model, evaluated-self-improvement guide, roadmap, changelog, tests, setup scripts, CLI, local API and daemon.
 
 Prefer a reliable measured pipeline over claims of autonomous intelligence.
+
+
+## v0.8 hardened evaluation requirements
+
+Implement an optional Docker/Podman execution provider for self-improvement evaluation. Never auto-pull images. Resolve an already-installed image tag to its immutable local image ID before approval and execute the pinned ID. Evaluation containers must default to no network, drop all capabilities, enable no-new-privileges, use a read-only root filesystem, bounded tmpfs, PID/CPU/RAM limits, and must never mount the Docker/Podman socket. On Unix prefer the invoking UID/GID. Keep host execution for compatibility and disable container evaluation on the lite profile by default.
+
+Implement paired baseline/candidate canaries after a passing evaluation. Canary startup readiness must be measured separately from steady-state health. Compare health success percentage, HTTP latency, peak memory and CPU. Container canaries should use a temporary internal network and publish only the configured service port to localhost. Store canary reports persistently. An evaluation suite may require a passing canary; promotion must verify the canary used the exact evaluated base and candidate commit IDs. Evaluation, canary and promotion must remain separate approvals.

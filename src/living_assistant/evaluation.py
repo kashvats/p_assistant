@@ -23,6 +23,7 @@ from .config import data_dir
 from .improvements import ImprovementEngine, ImprovementStore, PROTECTED_CORE_NAMES
 from .security_policy import classify_command
 from .workspace import Workspace
+from .sandbox import ContainerRuntime, SandboxSpec, sanitized_env
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS evaluation_suites(
@@ -34,6 +35,13 @@ CREATE TABLE IF NOT EXISTS evaluation_suites(
   repetitions INTEGER NOT NULL DEFAULT 3,
   max_latency_regression_pct REAL NOT NULL DEFAULT 15,
   max_memory_regression_pct REAL NOT NULL DEFAULT 15,
+  execution_provider TEXT NOT NULL DEFAULT 'host',
+  sandbox_image TEXT,
+  sandbox_network TEXT NOT NULL DEFAULT 'none',
+  sandbox_memory_mb INTEGER NOT NULL DEFAULT 1024,
+  sandbox_cpus REAL NOT NULL DEFAULT 1.0,
+  sandbox_pids_limit INTEGER NOT NULL DEFAULT 256,
+  require_canary INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -163,10 +171,9 @@ def measure_command(command: str, cwd: Path, timeout_seconds: int = 300) -> dict
             'duration_seconds': 0.0, 'peak_rss_mb': 0.0,
         }
 
-    env = os.environ.copy()
-    env.update({
+    env = sanitized_env({
         'LIVING_ASSISTANT_EVALUATION': '1',
-        'CI': env.get('CI', '1'),
+        'CI': '1',
         'PYTHONDONTWRITEBYTECODE': '1',
     })
     try:
@@ -279,23 +286,41 @@ class EvaluationStore:
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        self._ensure_suite_columns()
         self.conn.commit()
+
+    def _ensure_suite_columns(self):
+        existing={str(r[1]) for r in self.conn.execute('PRAGMA table_info(evaluation_suites)').fetchall()}
+        columns={
+            'execution_provider': "TEXT NOT NULL DEFAULT 'host'", 'sandbox_image':'TEXT',
+            'sandbox_network': "TEXT NOT NULL DEFAULT 'none'", 'sandbox_memory_mb':'INTEGER NOT NULL DEFAULT 1024',
+            'sandbox_cpus':'REAL NOT NULL DEFAULT 1.0', 'sandbox_pids_limit':'INTEGER NOT NULL DEFAULT 256',
+            'require_canary':'INTEGER NOT NULL DEFAULT 0',
+        }
+        for name, ddl in columns.items():
+            if name not in existing:
+                self.conn.execute(f'ALTER TABLE evaluation_suites ADD COLUMN {name} {ddl}')
 
     def upsert_suite(self, name: str, project_path: str, test_commands: list[str] | None = None,
                      lint_commands: list[str] | None = None, benchmark_commands: list[str] | None = None,
                      repetitions: int = 3, max_latency_regression_pct: float = 15,
-                     max_memory_regression_pct: float = 15) -> dict:
+                     max_memory_regression_pct: float = 15, execution_provider: str = 'host', sandbox_image: str | None = None,
+                     sandbox_network: str = 'none', sandbox_memory_mb: int = 1024, sandbox_cpus: float = 1.0,
+                     sandbox_pids_limit: int = 256, require_canary: bool = False) -> dict:
         if not name.strip():
             raise ValueError('Suite name is required.')
         now = _now()
         self.conn.execute(
-            """INSERT INTO evaluation_suites(name,project_path,test_commands,lint_commands,benchmark_commands,repetitions,max_latency_regression_pct,max_memory_regression_pct,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?)
+            """INSERT INTO evaluation_suites(name,project_path,test_commands,lint_commands,benchmark_commands,repetitions,max_latency_regression_pct,max_memory_regression_pct,execution_provider,sandbox_image,sandbox_network,sandbox_memory_mb,sandbox_cpus,sandbox_pids_limit,require_canary,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(name) DO UPDATE SET project_path=excluded.project_path,test_commands=excluded.test_commands,lint_commands=excluded.lint_commands,
                  benchmark_commands=excluded.benchmark_commands,repetitions=excluded.repetitions,max_latency_regression_pct=excluded.max_latency_regression_pct,
-                 max_memory_regression_pct=excluded.max_memory_regression_pct,updated_at=excluded.updated_at""",
+                 max_memory_regression_pct=excluded.max_memory_regression_pct,execution_provider=excluded.execution_provider,sandbox_image=excluded.sandbox_image,
+                 sandbox_network=excluded.sandbox_network,sandbox_memory_mb=excluded.sandbox_memory_mb,sandbox_cpus=excluded.sandbox_cpus,
+                 sandbox_pids_limit=excluded.sandbox_pids_limit,require_canary=excluded.require_canary,updated_at=excluded.updated_at""",
             (name, project_path, _json(test_commands or []), _json(lint_commands or []), _json(benchmark_commands or []),
-             max(1, min(int(repetitions), 10)), float(max_latency_regression_pct), float(max_memory_regression_pct), now, now),
+             max(1, min(int(repetitions), 10)), float(max_latency_regression_pct), float(max_memory_regression_pct), execution_provider, sandbox_image,
+             sandbox_network, max(128,int(sandbox_memory_mb)), max(0.1,float(sandbox_cpus)), max(32,int(sandbox_pids_limit)), int(bool(require_canary)), now, now),
         )
         self.conn.commit()
         return self.get_suite(name) or {}
@@ -394,6 +419,9 @@ class EvaluationEngine:
         self.improvements = improvement_engine
         self.store = store
         self.config = (config or {}).get('self_improvement', {}).get('evaluation', {})
+        self.sandbox_config = (config or {}).get('self_improvement', {}).get('sandbox', {})
+        self.container_runtime = ContainerRuntime(str(self.sandbox_config.get('runtime','auto')))
+        self.canary_store = None
         self.profile = profile
 
     def _default_repetitions(self) -> int:
@@ -411,21 +439,36 @@ class EvaluationEngine:
     def create_suite(self, name: str, project_path: str, test_commands: list[str] | None = None,
                      lint_commands: list[str] | None = None, benchmark_commands: list[str] | None = None,
                      repetitions: int | None = None, max_latency_regression_pct: float | None = None,
-                     max_memory_regression_pct: float | None = None) -> dict:
+                     max_memory_regression_pct: float | None = None, execution_provider: str = 'host', sandbox_image: str | None = None,
+                     sandbox_network: str = 'none', sandbox_memory_mb: int | None = None, sandbox_cpus: float | None = None,
+                     sandbox_pids_limit: int | None = None, require_canary: bool = False) -> dict:
         project = self.workspace.resolve(project_path)
         if not project.is_dir():
             raise ValueError('Evaluation suite project path must be a directory.')
+        execution_provider=str(execution_provider).lower()
+        if execution_provider not in {'host','container'}:
+            raise ValueError('Execution provider must be host or container.')
+        if sandbox_network != 'none':
+            raise ValueError('Evaluation suites only support sandbox_network=none. Use canary mode for service networking.')
+        if execution_provider == 'container' and not sandbox_image:
+            raise ValueError('Container evaluation suite requires an explicit local sandbox image.')
         return self.store.upsert_suite(
             name, str(project), test_commands, lint_commands, benchmark_commands,
             repetitions if repetitions is not None else self._default_repetitions(),
             max_latency_regression_pct if max_latency_regression_pct is not None else float(self.config.get('max_latency_regression_pct', 15)),
             max_memory_regression_pct if max_memory_regression_pct is not None else float(self.config.get('max_memory_regression_pct', 15)),
+            execution_provider, sandbox_image, sandbox_network,
+            int(sandbox_memory_mb if sandbox_memory_mb is not None else self.sandbox_config.get('memory_mb',1024)),
+            float(sandbox_cpus if sandbox_cpus is not None else self.sandbox_config.get('cpus',1.0)),
+            int(sandbox_pids_limit if sandbox_pids_limit is not None else self.sandbox_config.get('pids_limit',256)),
+            require_canary,
         )
 
     def _resolve_plan(self, proposal: dict, suite_name: str | None, project_path: str | None,
                       test_commands: list[str] | None, lint_commands: list[str] | None,
                       benchmark_commands: list[str] | None, repetitions: int | None,
-                      max_latency_regression_pct: float | None, max_memory_regression_pct: float | None) -> dict:
+                      max_latency_regression_pct: float | None, max_memory_regression_pct: float | None,
+                      execution_provider: str | None = None, sandbox_image: str | None = None, sandbox_network: str | None = None) -> dict:
         suite = self.store.get_suite(suite_name) if suite_name else None
         if suite_name and not suite:
             raise ValueError(f'Unknown evaluation suite: {suite_name}')
@@ -464,6 +507,17 @@ class EvaluationEngine:
                 raise ValueError(f'Unsafe evaluation command rejected: {command}')
 
         reps = int(repetitions if repetitions is not None else (suite['repetitions'] if suite else self._default_repetitions()))
+        provider = str(execution_provider or (suite.get('execution_provider') if suite else None) or 'host').lower()
+        if provider not in {'host','container'}:
+            raise ValueError('Execution provider must be host or container.')
+        image = sandbox_image if sandbox_image is not None else (suite.get('sandbox_image') if suite else None)
+        if provider == 'container' and self.profile == 'lite' and not bool(self.sandbox_config.get('lite_enabled',False)):
+            raise ValueError('Container evaluation is disabled on the lite profile by default. Use host evaluation or explicitly enable sandbox.lite_enabled.')
+        if provider == 'container' and not image:
+            raise ValueError('Container evaluation requires an explicit sandbox image.')
+        network = str(sandbox_network if sandbox_network is not None else (suite.get('sandbox_network') if suite else 'none') or 'none')
+        if network not in {'none'}:
+            raise ValueError('Evaluation containers default to network=none; networked evaluation is intentionally unsupported. Use canary mode for service health checks.')
         return {
             'project_path': str(project),
             'target_path': str(target),
@@ -475,12 +529,33 @@ class EvaluationEngine:
             'max_memory_regression_pct': float(max_memory_regression_pct if max_memory_regression_pct is not None else (suite['max_memory_regression_pct'] if suite else self.config.get('max_memory_regression_pct', 15))),
             'command_timeout_seconds': int(self.config.get('command_timeout_seconds', 300)),
             'benchmark_warmup_runs': self._warmup_runs(),
+            'execution_provider': provider, 'sandbox_image': image, 'sandbox_network': network,
+            'sandbox_memory_mb': int((suite.get('sandbox_memory_mb') if suite else None) or self.sandbox_config.get('memory_mb',1024)),
+            'sandbox_cpus': float((suite.get('sandbox_cpus') if suite else None) or self.sandbox_config.get('cpus',1.0)),
+            'sandbox_pids_limit': int((suite.get('sandbox_pids_limit') if suite else None) or self.sandbox_config.get('pids_limit',256)),
+            'require_canary': bool(suite.get('require_canary')) if suite else False,
         }
+
+    def sandbox_status(self) -> dict:
+        return {'config': self.sandbox_config, 'container': self.container_runtime.status()}
+
+    def _measure(self, command: str, cwd: Path, timeout: int, plan: dict) -> dict:
+        if plan.get('execution_provider') != 'container':
+            result = measure_command(command, cwd, timeout)
+            result.setdefault('execution_provider','host')
+            return result
+        spec = SandboxSpec(
+            image=str(plan.get('sandbox_image_id') or plan['sandbox_image']), network='none', memory_mb=int(plan.get('sandbox_memory_mb',1024)),
+            cpus=float(plan.get('sandbox_cpus',1.0)), pids_limit=int(plan.get('sandbox_pids_limit',256)),
+            read_only_root=bool(self.sandbox_config.get('read_only_root',True)), tmpfs_mb=int(self.sandbox_config.get('tmpfs_mb',128)),
+        )
+        return self.container_runtime.run_command(command, cwd, timeout, spec)
 
     def evaluate(self, proposal_id: str, suite_name: str | None = None, project_path: str | None = None,
                  test_commands: list[str] | None = None, lint_commands: list[str] | None = None,
                  benchmark_commands: list[str] | None = None, repetitions: int | None = None,
-                 max_latency_regression_pct: float | None = None, max_memory_regression_pct: float | None = None) -> dict:
+                 max_latency_regression_pct: float | None = None, max_memory_regression_pct: float | None = None,
+                 execution_provider: str | None = None, sandbox_image: str | None = None, sandbox_network: str | None = None) -> dict:
         if not bool((self.config or {}).get('enabled', True)):
             return {'ok': False, 'error': 'Evaluated self-improvement is disabled in config.'}
         proposal = self.improvements.store.get(proposal_id)
@@ -490,11 +565,20 @@ class EvaluationEngine:
             return {'ok': False, 'error': f"Proposal is {proposal['status']}; only pending proposals can be evaluated."}
         try:
             plan = self._resolve_plan(proposal, suite_name, project_path, test_commands, lint_commands,
-                                      benchmark_commands, repetitions, max_latency_regression_pct, max_memory_regression_pct)
+                                      benchmark_commands, repetitions, max_latency_regression_pct, max_memory_regression_pct,
+                                      execution_provider, sandbox_image, sandbox_network)
         except Exception as exc:
             return {'ok': False, 'error': str(exc)}
 
         target = Path(plan['target_path'])
+        if plan.get('execution_provider') == 'container':
+            state=self.container_runtime.status()
+            if not state.get('available'):
+                return {'ok':False,'container_unavailable':True,'error':state.get('error') or state.get('reason') or 'Container runtime unavailable.'}
+            image_state=self.container_runtime.image_info(str(plan.get('sandbox_image')))
+            if not image_state.get('available') or not image_state.get('image_id'):
+                return {'ok':False,'image_unavailable':True,'error':'Sandbox image must already exist locally; automatic pulls are disabled.','image':image_state}
+            plan['sandbox_image_id']=image_state['image_id']
         vm = psutil.virtual_memory()
         minimum_by_profile = self.config.get('minimum_available_ram_gb_by_profile', {'lite':0.5,'balanced':1.0,'power':2.0})
         minimum_gb = float(minimum_by_profile.get(self.profile, 1.0)) if isinstance(minimum_by_profile, dict) else 1.0
@@ -507,9 +591,10 @@ class EvaluationEngine:
 
         approval_action = 'Evaluate improvement ' + proposal_id + ': ' + _json({
             'project': plan['project_path'], 'tests': plan['test_commands'], 'lint': plan['lint_commands'],
-            'benchmarks': plan['benchmark_commands'], 'repetitions': plan['repetitions'],
+            'benchmarks': plan['benchmark_commands'], 'repetitions': plan['repetitions'], 'execution_provider': plan['execution_provider'],
+            'sandbox_image': plan.get('sandbox_image'), 'sandbox_image_id': plan.get('sandbox_image_id'), 'sandbox_network': plan.get('sandbox_network'),
         })
-        approval_reason = 'Runs the exact listed local commands in isolated repository worktrees/copies. Repository-state isolation is not an OS/network sandbox.'
+        approval_reason = 'Runs the exact listed commands in isolated repository worktrees/copies. Container provider additionally applies resource/capability/network restrictions; host provider is repository-state isolation only.'
         req = self.approval.request(approval_action, approval_reason, 'SELF_EVALUATION')
         if not req.get('allowed'):
             return {'ok': False, 'approval_required': True, **req, 'plan': plan}
@@ -592,7 +677,8 @@ class EvaluationEngine:
                 'mode': mode,
                 'branch_name': branch,
                 'base_commit': base_commit,
-                'candidate_commit': candidate_commit,
+                'candidate_commit': candidate_commit, 'execution_provider': plan.get('execution_provider','host'),
+                'sandbox': {'image':plan.get('sandbox_image'),'image_id':plan.get('sandbox_image_id'),'network':plan.get('sandbox_network'),'memory_mb':plan.get('sandbox_memory_mb'),'cpus':plan.get('sandbox_cpus'),'pids_limit':plan.get('sandbox_pids_limit')},
                 'tests': [], 'lint': [], 'benchmarks': [], 'gates': {},
             }
 
@@ -601,8 +687,8 @@ class EvaluationEngine:
                     if mode == 'git_worktree':
                         _reset_eval_worktree(baseline_dir, base_commit)
                         _reset_eval_worktree(candidate_dir, candidate_commit)
-                    baseline_run = measure_command(command, baseline_cwd, timeout)
-                    candidate_run = measure_command(command, candidate_cwd, timeout)
+                    baseline_run = self._measure(command, baseline_cwd, timeout, plan)
+                    candidate_run = self._measure(command, candidate_cwd, timeout, plan)
                     results[kind].append({'command': command, 'baseline': baseline_run, 'candidate': candidate_run})
 
             for command in plan['benchmark_commands']:
@@ -610,17 +696,17 @@ class EvaluationEngine:
                 for _ in range(plan.get('benchmark_warmup_runs', 0)):
                     if mode == 'git_worktree':
                         _reset_eval_worktree(baseline_dir, base_commit); _reset_eval_worktree(candidate_dir, candidate_commit)
-                    measure_command(command, baseline_cwd, timeout); measure_command(command, candidate_cwd, timeout)
+                    self._measure(command, baseline_cwd, timeout, plan); self._measure(command, candidate_cwd, timeout, plan)
                 for index in range(plan['repetitions']):
                     if mode == 'git_worktree':
                         _reset_eval_worktree(baseline_dir, base_commit); _reset_eval_worktree(candidate_dir, candidate_commit)
                     # Alternate order to reduce persistent first/second-run thermal and cache bias.
                     if index % 2 == 0:
-                        base_runs.append(measure_command(command, baseline_cwd, timeout))
-                        cand_runs.append(measure_command(command, candidate_cwd, timeout))
+                        base_runs.append(self._measure(command, baseline_cwd, timeout, plan))
+                        cand_runs.append(self._measure(command, candidate_cwd, timeout, plan))
                     else:
-                        cand_runs.append(measure_command(command, candidate_cwd, timeout))
-                        base_runs.append(measure_command(command, baseline_cwd, timeout))
+                        cand_runs.append(self._measure(command, candidate_cwd, timeout, plan))
+                        base_runs.append(self._measure(command, baseline_cwd, timeout, plan))
                 base_agg = _aggregate_runs(base_runs); cand_agg = _aggregate_runs(cand_runs)
                 comparison = compare_benchmark(base_agg, cand_agg, plan['max_latency_regression_pct'], plan['max_memory_regression_pct'])
                 results['benchmarks'].append({'command': command, 'baseline': base_agg, 'candidate': cand_agg, 'comparison': comparison})
@@ -632,6 +718,7 @@ class EvaluationEngine:
                 'candidate_checks_pass': checks_pass,
                 'benchmarks_within_budget': benchmarks_pass,
                 'protected_core_target': target.name in PROTECTED_CORE_NAMES,
+                'canary_required': bool(plan.get('require_canary',False)),
                 'promotable': checks_pass and benchmarks_pass and target.name not in PROTECTED_CORE_NAMES,
             }
             verdict = 'passed' if checks_pass and benchmarks_pass else 'failed'
@@ -663,6 +750,13 @@ class EvaluationEngine:
             if evaluation.get('result', {}).get('gates', {}).get('protected_core_target'):
                 return {'ok': False, 'manual_required': True, 'error': 'Security-critical assistant core cannot be auto-promoted even after evaluation.'}
             return {'ok': False, 'error': 'Evaluation gates do not mark this candidate promotable.'}
+        if evaluation.get('result', {}).get('gates', {}).get('canary_required'):
+            latest = self.canary_store.latest_for_evaluation(evaluation_id) if self.canary_store is not None else None
+            if not latest or latest.get('status') != 'completed' or latest.get('verdict') != 'passed':
+                return {'ok': False, 'canary_required': True, 'error': 'This evaluation suite requires a passing canary run before promotion.'}
+            canary_result = latest.get('result', {})
+            if canary_result.get('candidate_commit') != evaluation.get('candidate_commit') or canary_result.get('base_commit') != evaluation.get('base_commit'):
+                return {'ok': False, 'conflict': True, 'error': 'Latest canary was not measured against the exact evaluated commits.'}
         proposal = self.improvements.store.get(evaluation['proposal_id'])
         if not proposal:
             return {'ok': False, 'error': 'Proposal no longer exists.'}

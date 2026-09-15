@@ -82,7 +82,7 @@ Do not evaluate unknown/malicious repositories directly on the host. Use a VM/co
 
 ## Promotion
 
-Before Git promotion v0.7 verifies:
+Before Git promotion v0.8 verifies:
 
 - evaluation verdict is passing;
 - stored `promotable` gate is true;
@@ -97,3 +97,15 @@ Promotion then fast-forwards to the candidate **commit hash**, not arbitrary cur
 ## Rollback
 
 A promoted Git evaluation is rolled back using a new revert commit. History is not reset or rewritten.
+
+## v0.8: hardened provider and canary gate
+
+An evaluation suite may choose `execution_provider=container` with an explicitly reviewed local image. The image must already exist locally and is pinned by image ID before execution. Evaluation containers have no network by default.
+
+A suite may also set `require_canary=true`. In that mode, a passing test/benchmark report is necessary but not sufficient for promotion. The paired baseline/candidate canary must pass its health, latency and memory budgets, and its stored commit IDs must match the evaluation exactly.
+
+Approvals are intentionally separate:
+
+1. approve evaluation commands,
+2. approve canary service execution,
+3. approve promotion.

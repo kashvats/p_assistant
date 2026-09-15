@@ -116,6 +116,26 @@ self_improvement:
     copy_max_files: 8000
     copy_max_mb: 500
 
+  sandbox:
+    runtime: auto
+    lite_enabled: false
+    memory_mb: 1024
+    cpus: 1.0
+    pids_limit: 256
+    read_only_root: true
+    tmpfs_mb: 128
+
+  canary:
+    enabled: true
+    observe_seconds_by_profile: {lite: 5, balanced: 15, power: 30}
+    startup_timeout_seconds: 30
+    min_health_success_pct: 95
+    max_latency_regression_pct: 20
+    max_memory_regression_pct: 20
+    container_memory_mb: 1024
+    container_cpus: 1.0
+    container_pids_limit: 256
+
 
 personal:
   timezone: ${ASSISTANT_TIMEZONE:local}

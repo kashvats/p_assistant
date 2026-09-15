@@ -1,10 +1,92 @@
-# Living Assistant v0.7 — Evaluated Self-Improvement
+# Living Assistant v0.8 — Hardened Evaluation + Canary Operations
 
 A local-first, hardware-adaptive personal operating assistant for Windows, Ubuntu/Linux and macOS. Its low-resource **nervous system** handles monitoring, routines, reminders, project supervision and defensive security while local SLMs stay asleep until reasoning is actually needed.
 
-v0.7 keeps the Security Guardian and Personal Operating Layer from earlier releases and adds a measured **evaluated self-improvement pipeline**. The assistant can propose a code change, test it away from the active checkout, compare before/after resource behavior, and only then request permission to promote the exact candidate that was evaluated.
 
-## v0.7 highlights
+
+v0.8 extends evaluated self-improvement with two optional safety layers: **container-restricted evaluation** and **paired canary service observation**. Host evaluation remains available, but projects can opt into Docker/Podman execution with no network, dropped capabilities and resource limits, then require a healthy canary before promotion.
+
+## v0.8 highlights
+
+- Evaluation suites can use `host` or `container` execution.
+- Container evaluation uses an already-installed image only; automatic image pulls are disabled.
+- Image tags are resolved to a local immutable image ID before approval/execution.
+- Evaluation containers default to `--network none`, `--cap-drop ALL`, `no-new-privileges`, read-only rootfs, PID/CPU/RAM limits, `/tmp` tmpfs and no Docker/Podman socket mount.
+- Unix containers run as the invoking UID/GID to avoid root-owned project artifacts.
+- Container evaluation is disabled by default on the 8-GB `lite` profile.
+- Passing evaluations can run paired **baseline vs candidate canaries**.
+- Canary health checks separate startup readiness from the steady-state observation window.
+- Canary reports compare health success, median HTTP latency, peak RSS and peak CPU.
+- Container canaries use a temporary **internal** container network plus a localhost-only published health port.
+- Evaluation suites may set `require_canary=true`; promotion is then blocked until the exact evaluated commits have a passing canary.
+- Evaluation approval, canary approval and promotion approval are three separate authorization steps.
+- Evaluation/canary subprocesses strip common secret-bearing environment variables and SSH/GPG agent sockets before launch.
+
+## Hardened container evaluation
+
+Check availability:
+
+```bash
+organism improve sandbox-status
+```
+
+The assistant never installs Docker/Podman for you and never auto-pulls evaluation images. Pull/review an image yourself first, then create a suite:
+
+```bash
+organism improve suite-add backend-boxed /path/to/backend \
+  --test "python -m pytest -q" \
+  --lint "python -m compileall -q app" \
+  --provider container \
+  --image python:3.11-slim \
+  --require-canary
+```
+
+When the evaluation starts, the configured image tag is resolved to the image already present on the laptop and the immutable local image ID is recorded in the approval/evaluation report.
+
+> Container mode is a stronger boundary, not a perfect malware sandbox. Do not mount secrets, the container runtime socket, or sensitive host directories into evaluation containers.
+
+## Canary before promotion
+
+After a passing evaluation:
+
+```bash
+organism improve canary-run EVALUATION_ID \
+  "python app.py" \
+  --health-path /health \
+  --service-port 8000 \
+  --observe-seconds 15
+```
+
+For container canary mode:
+
+```bash
+organism improve canary-run EVALUATION_ID \
+  "python app.py" \
+  --provider container \
+  --image my-reviewed-app-runtime:local \
+  --health-path /health \
+  --service-port 8000
+```
+
+The paired run is:
+
+```text
+exact baseline commit ── start ── readiness ── observe ── stop
+exact candidate commit ─ start ── readiness ── observe ── stop
+                                      │
+                                      ▼
+                        health / latency / RAM / CPU
+                                      │
+                              regression budgets
+                                      │
+                             PASS or FAIL
+```
+
+A suite marked `--require-canary` cannot be promoted until the latest canary passes **and** its stored base/candidate commit IDs match the evaluation being promoted.
+
+v0.8 keeps the Security Guardian and Personal Operating Layer from earlier releases and adds a measured **evaluated self-improvement pipeline**. The assistant can propose a code change, test it away from the active checkout, compare before/after resource behavior, and only then request permission to promote the exact candidate that was evaluated.
+
+## v0.8 highlights
 
 Everything from v0.6 remains, plus:
 
@@ -42,7 +124,7 @@ rewrites itself
 hopes nothing broke
 ```
 
-v0.7 uses:
+v0.8 uses:
 
 ```text
 problem / opportunity
@@ -102,7 +184,7 @@ The same safety gates still apply. Browser and voice remain optional/disabled by
 
 ## Upgrade from v0.6
 
-v0.7 uses additive SQLite tables for evaluation suites and evaluation reports. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
+v0.8 uses additive SQLite tables for evaluation suites and evaluation reports. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
 
 Back up your assistant data directory before upgrading a machine you depend on.
 
@@ -211,7 +293,7 @@ The active checkout remains unchanged during evaluation.
 
 ### Non-Git fallback
 
-For a non-Git project, v0.7 makes bounded copies of the selected project directory. Common heavy/generated folders such as `.venv`, `node_modules`, `dist`, `build` and cache folders are excluded.
+For a non-Git project, v0.8 makes bounded copies of the selected project directory. Common heavy/generated folders such as `.venv`, `node_modules`, `dist`, `build` and cache folders are excluded.
 
 Git mode is preferred because it gives a stronger immutable audit trail and promotion semantics.
 
@@ -271,7 +353,7 @@ Non-Git mode reuses the existing pre-change backup/rollback system.
 
 Evaluation commands are powerful because tests are executable code.
 
-v0.7 therefore:
+v0.8 therefore:
 
 1. rejects commands already blocked by the deterministic shell policy;
 2. refuses privileged/destructive commands in automatic evaluation;
@@ -345,7 +427,7 @@ Containment remains approval-gated and limited to non-critical current-user-owne
 
 ## Personal/operator features retained
 
-v0.7 still includes:
+v0.8 still includes:
 
 - project and multi-service group supervision;
 - crash detection/restart policy;
@@ -373,7 +455,7 @@ Open:
 http://127.0.0.1:8787/dashboard
 ```
 
-New v0.7 surfaces include:
+New v0.8 surfaces include:
 
 ```text
 GET  /improvement-suites
@@ -389,7 +471,7 @@ The server still refuses non-loopback binding through the normal CLI path.
 
 ## Validation
 
-v0.7 regression suite:
+v0.8 regression suite:
 
 ```text
 75 passed

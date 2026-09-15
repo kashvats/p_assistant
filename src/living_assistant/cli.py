@@ -54,6 +54,8 @@ def doctor():
     try:
         rt = build_runtime(interactive=False)
         console.print('[bold]Resources[/bold]', rt.resources.snapshot())
+        console.print('[bold]Container sandbox[/bold]', rt.evaluations.sandbox_status()['container'])
+        if rt.profile == 'lite': console.print('[dim]Container evaluation is disabled on lite profile by default.[/dim]')
         available = rt.model_manager.provider.available_models()
         console.print('[green]Ollama reachable[/green]')
         missing = [m for m in sorted(set(models.values())) if m not in available]
@@ -560,9 +562,13 @@ def improve_suite_add(name: str, project_path: str,
                       benchmark: list[str] = typer.Option([], '--benchmark', help='Repeatable benchmark command.'),
                       repetitions: int | None = typer.Option(None, '--repetitions'),
                       max_latency_regression_pct: float | None = typer.Option(None, '--max-latency-regression-pct'),
-                      max_memory_regression_pct: float | None = typer.Option(None, '--max-memory-regression-pct')):
+                      max_memory_regression_pct: float | None = typer.Option(None, '--max-memory-regression-pct'),
+                      provider: str = typer.Option('host','--provider',help='host or container'),
+                      image: str | None = typer.Option(None,'--image',help='Required for container evaluation.'),
+                      require_canary: bool = typer.Option(False,'--require-canary')):
     rt=build_runtime(interactive=False)
-    console.print(rt.evaluations.create_suite(name,project_path,test,lint,benchmark,repetitions,max_latency_regression_pct,max_memory_regression_pct))
+    console.print(rt.evaluations.create_suite(name,project_path,test,lint,benchmark,repetitions,max_latency_regression_pct,max_memory_regression_pct,
+                                              provider,image,'none',None,None,None,require_canary))
 
 @improve_app.command('suite-list')
 def improve_suite_list():
@@ -578,12 +584,14 @@ def improve_evaluate(proposal_id: str, suite: str | None = typer.Option(None, '-
                      test: list[str] = typer.Option([], '--test'),
                      lint: list[str] = typer.Option([], '--lint'),
                      benchmark: list[str] = typer.Option([], '--benchmark'),
-                     repetitions: int | None = typer.Option(None, '--repetitions')):
+                     repetitions: int | None = typer.Option(None, '--repetitions'),
+                     provider: str | None = typer.Option(None,'--provider'),
+                     image: str | None = typer.Option(None,'--image')):
     rt=build_runtime(interactive=True)
     console.print(rt.evaluations.evaluate(
         proposal_id, suite_name=suite, project_path=project_path,
         test_commands=(test or None), lint_commands=(lint or None), benchmark_commands=(benchmark or None),
-        repetitions=repetitions,
+        repetitions=repetitions, execution_provider=provider, sandbox_image=image,
     ))
 
 @improve_app.command('evaluations')
@@ -593,6 +601,30 @@ def improve_evaluations(status: str = 'all'):
 @improve_app.command('report')
 def improve_report(evaluation_id: str):
     console.print(build_runtime(interactive=False).evaluations.store.get(evaluation_id))
+
+
+@improve_app.command('sandbox-status')
+def improve_sandbox_status():
+    rt=build_runtime(interactive=False)
+    console.print({'evaluation':rt.evaluations.sandbox_status(),'canary':rt.canaries.status()})
+
+@improve_app.command('canary-run')
+def improve_canary_run(evaluation_id: str, command: str,
+                       provider: str = typer.Option('host','--provider'),
+                       image: str | None = typer.Option(None,'--image'),
+                       health_path: str = typer.Option('/health','--health-path'),
+                       service_port: int = typer.Option(8000,'--service-port'),
+                       observe_seconds: int | None = typer.Option(None,'--observe-seconds')):
+    rt=build_runtime(interactive=True)
+    console.print(rt.canaries.run(evaluation_id,command,health_path,service_port,provider,image,observe_seconds=observe_seconds))
+
+@improve_app.command('canaries')
+def improve_canaries(evaluation_id: str | None = typer.Option(None,'--evaluation')):
+    console.print(build_runtime(interactive=False).canaries.store.list(evaluation_id))
+
+@improve_app.command('canary-report')
+def improve_canary_report(canary_id: str):
+    console.print(build_runtime(interactive=False).canaries.store.get(canary_id))
 
 @improve_app.command('promote')
 def improve_promote(evaluation_id: str):

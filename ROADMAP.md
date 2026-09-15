@@ -1,27 +1,22 @@
 # Roadmap
 
-## v0.8 — Hardened Evaluation + Canary Operations
+## Current: v0.8 — Hardened Evaluation + Canary Operations
 
-- Optional Docker/Podman evaluation provider when available.
-- Read-only/network-disabled container modes for suitable test suites.
-- Per-project canary start with health/SLO observation before replacing the normal process.
-- Automatic rollback recommendation when canary health degrades.
-- Benchmark history/trends across multiple candidate generations.
-- Model/agent evaluation suites so specialist SLM choices can be measured on the user's hardware.
+The core local assistant now has sleeping specialist agents, project supervision, desktop/browser/voice foundations, personal operating features, defensive endpoint monitoring, measured self-improvement, optional container-restricted evaluation and canary gates.
 
-## v0.9 — Real Personal Connectors
+## v0.9 — Real-world integration & UX hardening
 
-- Gmail/mail provider implementation behind the existing connector boundary.
-- Google/Microsoft calendar sync behind explicit OAuth scopes.
-- Contact/file providers with least-privilege capabilities.
-- Draft-before-send workflow by default.
-- Scheduled briefings that combine local state with explicitly connected sources.
+- Production Gmail/Outlook and Google/Microsoft calendar provider implementations.
+- Native desktop approval/task center instead of the minimal Tk/web UI.
+- Better project templates for Python/Node/Java/Docker stacks.
+- Canary adapters for multi-service Compose applications.
+- Signed connector/plugin manifests and granular capability permissions.
+- Improved secrets provider/keychain integration.
+- Structured audit export and backup/restore of assistant state.
 
-## v1.0 — Stable Personal Operator
+## Later
 
-- Native desktop shell/tray experience across Windows/macOS/Linux.
-- Stable migration/versioning of local state.
-- Signed/plugin capability manifests.
-- Backup/restore tooling.
-- Evaluation-driven release channel for the assistant itself.
-- Long-running reliability and resource-budget tests on 8 GB and 32 GB reference systems.
+- Optional wake word on capable systems.
+- Dedicated VM execution provider for genuinely untrusted code.
+- Multi-machine/remote worker architecture with explicit pairing.
+- Evaluation datasets for choosing the best local specialist model per hardware profile.

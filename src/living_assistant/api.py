@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from .runtime import build_runtime
 
-app = FastAPI(title='Living Assistant Local API', version='0.7.0')
+app = FastAPI(title='Living Assistant Local API', version='0.8.0')
 runtime = None
 
 class AskRequest(BaseModel):
@@ -33,6 +33,9 @@ class EvaluationSuiteRequest(BaseModel):
     repetitions: int | None = None
     max_latency_regression_pct: float | None = None
     max_memory_regression_pct: float | None = None
+    execution_provider: str = 'host'
+    sandbox_image: str | None = None
+    require_canary: bool = False
 class ImprovementEvaluateRequest(BaseModel):
     suite_name: str | None = None
     project_path: str | None = None
@@ -42,6 +45,20 @@ class ImprovementEvaluateRequest(BaseModel):
     repetitions: int | None = None
     max_latency_regression_pct: float | None = None
     max_memory_regression_pct: float | None = None
+    execution_provider: str | None = None
+    sandbox_image: str | None = None
+
+class CanaryRequest(BaseModel):
+    command: str
+    provider: str = 'host'
+    image: str | None = None
+    health_path: str = '/health'
+    service_port: int = 8000
+    observe_seconds: int | None = None
+    startup_timeout_seconds: int | None = None
+    max_latency_regression_pct: float | None = None
+    max_memory_regression_pct: float | None = None
+    min_health_success_pct: float | None = None
 
 
 def _rt():
@@ -54,7 +71,7 @@ def _auth(authorization: str | None):
     if token and authorization != f'Bearer {token}': raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.7.0'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.8.0'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}
@@ -172,7 +189,7 @@ def improvement_suites(authorization: str | None=Header(default=None)):
     _auth(authorization); return _rt().evaluations.store.list_suites()
 @app.post('/improvement-suites')
 def improvement_suite_add(req: EvaluationSuiteRequest,authorization: str | None=Header(default=None)):
-    _auth(authorization); return _rt().evaluations.create_suite(req.name,req.project_path,req.test_commands,req.lint_commands,req.benchmark_commands,req.repetitions,req.max_latency_regression_pct,req.max_memory_regression_pct)
+    _auth(authorization); return _rt().evaluations.create_suite(req.name,req.project_path,req.test_commands,req.lint_commands,req.benchmark_commands,req.repetitions,req.max_latency_regression_pct,req.max_memory_regression_pct,req.execution_provider,req.sandbox_image,'none',None,None,None,req.require_canary)
 @app.delete('/improvement-suites/{name}')
 def improvement_suite_delete(name: str,authorization: str | None=Header(default=None)):
     _auth(authorization); return {'ok':_rt().evaluations.store.delete_suite(name)}
@@ -186,7 +203,21 @@ def improvement_evaluation_get(evaluation_id: str,authorization: str | None=Head
     return item
 @app.post('/improvements/{proposal_id}/evaluate')
 def improvement_evaluate(proposal_id: str,req: ImprovementEvaluateRequest,authorization: str | None=Header(default=None)):
-    _auth(authorization); return _rt().evaluations.evaluate(proposal_id,req.suite_name,req.project_path,req.test_commands,req.lint_commands,req.benchmark_commands,req.repetitions,req.max_latency_regression_pct,req.max_memory_regression_pct)
+    _auth(authorization); return _rt().evaluations.evaluate(proposal_id,req.suite_name,req.project_path,req.test_commands,req.lint_commands,req.benchmark_commands,req.repetitions,req.max_latency_regression_pct,req.max_memory_regression_pct,req.execution_provider,req.sandbox_image,None)
+@app.get('/sandbox/status')
+def sandbox_status(authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return {'evaluation':rt.evaluations.sandbox_status(),'canary':rt.canaries.status()}
+@app.get('/canaries')
+def canaries(evaluation_id: str | None=None,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().canaries.store.list(evaluation_id)
+@app.get('/canaries/{canary_id}')
+def canary_get(canary_id: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); item=_rt().canaries.store.get(canary_id)
+    if not item: raise HTTPException(status_code=404,detail='Unknown canary id')
+    return item
+@app.post('/improvement-evaluations/{evaluation_id}/canary')
+def canary_run(evaluation_id: str,req: CanaryRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().canaries.run(evaluation_id,req.command,req.health_path,req.service_port,req.provider,req.image,req.observe_seconds,req.startup_timeout_seconds,req.max_latency_regression_pct,req.max_memory_regression_pct,req.min_health_success_pct)
 @app.post('/improvement-evaluations/{evaluation_id}/promote')
 def improvement_promote(evaluation_id: str,authorization: str | None=Header(default=None)):
     _auth(authorization); return _rt().evaluations.promote(evaluation_id)
@@ -260,9 +291,9 @@ def dashboard():
 <section><h2>Projects</h2><pre id="projects"></pre></section><section><h2>Processes</h2><pre id="processes"></pre></section>
 <section><h2>Recent events</h2><pre id="events"></pre></section><section><h2>Todos</h2><pre id="todos"></pre></section>
 <section><h2>Routines</h2><pre id="routines"></pre></section><section><h2>Queued notifications</h2><pre id="notifications"></pre></section>
-<section><h2>Security Guardian</h2><pre id="security"></pre></section><section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section><section><h2>Evaluation suites</h2><pre id="improvement-suites"></pre></section><section><h2>Evaluated improvements</h2><pre id="improvement-evaluations"></pre></section>
+<section><h2>Security Guardian</h2><pre id="security"></pre></section><section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section><section><h2>Evaluation suites</h2><pre id="improvement-suites"></pre></section><section><h2>Evaluated improvements</h2><pre id="improvement-evaluations"></pre></section><section><h2>Sandbox</h2><pre id="sandbox"></pre></section><section><h2>Canaries</h2><pre id="canaries"></pre></section>
 </div><script>
 async function j(u,opt){let r=await fetch(u,opt);return await r.json()}async function decide(id,approved){await j('/approvals/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});load()}
-async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements','improvement-suites','improvement-evaluations'])document.getElementById(k).textContent=JSON.stringify(await j('/'+k),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('security').textContent=JSON.stringify(await j('/security/summary'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
+async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements','improvement-suites','improvement-evaluations','canaries']){let el=document.getElementById(k);if(el)el.textContent=JSON.stringify(await j('/'+k),null,2)}document.getElementById('sandbox').textContent=JSON.stringify(await j('/sandbox/status'),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('security').textContent=JSON.stringify(await j('/security/summary'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
 </script></body></html>'''
     return HTMLResponse(page)
