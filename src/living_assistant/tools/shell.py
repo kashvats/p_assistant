@@ -1,5 +1,5 @@
 from __future__ import annotations
-import subprocess, os, time, uuid, json, platform
+import subprocess, os, time, uuid, json, platform, threading
 import psutil
 from pathlib import Path
 from .base import Tool
@@ -7,27 +7,35 @@ from ..security_policy import classify_command
 from ..approval import ApprovalManager
 from ..workspace import Workspace
 from ..config import data_dir
+from ..storage_utils import atomic_write_json
+from ..security_utils import is_loopback_http_url, redact_secrets
 
 class ProcessRegistry:
     def __init__(self, meta_path: Path | None = None):
         self.meta_path = meta_path or (data_dir() / "managed_processes.json")
+        self._lock = threading.RLock()
         if not self.meta_path.exists():
-            self.meta_path.write_text("{}", encoding="utf-8")
+            atomic_write_json(self.meta_path, {})
 
     def _load(self) -> dict:
-        try:
-            return json.loads(self.meta_path.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
+        with self._lock:
+            try:
+                return json.loads(self.meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                return {}
 
     def _save(self, data: dict):
-        self.meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        with self._lock:
+            atomic_write_json(self.meta_path, data)
 
     @staticmethod
-    def _is_running(pid: int) -> bool:
+    def _process_matches(pid: int, expected_create_time: float | None) -> bool:
+        if expected_create_time is None:
+            return False
         try:
             p = psutil.Process(pid)
-            return p.is_running() and p.status() != psutil.STATUS_ZOMBIE
+            return (p.is_running() and p.status() != psutil.STATUS_ZOMBIE
+                    and abs(float(p.create_time()) - float(expected_create_time)) < 0.01)
         except Exception:
             return False
 
@@ -42,7 +50,10 @@ class ProcessRegistry:
             kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         else:
             kwargs["start_new_session"] = True
-        return subprocess.Popen(command, **kwargs)
+        try:
+            return subprocess.Popen(command, **kwargs)
+        finally:
+            log.close()
 
     def start(self, command: str, cwd: str, name: str | None = None,
               project: str | None = None, auto_restart: bool = False,
@@ -52,6 +63,10 @@ class ProcessRegistry:
         log_path = str(log_dir / f"process-{key}.log")
         proc = self._spawn(command, cwd, log_path)
         now = time.time()
+        try:
+            pid_create_time = float(psutil.Process(proc.pid).create_time())
+        except Exception:
+            pid_create_time = None
         meta = {
             "name": name or project or command[:80],
             "project": project,
@@ -59,6 +74,7 @@ class ProcessRegistry:
             "cwd": cwd,
             "log": log_path,
             "pid": proc.pid,
+            "pid_create_time": pid_create_time,
             "created_at": now,
             "last_started_at": now,
             "stopped_at": None,
@@ -74,7 +90,7 @@ class ProcessRegistry:
     def list(self) -> list[dict]:
         data = self._load(); out = []; changed = False
         for key, meta in data.items():
-            pid = int(meta.get("pid", -1)); running = self._is_running(pid)
+            pid = int(meta.get("pid", -1)); running = self._process_matches(pid, meta.get("pid_create_time"))
             if not running and meta.get("desired_state") == "running" and meta.get("last_exit_observed_at") is None:
                 meta["last_exit_observed_at"] = time.time(); changed = True
             out.append({**meta, "id": key, "running": running})
@@ -84,13 +100,16 @@ class ProcessRegistry:
     def get(self, key: str) -> dict | None:
         meta = self._load().get(key)
         if not meta: return None
-        return {**meta, "id": key, "running": self._is_running(int(meta.get("pid", -1)))}
+        return {**meta, "id": key, "running": self._process_matches(int(meta.get("pid", -1)), meta.get("pid_create_time")), "pid_identity_verified": meta.get("pid_create_time") is not None}
 
     def stop(self, key: str) -> dict:
         data = self._load(); meta = data.get(key)
         if not meta: return {"ok": False, "error": "Unknown process id"}
         pid = int(meta.get("pid", -1))
         meta["desired_state"] = "stopped"
+        if not self._process_matches(pid, meta.get("pid_create_time")):
+            self._save(data)
+            return {"ok": False, "blocked": True, "error": "Stored PID no longer matches the process identity that Living Assistant started; refusing to terminate it."}
         try:
             proc = psutil.Process(pid)
             children = proc.children(recursive=True)
@@ -120,13 +139,17 @@ class ProcessRegistry:
                 return {"ok": False, "error": "Maximum automatic restart count reached."}
         else:
             meta["desired_state"] = "running"
-        if self._is_running(int(meta.get("pid", -1))):
+        if self._process_matches(int(meta.get("pid", -1)), meta.get("pid_create_time")):
             return {"ok": True, "already_running": True, "id": key, "pid": meta["pid"]}
         try:
             proc = self._spawn(meta["command"], meta["cwd"], meta["log"])
         except Exception as e:
             return {"ok": False, "error": str(e)}
         meta["pid"] = proc.pid
+        try:
+            meta["pid_create_time"] = float(psutil.Process(proc.pid).create_time())
+        except Exception:
+            meta["pid_create_time"] = None
         meta["last_started_at"] = time.time()
         meta["stopped_at"] = None
         meta["last_exit_observed_at"] = None
@@ -142,7 +165,7 @@ class ProcessRegistry:
         if not p.exists(): return {"ok": False, "error": "Log file does not exist yet."}
         try:
             content = p.read_text(encoding="utf-8", errors="replace").splitlines()
-            return {"ok": True, "id": key, "log": str(p), "lines": content[-max(1, min(lines, 1000)):]}
+            return {"ok": True, "id": key, "log": str(p), "lines": [redact_secrets(x, 4000) for x in content[-max(1, min(lines, 1000)):]]}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
@@ -165,13 +188,15 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
                 command, cwd=str(cwdp), shell=True, text=True, capture_output=True,
                 timeout=min(timeout_seconds or timeout, 600), env=os.environ.copy()
             )
-            return {"ok": p.returncode == 0, "returncode": p.returncode, "stdout": p.stdout[-20000:], "stderr": p.stderr[-20000:]}
+            return {"ok": p.returncode == 0, "returncode": p.returncode, "stdout": redact_secrets(p.stdout[-20000:]), "stderr": redact_secrets(p.stderr[-20000:])}
         except subprocess.TimeoutExpired as e:
-            return {"ok": False, "timeout": True, "stdout": (e.stdout or "")[-10000:], "stderr": (e.stderr or "")[-10000:]}
+            return {"ok": False, "timeout": True, "stdout": redact_secrets((e.stdout or "")[-10000:]), "stderr": redact_secrets((e.stderr or "")[-10000:])}
 
     def start_process(command: str, cwd: str = ".", name: str | None = None, project: str | None = None,
                       auto_restart: bool = False, max_restarts: int = 3, health_url: str | None = None):
         cwdp = workspace.resolve(cwd)
+        if health_url and not is_loopback_http_url(health_url):
+            return {"ok": False, "blocked": True, "error": "Managed-process health checks are restricted to loopback http/https URLs."}
         decision = classify_command(command, True)
         if not decision.allowed:
             return {"ok": False, "blocked": True, "reason": decision.reason}

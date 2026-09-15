@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import sqlite3, hashlib, difflib, json, datetime as dt, uuid
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
 from .workspace import Workspace
 from .approval import ApprovalManager
 
@@ -21,8 +22,47 @@ CREATE TABLE IF NOT EXISTS improvement_proposals(
 );
 """
 
-PROTECTED_CORE_NAMES = {'security_policy.py','security_guardian.py','approval.py','improvements.py','evaluation.py','sandbox.py','canary.py','workspace.py','quarantine.py','assistant.yaml'}
+PROTECTED_CORE_NAMES = {'security_policy.py','security_guardian.py','approval.py','improvements.py','evaluation.py','sandbox.py','canary.py','workspace.py','quarantine.py','assistant.yaml'}  # legacy compatibility
 MAX_PROPOSAL_CHARS = 2_000_000
+
+
+def _assistant_repo_root_for(path: Path) -> Path | None:
+    target = path.resolve()
+    for parent in [target.parent, *target.parents]:
+        pkg = parent / 'src' / 'living_assistant'
+        pyproject = parent / 'pyproject.toml'
+        if pkg.exists() and pyproject.exists():
+            try:
+                text = pyproject.read_text(encoding='utf-8', errors='ignore')[:12000].lower()
+            except Exception:
+                text = ''
+            if 'living-assistant' in text or 'living_assistant' in text:
+                return parent
+    return None
+
+
+def is_protected_core_path(path: str | Path) -> bool:
+    target = Path(path).resolve()
+    root = _assistant_repo_root_for(target)
+    if root is None:
+        return False
+    protected_roots = [
+        (root / 'src' / 'living_assistant').resolve(),
+        (root / 'config').resolve(),
+        (root / 'scripts').resolve(),
+        (root / 'tests').resolve(),
+        (root / '.github').resolve(),
+    ]
+    protected_files = {(root / 'pyproject.toml').resolve()}
+    if target in protected_files:
+        return True
+    for base in protected_roots:
+        try:
+            target.relative_to(base)
+            return True
+        except ValueError:
+            pass
+    return False
 
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -30,7 +70,7 @@ def _sha(data: bytes) -> str:
 class ImprovementStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / 'assistant.sqlite3')
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
@@ -101,8 +141,8 @@ class ImprovementEngine:
         if item['status'] != 'pending':
             return {'ok': False, 'error': f"Proposal is {item['status']}"}
         target = self.workspace.resolve(item['target_path'])
-        if target.name in PROTECTED_CORE_NAMES:
-            return {'ok': False, 'manual_required': True, 'error': 'Security-critical assistant core files cannot be auto-applied. Review and edit manually.'}
+        if is_protected_core_path(target):
+            return {'ok': False, 'manual_required': True, 'error': 'Living Assistant core/config/scripts cannot be auto-applied. Proposals may be evaluated, but promotion requires a human-managed edit/release.'}
         current = target.read_text(encoding='utf-8', errors='replace') if target.exists() else ''
         if _sha(current.encode()) != item['base_sha256']:
             return {'ok': False, 'conflict': True, 'error': 'Target changed since proposal creation; regenerate the proposal.'}

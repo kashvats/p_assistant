@@ -30,9 +30,10 @@ def test_conflict_and_protected_core(tmp_path):
     p=engine.propose('x.txt','two','change','reason')
     ws.write_text('x.txt','changed elsewhere')
     assert engine.apply(p['id'])['conflict'] is True
+    # A user project may legitimately have this basename; basename alone is no longer protected.
     ws.write_text('security_policy.py','x')
-    p2=engine.propose('security_policy.py','y','core','reason')
-    assert engine.apply(p2['id'])['manual_required'] is True
+    p2=engine.propose('security_policy.py','y','user project file','reason')
+    assert engine.apply(p2['id'])['approval_required'] is True
 
 
 def test_rollback_requires_approval_and_restores(tmp_path):

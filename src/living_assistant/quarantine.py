@@ -5,6 +5,7 @@ from urllib.parse import urlparse, urlunparse
 import datetime as dt
 import hashlib, json, time, uuid
 from .config import data_dir
+from .storage_utils import atomic_write_json
 
 DANGEROUS_EXTENSIONS = {
     '.exe','.msi','.msp','.bat','.cmd','.com','.scr','.ps1','.vbs','.js','.jse','.wsf',
@@ -52,13 +53,13 @@ class QuarantineVault:
     def __post_init__(self):
         self.root=self.root or (data_dir()/'quarantine'); self.root.mkdir(parents=True,exist_ok=True)
         self.index_path=self.root/'index.json'
-        if not self.index_path.exists(): self.index_path.write_text('{}',encoding='utf-8')
+        if not self.index_path.exists(): atomic_write_json(self.index_path, {})
 
     def _load(self) -> dict:
         try: return json.loads(self.index_path.read_text(encoding='utf-8'))
         except Exception: return {}
 
-    def _save(self,data: dict): self.index_path.write_text(json.dumps(data,indent=2),encoding='utf-8')
+    def _save(self,data: dict): atomic_write_json(self.index_path, data)
 
     def reserve(self,source_url: str,suggested_name: str|None=None) -> tuple[str,Path]:
         item_id=uuid.uuid4().hex[:12]; parsed=urlparse(source_url)

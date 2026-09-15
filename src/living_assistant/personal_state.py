@@ -4,6 +4,7 @@ import datetime as dt
 import json
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .config import data_dir
+from .storage_utils import atomic_write_json
 
 
 def _parse_hhmm(value: str) -> dt.time:
@@ -40,7 +41,7 @@ class PersonalState:
 
     def _save(self, data: dict):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+        atomic_write_json(self.path, data)
 
     def tzinfo(self):
         if self.timezone_name in {'', 'local', None}:

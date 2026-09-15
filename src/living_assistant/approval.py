@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from rich.console import Console
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
+from .security_utils import redact_secrets
 import sqlite3, hashlib, json, datetime as dt, uuid
 
 console = Console()
@@ -25,7 +27,7 @@ CREATE INDEX IF NOT EXISTS approvals_hash_status ON approvals(action_hash, statu
 class ApprovalStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / "assistant.sqlite3")
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
@@ -37,16 +39,19 @@ class ApprovalStore:
 
     def consume_preapproval(self, action: str, reason: str, kind: str) -> str | None:
         h = self.action_hash(action, reason, kind)
-        row = self.conn.execute(
-            "SELECT id FROM approvals WHERE action_hash=? AND status='approved' AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1",
-            (h,),
-        ).fetchone()
-        if not row:
-            return None
         now = dt.datetime.now().isoformat(timespec="seconds")
-        self.conn.execute("UPDATE approvals SET consumed_at=? WHERE id=?", (now, row["id"]))
+        # Atomic one-shot consumption: concurrent workers cannot consume the same approval.
+        row = self.conn.execute(
+            """UPDATE approvals SET consumed_at=?
+               WHERE id=(SELECT id FROM approvals
+                         WHERE action_hash=? AND status='approved' AND consumed_at IS NULL
+                         ORDER BY created_at DESC LIMIT 1)
+                 AND consumed_at IS NULL
+               RETURNING id""",
+            (now, h),
+        ).fetchone()
         self.conn.commit()
-        return str(row["id"])
+        return str(row["id"]) if row else None
 
     def create(self, action: str, reason: str, kind: str = "execute") -> dict:
         h = self.action_hash(action, reason, kind)
@@ -58,9 +63,11 @@ class ApprovalStore:
             item = dict(existing); item["_created"] = False; return item
         item_id = uuid.uuid4().hex[:12]
         now = dt.datetime.now().isoformat(timespec="seconds")
+        stored_action = redact_secrets(action, 4000)
+        stored_reason = redact_secrets(reason, 6000)
         self.conn.execute(
             "INSERT INTO approvals(id, action_hash, action, reason, kind, status, created_at) VALUES(?,?,?,?,?,'pending',?)",
-            (item_id, h, action, reason, kind, now),
+            (item_id, h, stored_action, stored_reason, kind, now),
         )
         self.conn.commit()
         item = dict(self.conn.execute("SELECT * FROM approvals WHERE id=?", (item_id,)).fetchone()); item["_created"] = True; return item
@@ -113,7 +120,7 @@ class ApprovalManager:
         item = self.store.create(action, reason, kind)
         if self.notifier is not None and item.get('_created'):
             try:
-                self.notifier.send('Living Assistant approval', f'{kind}: {action[:180]}')
+                self.notifier.send('Living Assistant approval', f'{kind}: {redact_secrets(action, 180)}')
             except Exception:
                 pass
         return {

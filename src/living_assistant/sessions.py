@@ -3,6 +3,8 @@ from pathlib import Path
 import datetime as dt
 import sqlite3, uuid, re
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
+from .security_utils import redact_secrets
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions(
@@ -27,7 +29,7 @@ class SessionStore:
         self.path=path or (data_dir()/'assistant.sqlite3')
         self.retention_days=max(1,int(retention_days))
         self.redact_secrets=bool(redact_secrets)
-        self.conn=sqlite3.connect(self.path,check_same_thread=False)
+        self.conn=ThreadLocalSQLite(self.path)
         self.conn.row_factory=sqlite3.Row
         self.conn.execute('PRAGMA foreign_keys=ON')
         self.conn.executescript(SCHEMA); self.conn.commit()
@@ -47,11 +49,7 @@ class SessionStore:
 
     @staticmethod
     def _redact(content: str) -> str:
-        text=str(content)
-        text=re.sub(r'(?i)(authorization\s*:\s*bearer\s+)[^\s]+', r'\1[REDACTED]', text)
-        text=re.sub(r'(?i)\b(password|passwd|token|api[_-]?key|secret)\s*([=:])\s*([^\s,;]+)', r'\1\2[REDACTED]', text)
-        text=re.sub(r'-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----', '[REDACTED PRIVATE KEY]', text, flags=re.S)
-        return text
+        return redact_secrets(content)
 
     def add_message(self,session_id: str,role: str,content: str) -> int:
         if role not in {'user','assistant','system','tool'}: raise ValueError('Unsupported message role.')

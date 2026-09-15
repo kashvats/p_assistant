@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.9.2
+
+- Hardened shell safe-read classification against chaining, redirection, substitution and command-composition bypasses.
+- Hardened read-only SQL validation and added database-level read-only/query-only enforcement.
+- Made one-time approval consumption atomic under concurrent callers.
+- Replaced shared cross-thread SQLite connections with per-thread WAL connections and busy timeouts.
+- Added sensitive-path classification and approval-gated reads/previews/writes; sensitive files are excluded from content search.
+- Added localhost API Host/Origin validation to reduce DNS-rebinding and cross-origin browser abuse.
+- Added private-network/metadata protections for web and browser tools, including redirect/subresource checks.
+- Restricted project health checks to loopback targets.
+- Added process-creation-time verification to managed-process stop/restart operations.
+- Denied remote Ollama endpoints by default and separated remote TLS/insecure-HTTP opt-ins.
+- Centralized secret redaction for common credentials, DSNs, tokens, authorization headers, private keys and command/log output.
+- Removed raw external/tool outcome text from automatically learned system-context experience.
+- Protected assistant core from automatic self-apply/promotion using repository paths rather than filenames.
+- Added atomic JSON persistence and safer macOS notification argument passing.
+- Added dedicated exploit/concurrency regression coverage; complete suite passes 114 tests.
+
 ## v0.9.1
 
 - Fixed installed-wheel runtime startup: the default `assistant.yaml` is now packaged as package data.

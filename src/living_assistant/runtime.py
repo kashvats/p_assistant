@@ -119,7 +119,8 @@ def build_runtime(interactive: bool = True) -> Runtime:
     guardian=SecurityGuardian(cfg,approval=approval)
     experiences=ExperienceEngine(config=cfg)
 
-    provider=OllamaProvider(base_url=cfg['ollama']['base_url']); mm=ModelManager(provider)
+    ocfg=cfg.get('ollama',{})
+    provider=OllamaProvider(base_url=ocfg['base_url'], allow_remote=bool(ocfg.get('allow_remote',False)), allow_insecure_remote=bool(ocfg.get('allow_insecure_remote',False))); mm=ModelManager(provider)
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
     browser_cfg=cfg.get('browser',{})
     browser_enabled=bool(browser_cfg.get('enabled',True)) and (profile!='lite' or bool(browser_cfg.get('lite_enabled',False)))

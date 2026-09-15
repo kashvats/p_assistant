@@ -19,6 +19,7 @@ from typing import Iterable
 import psutil
 
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
 from .sessions import SessionStore
 
 SCHEMA = """
@@ -413,7 +414,7 @@ class SecurityGuardian:
 
     def __post_init__(self):
         self.db_path=self.db_path or (data_dir()/'assistant.sqlite3')
-        self.conn=sqlite3.connect(self.db_path,check_same_thread=False)
+        self.conn=ThreadLocalSQLite(self.db_path)
         self.conn.row_factory=sqlite3.Row
         self.conn.executescript(SCHEMA); self.conn.commit()
         self.cfg=self.config.get('security_guardian',{})

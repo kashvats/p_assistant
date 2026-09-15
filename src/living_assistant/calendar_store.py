@@ -3,6 +3,7 @@ from pathlib import Path
 import datetime as dt
 import sqlite3, uuid
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS calendar_events(
@@ -22,7 +23,7 @@ CREATE INDEX IF NOT EXISTS calendar_events_start ON calendar_events(start_at);
 class CalendarStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / 'assistant.sqlite3')
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA); self.conn.commit()
 

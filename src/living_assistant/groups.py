@@ -2,18 +2,19 @@ from __future__ import annotations
 from pathlib import Path
 import json, time
 from .config import data_dir
+from .storage_utils import atomic_write_json
 from .security_policy import classify_command
 
 class ProjectGroupRegistry:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / 'project_groups.json')
-        if not self.path.exists(): self.path.write_text('{}', encoding='utf-8')
+        if not self.path.exists(): atomic_write_json(self.path, {})
 
     def _load(self):
         try: return json.loads(self.path.read_text(encoding='utf-8'))
         except Exception: return {}
 
-    def _save(self, data): self.path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+    def _save(self, data): atomic_write_json(self.path, data)
 
     def add(self, name: str, projects: list[str], stop_reverse: bool = True) -> dict:
         clean = [x.strip() for x in projects if x.strip()]

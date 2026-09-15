@@ -18,6 +18,7 @@ import psutil
 
 from .approval import ApprovalManager
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
 from .evaluation import EvaluationEngine, _git, _repo_root, _copy_project
 from .improvements import ImprovementEngine
 from .sandbox import ContainerRuntime, SandboxSpec, sanitized_env
@@ -68,7 +69,7 @@ def _free_port() -> int:
 class CanaryStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir()/'assistant.sqlite3')
-        self.conn = sqlite3.connect(self.path,check_same_thread=False)
+        self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA); self.conn.commit()
 

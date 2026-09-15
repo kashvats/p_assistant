@@ -2,12 +2,13 @@ from __future__ import annotations
 from pathlib import Path
 import json, time
 from .config import data_dir
+from .storage_utils import atomic_write_json
 
 class WatchRegistry:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / "watches.json")
         if not self.path.exists():
-            self.path.write_text("{}", encoding="utf-8")
+            atomic_write_json(self.path, {})
         self.snapshots: dict[str, dict[str, tuple[int, int]]] = {}
 
     def _load(self) -> dict:
@@ -17,7 +18,7 @@ class WatchRegistry:
             return {}
 
     def _save(self, data: dict):
-        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        atomic_write_json(self.path, data)
 
     def add(self, name: str, path: str, recursive: bool = True, extensions: list[str] | None = None) -> dict:
         p = Path(path).expanduser().resolve()

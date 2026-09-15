@@ -20,7 +20,8 @@ import psutil
 
 from .approval import ApprovalManager
 from .config import data_dir
-from .improvements import ImprovementEngine, ImprovementStore, PROTECTED_CORE_NAMES
+from .sqlite_utils import ThreadLocalSQLite
+from .improvements import ImprovementEngine, ImprovementStore, PROTECTED_CORE_NAMES, is_protected_core_path
 from .security_policy import classify_command
 from .workspace import Workspace
 from .sandbox import ContainerRuntime, SandboxSpec, sanitized_env
@@ -283,7 +284,7 @@ def compare_benchmark(baseline: dict, candidate: dict, max_latency_regression_pc
 class EvaluationStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / 'assistant.sqlite3')
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self._ensure_suite_columns()
@@ -717,9 +718,9 @@ class EvaluationEngine:
             results['gates'] = {
                 'candidate_checks_pass': checks_pass,
                 'benchmarks_within_budget': benchmarks_pass,
-                'protected_core_target': target.name in PROTECTED_CORE_NAMES,
+                'protected_core_target': is_protected_core_path(target),
                 'canary_required': bool(plan.get('require_canary',False)),
-                'promotable': checks_pass and benchmarks_pass and target.name not in PROTECTED_CORE_NAMES,
+                'promotable': checks_pass and benchmarks_pass and not is_protected_core_path(target),
             }
             verdict = 'passed' if checks_pass and benchmarks_pass else 'failed'
             self.store.update(

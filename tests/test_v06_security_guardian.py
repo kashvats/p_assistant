@@ -140,9 +140,11 @@ def test_security_guardian_core_is_self_improvement_protected(tmp_path):
     from living_assistant.workspace import Workspace
     from living_assistant.approval import ApprovalStore, ApprovalManager
     from living_assistant.improvements import ImprovementStore, ImprovementEngine
-    ws=Workspace([tmp_path/'w']); approvals=ApprovalStore(tmp_path/'a.sqlite3')
+    root=tmp_path/'assistant'; (root/'src'/'living_assistant').mkdir(parents=True)
+    (root/'pyproject.toml').write_text('[project]\nname="living-assistant"\n')
+    target=root/'src'/'living_assistant'/'security_guardian.py'; target.write_text('old')
+    ws=Workspace([root]); approvals=ApprovalStore(tmp_path/'a.sqlite3')
     engine=ImprovementEngine(ws,ApprovalManager(interactive=False,store=approvals),ImprovementStore(tmp_path/'i.sqlite3'))
-    ws.write_text('security_guardian.py','old')
-    proposal=engine.propose('security_guardian.py','new','change guardian','reason')
+    proposal=engine.propose(str(target),'new','change guardian','reason')
     result=engine.apply(proposal['id'])
     assert result['manual_required'] is True

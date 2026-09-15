@@ -153,10 +153,12 @@ def test_git_evaluation_refuses_dirty_source(tmp_path, monkeypatch):
 def test_protected_core_can_be_measured_but_not_auto_promoted(tmp_path, monkeypatch):
     project, approvals, improvements, engine = build(tmp_path, monkeypatch)
     init_git(project)
-    (project / 'security_policy.py').write_text('old')
-    git(project, 'add', 'security_policy.py'); git(project, 'commit', '-m', 'base')
-    proposal = improvements.propose('security_policy.py', 'new', 'core change', 'reason')
-    cmd = "python -c \"from pathlib import Path; assert Path('security_policy.py').read_text() == 'new'\""
+    (project / 'src' / 'living_assistant').mkdir(parents=True)
+    (project / 'pyproject.toml').write_text('[project]\nname="living-assistant"\nversion="0.0"\n')
+    (project / 'src' / 'living_assistant' / 'security_policy.py').write_text('old')
+    git(project, 'add', 'pyproject.toml', 'src/living_assistant/security_policy.py'); git(project, 'commit', '-m', 'base')
+    proposal = improvements.propose('src/living_assistant/security_policy.py', 'new', 'core change', 'reason')
+    cmd = "python -c \"from pathlib import Path; assert Path('src/living_assistant/security_policy.py').read_text() == 'new'\""
     first = engine.evaluate(proposal['id'], project_path=str(project), test_commands=[cmd])
     evaluated = approve_and_retry(approvals, first, lambda: engine.evaluate(proposal['id'], project_path=str(project), test_commands=[cmd]))
     assert evaluated['verdict'] == 'passed'

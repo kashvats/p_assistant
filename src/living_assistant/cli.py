@@ -48,10 +48,10 @@ def doctor():
     console.print('[bold]Selected profile[/bold]', profile)
     models = cfg['profiles'][profile]['models']
     console.print('[bold]Configured models[/bold]', sorted(set(models.values())))
-    console.print('[bold]Optional desktop install[/bold] pip install -e ".[desktop]"')
-    console.print('[bold]Optional voice install[/bold] pip install -e ".[voice]"')
+    console.print('Optional desktop install: pip install -e \".[desktop]\"', markup=False)
+    console.print('Optional voice install: pip install -e \".[voice]\"', markup=False)
     console.print('[bold]Security onboarding[/bold] organism security initialize')
-    if profile != 'lite': console.print('[bold]Optional browser install[/bold] pip install -e ".[browser]" && playwright install chromium')
+    if profile != 'lite': console.print('Optional browser install: pip install -e \".[browser]\" && playwright install chromium', markup=False)
     try:
         rt = build_runtime(interactive=False)
         console.print('[bold]Resources[/bold]', rt.resources.snapshot())

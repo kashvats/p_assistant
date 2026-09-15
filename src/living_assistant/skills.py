@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import json, time, re
 from .config import data_dir
+from .storage_utils import atomic_write_json
 
 @dataclass
 class Skill:
@@ -16,7 +17,7 @@ class SkillRegistry:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / "skills.json")
         if not self.path.exists():
-            self.path.write_text("{}", encoding="utf-8")
+            atomic_write_json(self.path, {})
 
     def _load(self) -> dict:
         try:
@@ -25,7 +26,7 @@ class SkillRegistry:
             return {}
 
     def _save(self, data: dict):
-        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        atomic_write_json(self.path, data)
 
     def add(self, name: str, description: str, triggers: list[str], instructions: str) -> dict:
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", name):

@@ -32,6 +32,11 @@ def source_root() -> Path | None:
 def data_dir() -> Path:
     p = Path(user_data_dir("LivingAssistant", "LivingAssistant"))
     p.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        try:
+            p.chmod(0o700)
+        except OSError:
+            pass
     return p
 
 

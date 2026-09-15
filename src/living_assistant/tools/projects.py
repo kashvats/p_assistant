@@ -4,6 +4,8 @@ import json, time
 from .base import Tool
 from ..workspace import Workspace
 from ..config import data_dir
+from ..storage_utils import atomic_write_json
+from ..security_utils import is_loopback_http_url
 
 
 def detect_project(path: Path) -> dict:
@@ -55,7 +57,7 @@ class ProjectRegistry:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / "projects.json")
         if not self.path.exists():
-            self.path.write_text("{}", encoding="utf-8")
+            atomic_write_json(self.path, {})
         self._migrate()
 
     def _load_raw(self):
@@ -65,7 +67,7 @@ class ProjectRegistry:
             return {}
 
     def _save(self, data: dict):
-        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        atomic_write_json(self.path, data)
 
     def _migrate(self):
         data = self._load_raw()
@@ -91,6 +93,8 @@ class ProjectRegistry:
         data = self._load_raw()
         resolved = Path(path).expanduser().resolve()
         detected = detect_project(resolved)
+        if health_url and not is_loopback_http_url(str(health_url)):
+            raise ValueError('Project health_url must be a loopback http/https URL.')
         item = {
             "path": str(resolved),
             "start_command": start_command or (detected["suggested_commands"][0] if detected["suggested_commands"] else None),
@@ -114,6 +118,8 @@ class ProjectRegistry:
             if k in allowed and v is not None:
                 if k == "max_restarts":
                     v = max(0, min(int(v), 20))
+                if k == "health_url" and v and not is_loopback_http_url(str(v)):
+                    raise ValueError('Project health_url must be a loopback http/https URL.')
                 data[name][k] = v
         data[name]["updated_at"] = time.time()
         self._save(data)

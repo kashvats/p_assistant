@@ -1,8 +1,26 @@
-# Living Assistant v0.9.1 — Experience Engine + Past-Mistake Learning
+# Living Assistant v0.9.2 — Security-Hardened Experience Release
 
 A local-first, hardware-adaptive personal operating assistant for Windows, Ubuntu/Linux and macOS. Its low-resource **nervous system** handles monitoring, routines, reminders, project supervision and defensive security while local SLMs stay asleep until reasoning is actually needed.
 
-v0.9.1 includes the v0.9 **Experience Engine** on top of the v0.8 hardened evaluation/canary platform. The assistant now keeps short-lived tool episodes, extracts repeated recovery candidates, stores verified postmortems, retrieves relevant past lessons before acting, decays stale knowledge, tracks contradictions and lets the user confirm/supersede/reject what it learned.
+v0.9.2 keeps the complete v0.9.1 feature set and adds a focused security-hardening pass across shell execution, database read-only enforcement, approvals, localhost API boundaries, SSRF protection, secret handling, SQLite concurrency, process identity, self-improvement boundaries and sensitive-file access. The Experience Engine remains available, but unverified automatic recovery memories can no longer promote raw external/tool output into trusted system context.
+
+## v0.9.2 security hardening
+
+- Strict safe-command recognition blocks shell chaining/redirection/substitution from inheriting a read-only exemption.
+- Read-only database tools enforce one statement, block side-effecting query patterns and use database-level read-only/query-only modes where supported.
+- One-time approvals are consumed atomically under concurrency.
+- SQLite-backed stores use thread-local connections with WAL/busy timeout instead of sharing one connection across API/daemon threads.
+- Sensitive workspace files such as `.env`, private keys and credential/token files require explicit one-time approval and are excluded from content search.
+- Local API requests validate Host and Origin to reduce DNS-rebinding/cross-origin abuse.
+- Web/browser/private-network access is separately authorized, redirects are re-checked and common cloud-metadata targets are blocked.
+- Project health checks are limited to loopback targets.
+- Managed process stop/restart validates process creation time to reduce PID-reuse mistakes.
+- Remote Ollama endpoints are denied by default; insecure remote HTTP requires an additional explicit opt-in.
+- Secrets are redacted from common persisted/displayed command, DB, notification, session and experience text paths.
+- Assistant-core self-improvement promotion is path-protected rather than relying on filenames.
+- JSON state writes use atomic replacement to reduce torn-file corruption.
+
+See `SECURITY_AUDIT_0_9_2.md` for the audit summary and residual risks.
 
 ## v0.9 / v0.9.1 highlights
 
@@ -205,7 +223,7 @@ The same safety gates still apply. Browser and voice remain optional/disabled by
 
 ## Upgrade from v0.8
 
-v0.9.1 adds the v0.9 experience lessons and tool-episode tables to the existing local SQLite database. Evaluation/canary tables remain compatible. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
+v0.9.2 retains the v0.9 experience lessons and tool-episode tables to the existing local SQLite database. Evaluation/canary tables remain compatible. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
 
 Back up your assistant data directory before upgrading a machine you depend on.
 
@@ -225,14 +243,14 @@ Windows PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
-pip install dist\living_assistant-0.9.1-py3-none-any.whl
+pip install dist\living_assistant-0.9.2-py3-none-any.whl
 ```
 
 Linux/macOS:
 
 ```bash
 source .venv/bin/activate
-pip install dist/living_assistant-0.9.1-py3-none-any.whl
+pip install dist/living_assistant-0.9.2-py3-none-any.whl
 ```
 
 Then:

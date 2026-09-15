@@ -2,6 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 import sqlite3, json, datetime as dt
 from .config import data_dir
+from .sqlite_utils import ThreadLocalSQLite
+from .security_utils import redact_secrets
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS memories(
@@ -41,7 +43,7 @@ CREATE TABLE IF NOT EXISTS events(
 class MemoryStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / "assistant.sqlite3")
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self._migrate()
@@ -55,7 +57,7 @@ class MemoryStore:
     def remember(self, content: str, kind: str = "fact", metadata: dict | None = None) -> int:
         cur = self.conn.execute(
             "INSERT INTO memories(kind, content, metadata, created_at) VALUES(?,?,?,?)",
-            (kind, content, json.dumps(metadata or {}), dt.datetime.now().isoformat(timespec="seconds"))
+            (kind, redact_secrets(content, 12000), json.dumps(metadata or {}), dt.datetime.now().isoformat(timespec="seconds"))
         )
         self.conn.commit(); return int(cur.lastrowid)
 
@@ -74,7 +76,7 @@ class MemoryStore:
     def add_todo(self, title: str, due_at: str | None = None) -> int:
         cur = self.conn.execute(
             "INSERT INTO todos(title, due_at, created_at) VALUES(?,?,?)",
-            (title, due_at, dt.datetime.now().isoformat(timespec="seconds"))
+            (redact_secrets(title, 2000), due_at, dt.datetime.now().isoformat(timespec="seconds"))
         )
         self.conn.commit(); return int(cur.lastrowid)
 

@@ -1,4 +1,4 @@
-# Threat Model — v0.8
+# Threat Model — v0.9.2
 
 ## Protected assets
 
@@ -14,6 +14,43 @@
 ## Existing threats
 
 The v0.6 model still applies: prompt injection, destructive shell actions, path escape, accidental DB writes, secret exfiltration, malicious downloads, security-control disabling, unauthorized API access and resource exhaustion.
+
+
+## v0.9.2 hardening additions
+
+### Command and database policy bypass
+
+Safe/read-only labels are not inferred from a permissive prefix. Shell metacharacters/composition operators invalidate the read-only exemption. SQL tools accept one statement only, reject known side-effecting read-like constructs, restrict PRAGMA usage and add database-level read-only/query-only controls.
+
+Residual risk: SQL dialects and extensions evolve. The deterministic validator is a defense-in-depth layer, not a substitute for least-privilege database credentials.
+
+### Local API browser/rebinding abuse
+
+The localhost API validates `Host` and browser `Origin` values against loopback plus explicitly configured allowlists. Authentication remains required where configured.
+
+Residual risk: software running as the same user can usually access localhost directly; this is not an OS sandbox.
+
+### SSRF and private-network access
+
+Web/browser targets are classified before access, common cloud metadata targets are denied, redirects are re-evaluated and private/local destinations require a dedicated approval. Managed-project health checks are loopback-only.
+
+Residual risk: DNS resolution and the later socket connect are not a single atomic operation. A hostile resolver could theoretically exploit DNS rebinding/TOCTOU. Use network egress controls for stronger guarantees.
+
+### Sensitive files and secret persistence
+
+Credential-like workspace paths require explicit one-time approval and are excluded from content search. Common secrets/DSNs/tokens/private keys are redacted from several persisted and model-facing text paths. Remote model endpoints are disabled by default.
+
+Residual risk: heuristic redaction cannot recognize every proprietary secret format. Keep real secrets in OS/environment secret stores and avoid granting broad workspace access to credential directories.
+
+### Concurrency and process identity
+
+Persistent SQLite stores use thread-local connections, WAL and a busy timeout. Approval consumption is atomic. Managed process records include process creation time before stop/restart operations. JSON registries use atomic file replacement.
+
+Residual risk: atomic files prevent torn writes but do not make every higher-level multi-process update transactionally conflict-free.
+
+### Experience and self-improvement boundaries
+
+Unverified automatic recovery memories do not inject raw external/tool result text into system instructions. Assistant-core paths are protected from automatic apply/promotion; changes may still be proposed/evaluated for explicit human review.
 
 ## New evaluated-self-improvement threats
 

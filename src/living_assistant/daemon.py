@@ -7,6 +7,7 @@ from .tools.shell import ProcessRegistry
 from .watchers import WatchRegistry
 from .notifications import Notifier
 from .routines import RoutineRegistry
+from .security_utils import is_loopback_http_url
 
 class NervousSystem:
     """Low-resource deterministic event loop. It does not keep an LLM loaded."""
@@ -37,8 +38,14 @@ class NervousSystem:
                 elif 'Maximum automatic restart' in result.get('error','') and key not in self.restart_exhausted_notified:
                     self.restart_exhausted_notified.add(key); events.append({'kind':'project_restart_exhausted','process_id':key,'name':item.get('name'),'error':result.get('error')})
             if running and item.get('health_url'):
-                try: ok=httpx.get(item['health_url'],timeout=2.5,follow_redirects=True).status_code<500
-                except Exception: ok=False
+                if not is_loopback_http_url(str(item['health_url'])):
+                    ok=False
+                else:
+                    try:
+                        with httpx.Client(timeout=2.5, follow_redirects=False, trust_env=False) as client:
+                            ok=client.get(item['health_url']).status_code < 500
+                    except Exception:
+                        ok=False
                 if ok: self.health_failures[key]=0
                 else:
                     self.health_failures[key]=self.health_failures.get(key,0)+1

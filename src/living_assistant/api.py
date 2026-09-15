@@ -1,12 +1,43 @@
 from __future__ import annotations
-import os
-from fastapi import FastAPI, Header, HTTPException
+import os, hmac
+from urllib.parse import urlparse
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from .runtime import build_runtime
 
-app = FastAPI(title='Living Assistant Local API', version='0.9.1')
+app = FastAPI(title='Living Assistant Local API', version='0.9.2')
 runtime = None
+
+_LOCAL_HOSTS = {'127.0.0.1', 'localhost', '::1', 'testserver'}
+
+def _allowed_hostnames() -> set[str]:
+    extra = {x.strip().lower() for x in os.environ.get('ASSISTANT_ALLOWED_HOSTS','').split(',') if x.strip()}
+    return _LOCAL_HOSTS | extra
+
+def _host_only(value: str) -> str:
+    try:
+        return (urlparse('//' + value).hostname or '').lower()
+    except Exception:
+        return ''
+
+def _origin_is_local_or_same(origin: str, request_host: str) -> bool:
+    try:
+        p = urlparse(origin)
+        return p.scheme in {'http','https'} and (p.hostname or '').lower() in (_allowed_hostnames() | {request_host})
+    except Exception:
+        return False
+
+@app.middleware('http')
+async def local_api_boundary(request: Request, call_next):
+    host = _host_only(request.headers.get('host',''))
+    if host not in _allowed_hostnames():
+        return JSONResponse({'detail':'Invalid Host header for local assistant API.'}, status_code=400)
+    origin = request.headers.get('origin')
+    if origin and not _origin_is_local_or_same(origin, host):
+        return JSONResponse({'detail':'Cross-origin browser access to the local assistant API is blocked.'}, status_code=403)
+    return await call_next(request)
 
 class AskRequest(BaseModel):
     message: str
@@ -87,10 +118,10 @@ def _rt():
 
 def _auth(authorization: str | None):
     token=os.environ.get('ASSISTANT_API_TOKEN','')
-    if token and authorization != f'Bearer {token}': raise HTTPException(status_code=401,detail='Invalid token')
+    if token and (not authorization or not hmac.compare_digest(authorization, f'Bearer {token}')): raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.9.1'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.9.2'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}
