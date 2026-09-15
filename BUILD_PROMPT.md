@@ -336,3 +336,18 @@ The repository must additionally implement:
 - migrations from simple v0.1 project entries and todo schema.
 
 Never implement "self improvement" as unconstrained self-rewriting. Generate proposed patches, test/evaluate them, require approval, and maintain rollback ability.
+
+---
+
+# v0.3 Desktop Operator Addendum
+
+Extend the system with these requirements without weakening any earlier policy:
+
+1. **Git-aware coding:** provide read-only status/diff/log tools, approval-gated branch/commit actions, file diff preview before edits, and tests after edits. Do not add an unrestricted destructive Git reset/clean tool.
+2. **Project groups:** allow ordered frontend/backend/worker groups using only registered project commands. Ask once for the exact start plan. Auto-restart may only replay previously approved/registered commands and must remain bounded.
+3. **Sensitive desktop access:** clipboard reads and desktop screenshots always require explicit approval. Make desktop dependencies optional so headless and 8-GB installs stay lightweight.
+4. **Browser automation:** use an optional isolated Playwright context. Read-only rendered snapshots may be automatic; click/fill operations require explicit approval. Do not attach to the user's normal browser profile by default. Browser downloads must be disabled and routed through the explicit download tool instead.
+5. **Download quarantine:** executables, scripts and dangerous MIME types download into an app-data quarantine folder, record source URL + SHA-256 + size, and require approval to release. Never execute a downloaded file automatically.
+6. **Operator UI:** retain localhost-only API defaults. The local dashboard should show pending approvals, projects, project groups, processes, events, todos and quarantine. Approval buttons grant only a one-time exact preapproval.
+7. **Hardware adaptation:** do not enable Playwright tools on the lite profile unless explicitly configured. Keep the nervous system model-free.
+8. **Self-improvement boundary:** learning skills/macros is allowed, but modifying executable core/security policy must remain a proposed patch + tests + explicit approval workflow.

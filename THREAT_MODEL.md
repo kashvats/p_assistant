@@ -1,58 +1,48 @@
-# Threat Model
+# Threat Model — v0.3
 
 ## Protected assets
-
 - Local files and source repositories.
-- Credentials/API keys.
+- Credentials, clipboard contents and visible desktop data.
 - Databases.
-- Running projects.
-- Operating-system security controls.
-- Personal memory/todos.
-- Network privacy.
+- Running projects and project start commands.
+- Browser/account state.
+- OS security controls.
+- Personal memories, reminders and downloaded artifacts.
 
-## Major threats
-
-1. Prompt injection in web pages, source files, logs, database rows, emails/documents.
-2. LLM hallucination causing destructive shell commands.
-3. Path traversal outside workspace.
-4. SQL/DML or Mongo writes triggered accidentally.
-5. Secret exfiltration.
-6. Malicious downloaded files.
-7. Model-induced disabling of Defender/firewall/security tools.
-8. Unauthorized remote access to the local REST API.
-9. Resource exhaustion from too many models/processes.
+## Important threats
+1. Prompt injection inside web pages, source files, logs, DB rows or documents.
+2. Hallucinated or malicious shell commands.
+3. Workspace path traversal.
+4. Accidental production database mutation.
+5. Clipboard/screenshot secret disclosure.
+6. Drive-by or malicious downloads.
+7. Browser automation changing external account state unexpectedly.
+8. Abuse of auto-restart to execute an attacker-chosen command.
+9. Unauthorized remote use of the control API.
+10. Resource exhaustion from models, browsers or subprocesses.
 
 ## Controls
+- Deterministic policy engine outside model control.
+- External content labeled as untrusted observation data.
+- Command deny patterns and approval classes.
+- Canonical workspace boundaries.
+- SQL read-only policy and row limits.
+- Screenshot/clipboard approval gates.
+- Isolated browser context; downloads disabled in browser automation; click/fill approval.
+- Executable/script download quarantine with SHA-256 metadata.
+- Auto-restart can replay only the already registered process command and has a restart cap.
+- Local API defaults to loopback only.
+- Resource manager and one-active-model policy.
+- Audit/event persistence.
 
-- Deterministic policy engine independent of the LLM.
-- External content labeled as untrusted observations.
-- Denylist for destructive/security-disabling/credential-exfil commands.
-- Approval for execution/system modifications.
-- Workspace path canonicalization.
-- Read-only DB policy.
-- Download limits and content-type checks.
-- REST API binds to localhost by default.
-- Model unload and RAM pressure controls.
-- Audit logs.
-- No automatic execution of downloaded binaries.
+## Deliberately not automatic
+- Running a downloaded executable.
+- Disabling firewall, antivirus, EDR, updates or disk encryption.
+- Destructive Git reset/clean workflows.
+- Database writes.
+- Arbitrary administrator/root elevation.
+- Self-modifying policy/security code.
+- Offensive scanning of third-party systems.
 
 ## Non-goals
-
-This project is not a replacement for:
-- operating-system updates,
-- disk encryption,
-- firewall,
-- antivirus/EDR,
-- backups,
-- password manager,
-- MFA,
-- secure router configuration.
-
-## v0.2 additional controls
-
-- Noninteractive dangerous actions are queued for one-time approval instead of silently running.
-- Approval is matched to the exact action/reason/risk hash and consumed once.
-- Auto-restart can only replay a previously registered command and has a hard restart cap.
-- User skills are prompt context only; they do not modify deterministic policy.
-- File watchers are explicitly registered and bounded by a maximum scan/event count.
-- The CLI refuses to expose the local control API on a non-loopback address.
+The assistant is not a replacement for endpoint protection, patching, secure backups, full-disk encryption, MFA, a password manager, network/firewall hygiene or professional incident response.

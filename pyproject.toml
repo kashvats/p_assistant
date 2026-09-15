@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "living-assistant"
-version = "0.2.0"
-description = "Local-first hardware-adaptive personal assistant with sleeping specialist agents."
+version = "0.3.0"
+description = "Local-first hardware-adaptive desktop personal assistant with sleeping specialist agents."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -22,6 +22,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+desktop = [
+  "pyperclip>=1.9,<2",
+  "mss>=9,<11",
+  "Pillow>=10,<12",
+  "pystray>=0.19,<1",
+]
+browser = [
+  "playwright>=1.45,<2",
+]
 db = [
   "psycopg[binary]>=3.2,<4",
   "pymysql>=1.1,<2",

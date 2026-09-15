@@ -1,66 +1,73 @@
-# Living Assistant v0.2 Architecture
+# Living Assistant v0.3 Architecture
 
 ```text
-User / CLI / localhost API / future voice
-                  │
-                  ▼
-            Orchestrator SLM
-       plan / tool / delegate / stop
-             │              │
-             │              └────► sleeping specialist role
-             │                      coder / researcher / security
-             │                      database / planner / general
-             ▼
-      Deterministic Policy Engine
-    block / allow / request approval
-             │
-  ┌──────────┼────────────────────────────────────────────┐
-  ▼          ▼           ▼          ▼         ▼           ▼
-files      shell      projects     web        DB       security
-             │
-             ▼
-     Persistent Process Registry
-             ▲
-             │
-   ┌─────────┴─────────────────────────────────────────────┐
-   │              Nervous System (no LLM)                 │
-   │ process supervisor | reminders | watches | ports     │
-   │ resources | health checks | event store | notify     │
-   └───────────────────────────────────────────────────────┘
+                     User / Tray / Local API
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │   Orchestrator   │
+                    └───────┬──────────┘
+                            │
+          ┌─────────────────┼──────────────────┐
+          │                 │                  │
+          ▼                 ▼                  ▼
+  Deterministic tools   Specialist router   Learned skills
+          │                 │
+          │            one active SLM
+          │                 │
+          │       coder / DB / security /
+          │       research / planner / general
+          │
+┌─────────┴─────────────────────────────────────────────┐
+│ Policy boundary                                      │
+│ workspace roots • approvals • SQL read-only          │
+│ shell deny rules • browser approval • quarantine     │
+└─────────┬─────────────────────────────────────────────┘
+          │
+ ┌────────┼───────────┬───────────┬──────────────┐
+ ▼        ▼           ▼           ▼              ▼
+files    shell      browser      git          desktop
+          │                                      │
+      projects/groups                     clipboard/screen
+
+                 Low-resource nervous system
+ ┌───────────────────────────────────────────────────────┐
+ │ reminders • watches • port changes • process crashes │
+ │ health checks • bounded restart • notifications      │
+ │                         NO LLM                        │
+ └───────────────────────────────────────────────────────┘
 ```
 
-## Resource rule
+## Model lifecycle
 
-Only one model should normally be resident. A role may map to the same physical SLM under the lite profile. The model manager unloads a previous model before activating a different one, and the resource manager can refuse a new model load under severe RAM pressure.
+The orchestrator and specialists use a model manager. When the selected physical model changes, the old model is unloaded. The daemon/tray event loop does not require a language model.
 
-## Persistence
+## Project groups
 
-Platform-specific application data stores:
+A project group is a deterministic ordered list of registered projects. Each project carries its own start command, test command, restart policy and optional health URL. The group controller validates every start command through the deterministic command policy, asks for one approval for the exact plan, and then launches each registered service.
 
-- `assistant.sqlite3`: memory, todos, events, approval queue.
-- `projects.json`: explicit project registrations and restart policy.
-- `managed_processes.json`: commands/PIDs/log metadata for supervised processes.
-- `watches.json`: explicitly configured filesystem watches.
-- `skills.json`: explicitly confirmed prompt skills.
-- `logs/`: supervised process logs.
+## Coding workflow
 
-Secrets remain in environment variables and are not intentionally written to these stores.
+Preferred coding path:
 
-## Approval queue
+```text
+inspect files → git status → plan → preview/write diff → tests → git diff → report
+```
 
-For noninteractive calls, a protected action creates a pending approval keyed by a hash of action + reason + risk. Approving it does not execute the action by itself. When the caller retries the same operation, one matching approved token is consumed. This prevents stale approval IDs from becoming arbitrary execution handles.
+Substantial changes can use an approval-gated new branch. Commit is also approval-gated and only commits already-staged content; the Git tool does not silently stage everything.
 
-## Safe recovery
+## Desktop trust boundary
 
-Auto-restart is allowed only when:
+Clipboard contents and screen captures are high-value sources of accidental secret disclosure. They are therefore approval-gated even though the actions occur locally. The base package does not require desktop packages; they are an optional extra.
 
-1. the user registered/started that exact command,
-2. the process record has `auto_restart=true`,
-3. desired state is still `running`,
-4. restart attempts remain under `max_restarts`.
+## Browser trust boundary
 
-The nervous system cannot invent a new recovery command.
+The Playwright controller launches an isolated browser context rather than attaching to the user's everyday browser profile. Page snapshots are observations, not instructions. Click/fill actions require approval. Browser-managed downloads are disabled; downloads go through the explicit web download/quarantine path instead.
 
-## Skills
+## Download quarantine
 
-Skills are user-confirmed prompt additions selected by trigger text. They can influence model reasoning but cannot alter deterministic policy or tool boundaries.
+Potentially executable files are stored outside approved project workspaces in the local application data quarantine folder. Metadata includes source URL and SHA-256. Release into a workspace requires approval and never implies execution.
+
+## Why deterministic controls live outside the LLM
+
+Prompts are guidance, not enforcement. A compromised website, README, log, database row or model output must not be able to relax security rules. The policy, workspace resolver, approval store, DB read-only check, quarantine and process supervision are normal code paths outside model reasoning.

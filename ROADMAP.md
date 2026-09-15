@@ -1,38 +1,39 @@
-# Roadmap after v0.2
+# Roadmap
 
-## v0.3 — Desktop operator
+## Current — v0.3 Desktop Operator
+- Git-aware coding and file-diff workflow.
+- Project groups.
+- Clipboard/screenshot tools.
+- Optional tray.
+- Optional constrained browser automation.
+- Download quarantine.
+- Interactive local approval dashboard.
 
-- Native system-tray app.
-- Rich approval cards with command/file diffs.
-- Browser automation with domain permissions and download isolation.
-- Clipboard and screenshot tools.
-- Better multi-process project groups (frontend + backend + workers).
-- Git branch/patch workflow for coding changes.
+## v0.4 — Voice + durable browser sessions
+- Wake-word adapter interface.
+- Local STT/TTS providers selected by hardware profile.
+- Push-to-talk as the default safer mode.
+- Persistent-but-isolated named browser sessions with explicit credential boundaries.
+- Browser accessibility-tree actions instead of brittle selectors where possible.
+- Better native approval notifications.
+- Cross-platform clipboard history that never records secret-looking entries by default.
 
-## v0.4 — Personal-life layer
+## v0.5 — Evaluated self-improvement
+- Improvement proposal registry.
+- Assistant-created patch branch, test run and benchmark report.
+- User-approved merge/apply only.
+- Per-task model evaluation: choose specialist models using measured quality/latency/RAM instead of assumptions.
+- Failure-pattern learning and reusable deterministic macros.
 
-- Voice wake word, local STT and local TTS options.
-- Calendar/email connectors.
-- Morning brief and end-of-day review.
-- Contacts and lightweight routines.
-- Mobile/LAN client with authenticated pairing.
+## v0.6 — Personal connectors
+- Calendar and email connector adapters.
+- Morning brief and end-of-day summary.
+- Local contacts and meeting preparation.
+- Permission-scoped scheduled routines.
 
-## v0.5 — Security guardian
-
-- Startup/persistence baselines per OS.
-- File integrity baselines for selected folders.
-- Signed binary metadata and optional hash reputation provider.
-- Quarantine workflow with approval.
-- Network baseline and anomaly scoring.
-- OS firewall status checks.
-
-## v0.6 — Evaluated self-improvement
-
-- Failure/evaluation dataset from task history.
-- Specialist model benchmarking per hardware profile.
-- Proposed self-code patches in a dedicated git branch.
-- Automated tests/evals before user approval.
-- Rollback snapshots.
-- Signed/permissioned plugin SDK.
-
-The core rule remains: learning can become more autonomous, but security policy cannot be silently self-modified.
+## v0.7 — Stronger endpoint guardian
+- Startup/persistence inventory per OS.
+- File integrity baselines for protected folders.
+- Optional hash reputation integration.
+- Quarantine/restore workflow integrated with Defender/ClamAV.
+- Network baselines and explainable anomaly scoring.

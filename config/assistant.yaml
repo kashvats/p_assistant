@@ -64,3 +64,22 @@ daemon:
   alert_on_new_listening_port: true
   watch_files: true
   max_watch_events_per_tick: 25
+
+
+desktop:
+  enabled: true
+  screenshot_enabled: true
+  clipboard_enabled: true
+  tray_enabled: true
+
+browser:
+  enabled: true
+  lite_enabled: false
+  headless: false
+
+downloads:
+  quarantine_risky_files: true
+  quarantine_all_non_images: false
+
+project_groups:
+  enabled: true
