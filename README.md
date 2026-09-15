@@ -1,10 +1,10 @@
-# Living Assistant v0.9 — Experience Engine + Past-Mistake Learning
+# Living Assistant v0.9.1 — Experience Engine + Past-Mistake Learning
 
 A local-first, hardware-adaptive personal operating assistant for Windows, Ubuntu/Linux and macOS. Its low-resource **nervous system** handles monitoring, routines, reminders, project supervision and defensive security while local SLMs stay asleep until reasoning is actually needed.
 
-v0.9 adds an **Experience Engine** on top of the v0.8 hardened evaluation/canary platform. The assistant now keeps short-lived tool episodes, extracts repeated recovery candidates, stores verified postmortems, retrieves relevant past lessons before acting, decays stale knowledge, tracks contradictions and lets the user confirm/supersede/reject what it learned.
+v0.9.1 includes the v0.9 **Experience Engine** on top of the v0.8 hardened evaluation/canary platform. The assistant now keeps short-lived tool episodes, extracts repeated recovery candidates, stores verified postmortems, retrieves relevant past lessons before acting, decays stale knowledge, tracks contradictions and lets the user confirm/supersede/reject what it learned.
 
-## v0.9 highlights
+## v0.9 / v0.9.1 highlights
 
 - Bounded local tool-outcome episodes with common-secret redaction.
 - Automatic low-confidence recovery candidates when a failed tool attempt is followed by a successful variant.
@@ -205,7 +205,7 @@ The same safety gates still apply. Browser and voice remain optional/disabled by
 
 ## Upgrade from v0.8
 
-v0.9 adds experience lessons and tool-episode tables to the existing local SQLite database. Evaluation/canary tables remain compatible. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
+v0.9.1 adds the v0.9 experience lessons and tool-episode tables to the existing local SQLite database. Evaluation/canary tables remain compatible. Existing projects, approvals, security findings, baselines, todos, routines, sessions, skills and calendar data remain compatible.
 
 Back up your assistant data directory before upgrading a machine you depend on.
 
@@ -215,6 +215,8 @@ pip install -e .
 
 ## Install
 
+A prebuilt package wheel is included under `dist/` in the release ZIP. After creating/activating a virtual environment you may install that wheel, or use editable source installation for development.
+
 ```bash
 python -m venv .venv
 ```
@@ -223,14 +225,14 @@ Windows PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
-pip install -e .
+pip install dist\living_assistant-0.9.1-py3-none-any.whl
 ```
 
 Linux/macOS:
 
 ```bash
 source .venv/bin/activate
-pip install -e .
+pip install dist/living_assistant-0.9.1-py3-none-any.whl
 ```
 
 Then:

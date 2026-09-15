@@ -1,10 +1,11 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 import os, re, yaml
 from platformdirs import user_data_dir
 
 ENV_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)(?::([^}]*))?\}")
+
 
 def _expand_env(value):
     if isinstance(value, str):
@@ -18,20 +19,45 @@ def _expand_env(value):
         return {k: _expand_env(v) for k, v in value.items()}
     return value
 
-def project_root() -> Path:
-    # Works in editable install and source tree.
+
+def source_root() -> Path | None:
+    """Return the repository root when running from a source checkout/editable tree."""
     here = Path(__file__).resolve()
-    for parent in [here, *here.parents]:
-        if (parent / "config" / "assistant.yaml").exists():
+    for parent in [here.parent, *here.parents]:
+        if (parent / "pyproject.toml").exists() and (parent / "config" / "assistant.yaml").exists():
             return parent
-    return Path.cwd()
+    return None
+
 
 def data_dir() -> Path:
     p = Path(user_data_dir("LivingAssistant", "LivingAssistant"))
     p.mkdir(parents=True, exist_ok=True)
     return p
 
+
+def project_root() -> Path:
+    """Writable base for relative runtime paths.
+
+    In a source checkout this is the repository root. In an installed wheel it is
+    the per-user application data directory, never site-packages or an arbitrary cwd.
+    """
+    return source_root() or data_dir()
+
+
+def _default_config_text() -> str:
+    root = source_root()
+    if root is not None:
+        return (root / "config" / "assistant.yaml").read_text(encoding="utf-8")
+    return resources.files("living_assistant").joinpath("default_config.yaml").read_text(encoding="utf-8")
+
+
 def load_config(path: str | Path | None = None) -> dict:
-    cfg_path = Path(path) if path else project_root() / "config" / "assistant.yaml"
-    raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+    explicit = path or os.environ.get("ASSISTANT_CONFIG")
+    if explicit:
+        raw_text = Path(explicit).expanduser().read_text(encoding="utf-8")
+    else:
+        raw_text = _default_config_text()
+    raw = yaml.safe_load(raw_text)
+    if not isinstance(raw, dict):
+        raise ValueError("Assistant configuration must be a YAML mapping.")
     return _expand_env(raw)

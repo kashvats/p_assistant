@@ -1,0 +1,181 @@
+profile: auto
+workspace_roots:
+  - ./workspace
+
+ollama:
+  base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
+  keep_alive_seconds: 45
+
+profiles:
+  lite:
+    min_ram_gb: 0
+    context_tokens: 4096
+    max_handoffs: 1
+    max_tool_steps: 6
+    models:
+      orchestrator: qwen3.5:0.8b
+      general: qwen3.5:0.8b
+      coder: qwen3.5:0.8b
+      researcher: qwen3.5:0.8b
+      security: qwen3.5:0.8b
+      database: qwen3.5:0.8b
+      planner: qwen3.5:0.8b
+
+  balanced:
+    min_ram_gb: 12
+    context_tokens: 8192
+    max_handoffs: 2
+    max_tool_steps: 10
+    models:
+      orchestrator: qwen3.5:4b
+      general: qwen3.5:4b
+      coder: qwen3.5:4b
+      researcher: qwen3.5:2b
+      security: qwen3.5:2b
+      database: qwen3.5:2b
+      planner: qwen3.5:2b
+
+  power:
+    min_ram_gb: 48
+    context_tokens: 16384
+    max_handoffs: 3
+    max_tool_steps: 16
+    models:
+      orchestrator: qwen3.5:9b
+      general: qwen3.5:9b
+      coder: qwen3.5:9b
+      researcher: qwen3.5:4b
+      security: qwen3.5:4b
+      database: qwen3.5:4b
+      planner: qwen3.5:4b
+
+policy:
+  require_execute_approval: true
+  require_write_approval: false
+  max_download_mb: 25
+  max_web_text_chars: 120000
+  max_db_rows: 200
+  command_timeout_seconds: 120
+
+daemon:
+  poll_seconds: 15
+  high_memory_percent: 88
+  high_cpu_percent: 92
+  alert_on_new_listening_port: true
+  watch_files: true
+  max_watch_events_per_tick: 25
+
+
+desktop:
+  enabled: true
+  screenshot_enabled: true
+  clipboard_enabled: true
+  tray_enabled: true
+
+browser:
+  enabled: true
+  lite_enabled: false
+  headless: false
+
+downloads:
+  quarantine_risky_files: true
+  quarantine_all_non_images: false
+
+project_groups:
+  enabled: true
+
+voice:
+  enabled: true
+  lite_enabled: false
+  stt_model: tiny
+  stt_model_lite: tiny
+  stt_device: cpu
+  stt_compute_type: int8
+  tts_rate: 180
+
+routines:
+  enabled: true
+  allow_model_wake: false
+
+self_improvement:
+  enabled: true
+  auto_apply_security_core: false
+  evaluation:
+    enabled: true
+    benchmark_repetitions: 3
+    benchmark_repetitions_by_profile: {lite: 1, balanced: 3, power: 5}
+    benchmark_warmup_runs: 1
+    benchmark_warmup_runs_by_profile: {lite: 0, balanced: 1, power: 1}
+    minimum_available_ram_gb_by_profile: {lite: 0.5, balanced: 1.0, power: 2.0}
+    max_benchmark_repetitions: 10
+    max_latency_regression_pct: 15
+    max_memory_regression_pct: 15
+    command_timeout_seconds: 300
+    max_commands: 12
+    max_command_chars: 4000
+    copy_max_files: 8000
+    copy_max_mb: 500
+
+  sandbox:
+    runtime: auto
+    lite_enabled: false
+    memory_mb: 1024
+    cpus: 1.0
+    pids_limit: 256
+    read_only_root: true
+    tmpfs_mb: 128
+
+  canary:
+    enabled: true
+    observe_seconds_by_profile: {lite: 5, balanced: 15, power: 30}
+    startup_timeout_seconds: 30
+    min_health_success_pct: 95
+    max_latency_regression_pct: 20
+    max_memory_regression_pct: 20
+    container_memory_mb: 1024
+    container_cpus: 1.0
+    container_pids_limit: 256
+
+
+personal:
+  timezone: ${ASSISTANT_TIMEZONE:local}
+  quiet_hours:
+    enabled: false
+    start: "22:00"
+    end: "07:00"
+
+briefings:
+  enabled: true
+  morning_time: "08:30"
+  evening_time: "20:30"
+  notify: true
+  use_model: false
+
+sessions:
+  enabled: true
+  retention_days: 30
+  max_context_messages: 12
+  redact_secrets: true
+
+connectors:
+  enabled: true
+
+security_guardian:
+  enabled: true
+  auto_initialize_baselines: false
+  scan_interval_seconds: 300
+  posture_interval_seconds: 3600
+  integrity_max_files: 1000
+  integrity_max_file_mb: 20
+  notify_min_severity: medium
+  process_alert_score: 60
+
+experience:
+  enabled: true
+  auto_capture: true
+  min_inject_confidence: 0.55
+  confidence_half_life_days: 120
+  confirmed_half_life_days: 365
+  auto_promote_repeats: 2
+  episode_retention_days: 30
+  max_context_lessons: 5

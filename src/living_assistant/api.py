@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from .runtime import build_runtime
 
-app = FastAPI(title='Living Assistant Local API', version='0.9.0')
+app = FastAPI(title='Living Assistant Local API', version='0.9.1')
 runtime = None
 
 class AskRequest(BaseModel):
@@ -90,7 +90,7 @@ def _auth(authorization: str | None):
     if token and authorization != f'Bearer {token}': raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.9.0'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.9.1'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}

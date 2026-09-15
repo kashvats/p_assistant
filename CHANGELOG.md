@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.1
+
+- Fixed installed-wheel runtime startup: the default `assistant.yaml` is now packaged as package data.
+- Installed builds now place relative runtime workspaces under the per-user application data directory instead of relying on the current working directory or `site-packages`.
+- Added `ASSISTANT_CONFIG` support for an explicit external configuration file.
+- Added regression coverage for packaged configuration fallback.
+
 ## v0.9.0
 
 - Added evidence-weighted Experience Engine for learning from past mistakes and successful recoveries.
