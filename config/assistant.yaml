@@ -83,3 +83,20 @@ downloads:
 
 project_groups:
   enabled: true
+
+voice:
+  enabled: true
+  lite_enabled: false
+  stt_model: tiny
+  stt_model_lite: tiny
+  stt_device: cpu
+  stt_compute_type: int8
+  tts_rate: 180
+
+routines:
+  enabled: true
+  allow_model_wake: false
+
+self_improvement:
+  enabled: true
+  auto_apply_security_core: false

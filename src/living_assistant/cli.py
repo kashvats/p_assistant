@@ -22,10 +22,15 @@ todo_app = typer.Typer(help='Manage reminders/todos.')
 quarantine_app = typer.Typer(help='Inspect/release downloaded quarantined files.')
 git_app = typer.Typer(help='Git-aware project inspection.')
 desktop_app = typer.Typer(help='Optional clipboard/screenshot desktop actions.')
+browser_app = typer.Typer(help='Optional isolated browser sessions.')
+voice_app = typer.Typer(help='Optional local push-to-talk STT/TTS.')
+routine_app = typer.Typer(help='Deterministic event/interval routines.')
+improve_app = typer.Typer(help='Reviewable self-improvement/file-change proposals.')
 for sub, name in [
     (project_app,'project'),(group_app,'group'),(security_app,'security'),(approval_app,'approval'),
     (watch_app,'watch'),(skill_app,'skill'),(todo_app,'todo'),(quarantine_app,'quarantine'),
-    (git_app,'git'),(desktop_app,'desktop')]:
+    (git_app,'git'),(desktop_app,'desktop'),(browser_app,'browser'),(voice_app,'voice'),
+    (routine_app,'routine'),(improve_app,'improve')]:
     app.add_typer(sub, name=name)
 
 @app.command()
@@ -36,6 +41,7 @@ def doctor():
     models = cfg['profiles'][profile]['models']
     console.print('[bold]Configured models[/bold]', sorted(set(models.values())))
     console.print('[bold]Optional desktop install[/bold] pip install -e ".[desktop]"')
+    console.print('[bold]Optional voice install[/bold] pip install -e ".[voice]"')
     if profile != 'lite': console.print('[bold]Optional browser install[/bold] pip install -e ".[browser]" && playwright install chromium')
     try:
         rt = build_runtime(interactive=False)
@@ -69,12 +75,14 @@ def chat():
 @app.command()
 def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
-    NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier).run_forever()
+    NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
+                  routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
-    console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier).tick())
+    console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
+                                routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -251,5 +259,171 @@ def security_audit(): console.print(audit_local())
 
 @security_app.command('antivirus-status')
 def security_av_status(): console.print(antivirus_status())
+
+
+
+@browser_app.command('live')
+def browser_live(name: str, url: str, persistent: bool = False, allowed_hosts: str = ''):
+    """Run a named browser session in this process until `quit`."""
+    rt = build_runtime(interactive=True)
+    hosts = [x.strip() for x in allowed_hosts.split(',') if x.strip()]
+    started = rt.browser.start_session(name, url, persistent, hosts)
+    console.print(started)
+    if not started.get('ok'):
+        raise typer.Exit(1)
+    console.print('[dim]Commands: snapshot | goto URL | click SELECTOR | fill SELECTOR VALUE | quit[/dim]')
+    try:
+        while True:
+            raw = input('browser> ').strip()
+            if not raw:
+                continue
+            if raw in {'quit','exit'}:
+                break
+            if raw == 'snapshot':
+                console.print(rt.browser.snapshot_session(name)); continue
+            if raw.startswith('goto '):
+                console.print(rt.browser.navigate_session(name, raw[5:].strip())); continue
+            if raw.startswith('click '):
+                console.print(rt.browser.interact_session(name, 'click', raw[6:].strip())); continue
+            if raw.startswith('fill '):
+                rest = raw[5:].strip()
+                if ' ' not in rest:
+                    console.print('Usage: fill SELECTOR VALUE'); continue
+                selector, value = rest.split(' ', 1)
+                console.print(rt.browser.interact_session(name, 'fill', selector, value)); continue
+            console.print('Unknown command.')
+    finally:
+        console.print(rt.browser.close_session(name, False))
+
+@browser_app.command('sessions')
+def browser_sessions():
+    console.print(build_runtime(interactive=False).browser.list_sessions())
+
+@browser_app.command('start')
+def browser_start(name: str, url: str, persistent: bool = False, allowed_hosts: str = ''):
+    rt = build_runtime(interactive=True)
+    hosts = [x.strip() for x in allowed_hosts.split(',') if x.strip()]
+    console.print(rt.browser.start_session(name, url, persistent, hosts))
+
+@browser_app.command('snapshot')
+def browser_snapshot(name: str, screenshot: str | None = None):
+    console.print(build_runtime(interactive=False).browser.snapshot_session(name, screenshot))
+
+@browser_app.command('navigate')
+def browser_navigate(name: str, url: str):
+    console.print(build_runtime(interactive=True).browser.navigate_session(name, url))
+
+@browser_app.command('click')
+def browser_click(name: str, selector: str):
+    console.print(build_runtime(interactive=True).browser.interact_session(name, 'click', selector))
+
+@browser_app.command('fill')
+def browser_fill(name: str, selector: str, value: str):
+    console.print(build_runtime(interactive=True).browser.interact_session(name, 'fill', selector, value))
+
+@browser_app.command('close')
+def browser_close(name: str, delete_profile: bool = False):
+    console.print(build_runtime(interactive=True).browser.close_session(name, delete_profile))
+
+@voice_app.command('status')
+def voice_status():
+    rt = build_runtime(interactive=False)
+    console.print({'enabled': rt.voice.enabled(), 'profile': rt.profile, 'config': rt.config.get('voice', {})})
+
+@voice_app.command('record')
+def voice_record(seconds: float = 6.0, destination: str = 'artifacts/voice-input.wav'):
+    rt = build_runtime(interactive=True)
+    console.print(rt.voice.record(destination, seconds))
+
+@voice_app.command('transcribe')
+def voice_transcribe(path: str, language: str | None = None):
+    rt = build_runtime(interactive=True)
+    try:
+        console.print(rt.voice.transcribe(path, language))
+    finally:
+        rt.voice.sleep()
+
+@voice_app.command('ask')
+def voice_ask(seconds: float = 6.0, language: str | None = None, speak: bool = False):
+    rt = build_runtime(interactive=True)
+    try:
+        recording = rt.voice.record('artifacts/voice-input.wav', seconds)
+        if not recording.get('ok'):
+            console.print(recording); raise typer.Exit(1)
+        transcript = rt.voice.transcribe('artifacts/voice-input.wav', language)
+        if not transcript.get('ok'):
+            console.print(transcript); raise typer.Exit(1)
+        console.print(f"[bold]You:[/bold] {transcript.get('text','')}")
+        answer = rt.orchestrator.run(transcript.get('text',''))
+        console.print(f"[bold green]Assistant:[/bold green] {answer}")
+        if speak:
+            rt.voice.speak(answer)
+    finally:
+        rt.voice.sleep(); rt.model_manager.sleep()
+
+@routine_app.command('list')
+def routine_list():
+    console.print(build_runtime(interactive=False).routines.list())
+
+@routine_app.command('add-event-notify')
+def routine_add_event_notify(name: str, event_kind: str, message: str):
+    rt=build_runtime(interactive=False)
+    console.print(rt.routines.add(name, {'type':'event','kind':event_kind}, {'type':'notify','message':message}))
+
+@routine_app.command('add-interval-notify')
+def routine_add_interval_notify(name: str, seconds: int, message: str):
+    rt=build_runtime(interactive=False)
+    console.print(rt.routines.add(name, {'type':'interval','seconds':seconds}, {'type':'notify','message':message}))
+
+@routine_app.command('add-interval-todo')
+def routine_add_interval_todo(name: str, seconds: int, title: str):
+    rt=build_runtime(interactive=False)
+    console.print(rt.routines.add(name, {'type':'interval','seconds':seconds}, {'type':'todo','title':title}))
+
+@routine_app.command('add-prompt')
+def routine_add_prompt(name: str, seconds: int, prompt: str):
+    rt=build_runtime(interactive=False)
+    console.print(rt.routines.add(name, {'type':'interval','seconds':seconds}, {'type':'assistant_prompt','prompt':prompt}))
+    if not rt.config.get('routines',{}).get('allow_model_wake',False):
+        console.print('[yellow]Created, but model wake is disabled in config. It will be skipped until explicitly enabled.[/yellow]')
+
+@routine_app.command('enable')
+def routine_enable(name: str):
+    console.print({'ok':build_runtime(interactive=False).routines.set_enabled(name, True)})
+
+@routine_app.command('disable')
+def routine_disable(name: str):
+    console.print({'ok':build_runtime(interactive=False).routines.set_enabled(name, False)})
+
+@routine_app.command('remove')
+def routine_remove(name: str):
+    console.print({'ok':build_runtime(interactive=False).routines.remove(name)})
+
+@improve_app.command('list')
+def improve_list(status: str = 'pending'):
+    console.print(build_runtime(interactive=False).improvements.store.list(None if status == 'all' else status))
+
+@improve_app.command('show')
+def improve_show(proposal_id: str):
+    console.print(build_runtime(interactive=False).improvements.store.get(proposal_id))
+
+@improve_app.command('propose')
+def improve_propose(target_path: str, content_file: str, title: str, rationale: str, tests: str = ''):
+    rt=build_runtime(interactive=False)
+    new_content=Path(content_file).expanduser().read_text(encoding='utf-8')
+    test_list=[x.strip() for x in tests.split(',') if x.strip()]
+    console.print(rt.improvements.propose(target_path,new_content,title,rationale,test_list))
+
+@improve_app.command('apply')
+def improve_apply(proposal_id: str):
+    console.print(build_runtime(interactive=True).improvements.apply(proposal_id))
+
+@improve_app.command('rollback')
+def improve_rollback(proposal_id: str):
+    console.print(build_runtime(interactive=True).improvements.rollback(proposal_id))
+
+@improve_app.command('reject')
+def improve_reject(proposal_id: str):
+    console.print(build_runtime(interactive=False).improvements.reject(proposal_id))
 
 if __name__ == '__main__': app()

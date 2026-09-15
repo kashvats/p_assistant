@@ -55,7 +55,7 @@ class ApprovalStore:
             (h,),
         ).fetchone()
         if existing:
-            return dict(existing)
+            item = dict(existing); item["_created"] = False; return item
         item_id = uuid.uuid4().hex[:12]
         now = dt.datetime.now().isoformat(timespec="seconds")
         self.conn.execute(
@@ -63,7 +63,7 @@ class ApprovalStore:
             (item_id, h, action, reason, kind, now),
         )
         self.conn.commit()
-        return dict(self.conn.execute("SELECT * FROM approvals WHERE id=?", (item_id,)).fetchone())
+        item = dict(self.conn.execute("SELECT * FROM approvals WHERE id=?", (item_id,)).fetchone()); item["_created"] = True; return item
 
     def list(self, status: str | None = "pending", limit: int = 100) -> list[dict]:
         if status:
@@ -93,6 +93,7 @@ class ApprovalStore:
 class ApprovalManager:
     interactive: bool = True
     store: ApprovalStore | None = None
+    notifier: object | None = None
 
     def __post_init__(self):
         if self.store is None:
@@ -110,6 +111,11 @@ class ApprovalManager:
             return {"allowed": answer in {"y", "yes"}, "interactive": True}
 
         item = self.store.create(action, reason, kind)
+        if self.notifier is not None and item.get('_created'):
+            try:
+                self.notifier.send('Living Assistant approval', f'{kind}: {action[:180]}')
+            except Exception:
+                pass
         return {
             "allowed": False,
             "pending": True,

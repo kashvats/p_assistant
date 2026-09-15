@@ -1,39 +1,33 @@
 # Roadmap
 
-## Current — v0.3 Desktop Operator
-- Git-aware coding and file-diff workflow.
-- Project groups.
-- Clipboard/screenshot tools.
-- Optional tray.
-- Optional constrained browser automation.
-- Download quarantine.
-- Interactive local approval dashboard.
+## v0.5 — Personal operating layer
 
-## v0.4 — Voice + durable browser sessions
-- Wake-word adapter interface.
-- Local STT/TTS providers selected by hardware profile.
-- Push-to-talk as the default safer mode.
-- Persistent-but-isolated named browser sessions with explicit credential boundaries.
-- Browser accessibility-tree actions instead of brittle selectors where possible.
-- Better native approval notifications.
-- Cross-platform clipboard history that never records secret-looking entries by default.
-
-## v0.5 — Evaluated self-improvement
-- Improvement proposal registry.
-- Assistant-created patch branch, test run and benchmark report.
-- User-approved merge/apply only.
-- Per-task model evaluation: choose specialist models using measured quality/latency/RAM instead of assumptions.
-- Failure-pattern learning and reusable deterministic macros.
-
-## v0.6 — Personal connectors
-- Calendar and email connector adapters.
+- Better scheduler: daily/weekly/calendar-style triggers and quiet hours.
+- Email/calendar connector interfaces with per-action permission scopes.
 - Morning brief and end-of-day summary.
-- Local contacts and meeting preparation.
-- Permission-scoped scheduled routines.
+- Native desktop approval cards rather than notification-only alerts.
+- Optional wake word using a tiny dedicated detector, separate from STT.
+- Conversation/session history with explicit retention controls.
 
-## v0.7 — Stronger endpoint guardian
-- Startup/persistence inventory per OS.
-- File integrity baselines for protected folders.
-- Optional hash reputation integration.
-- Quarantine/restore workflow integrated with Defender/ClamAV.
-- Network baselines and explainable anomaly scoring.
+## v0.6 — Security guardian
+
+- OS-specific persistence/startup inventory.
+- File integrity baselines for selected sensitive folders.
+- Signed executable metadata and optional hash reputation providers.
+- Quarantine/restore workflow with richer provenance.
+- Network baseline learning with false-positive controls.
+
+## v0.7 — Evaluated self-improvement
+
+- Git branch creation for assistant-core proposals.
+- Automatic unit-test/evaluation sandbox for a proposal before user review.
+- Before/after benchmark report.
+- Rollback command.
+- Never permit an evaluation candidate to replace the running security boundary before explicit approval.
+
+## Later
+
+- Local LAN/mobile companion with authenticated pairing.
+- Accessibility-based desktop automation with strict app scopes.
+- Optional local vision model only on capable hardware.
+- Signed plugin manifests and capability-scoped plugin permissions.

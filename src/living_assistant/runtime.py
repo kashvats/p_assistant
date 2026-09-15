@@ -15,6 +15,9 @@ from .skills import SkillRegistry
 from .notifications import Notifier
 from .resource_manager import ResourceManager
 from .quarantine import QuarantineVault
+from .voice import VoiceEngine
+from .routines import RoutineRegistry
+from .improvements import ImprovementStore, ImprovementEngine
 from .browser import BrowserController
 from .groups import ProjectGroupRegistry, ProjectGroupController
 from .tools.filesystem import build_filesystem_tools
@@ -28,6 +31,9 @@ from .tools.desktop import build_desktop_tools
 from .tools.gittools import build_git_tools
 from .tools.browsertools import build_browser_tools
 from .tools.grouptools import build_group_tools
+from .tools.voicetools import build_voice_tools
+from .tools.routinetools import build_routine_tools
+from .tools.improvementtools import build_improvement_tools
 
 @dataclass
 class Runtime:
@@ -47,6 +53,9 @@ class Runtime:
     notifier: Notifier
     resources: ResourceManager
     quarantine: QuarantineVault
+    voice: VoiceEngine
+    routines: RoutineRegistry
+    improvements: ImprovementEngine
     browser: BrowserController
     orchestrator: Orchestrator
     model_manager: ModelManager
@@ -73,14 +82,18 @@ def build_runtime(interactive: bool = True) -> Runtime:
 
     ws = Workspace(roots)
     approvals = ApprovalStore()
-    approval = ApprovalManager(interactive=interactive, store=approvals)
+    notifier = Notifier()
+    approval = ApprovalManager(interactive=interactive, store=approvals, notifier=notifier)
     memory = MemoryStore()
     processes = ProcessRegistry()
     watches = WatchRegistry()
     skills = SkillRegistry()
-    notifier = Notifier()
     resources = ResourceManager(profile, cfg)
     quarantine = QuarantineVault()
+    routines = RoutineRegistry()
+    improvement_store = ImprovementStore()
+    improvements = ImprovementEngine(ws, approval, improvement_store)
+    voice = VoiceEngine(ws, approval, cfg, profile)
     groups = ProjectGroupRegistry()
     group_controller = ProjectGroupController(groups, projects, processes, approval)
 
@@ -103,6 +116,9 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_browser_tools(browser, enabled=browser_enabled)
     tools += build_database_tools(cfg)
     tools += build_personal_tools(memory, notifier)
+    tools += build_routine_tools(routines)
+    tools += build_improvement_tools(improvements)
+    tools += build_voice_tools(voice)
     tools += build_security_tools(ws, approval)
     if bool(cfg.get('desktop',{}).get('enabled', True)):
         tools += build_desktop_tools(ws, approval)
@@ -117,4 +133,4 @@ def build_runtime(interactive: bool = True) -> Runtime:
         skills=skills, resource_manager=resources,
     )
     return Runtime(cfg, profile, hw, ws, memory, projects, groups, group_controller, processes, approvals,
-                   approval, watches, skills, notifier, resources, quarantine, browser, orchestrator, mm)
+                   approval, watches, skills, notifier, resources, quarantine, voice, routines, improvements, browser, orchestrator, mm)

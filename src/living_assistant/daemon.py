@@ -7,16 +7,22 @@ from .tools.security import audit_local
 from .tools.shell import ProcessRegistry
 from .watchers import WatchRegistry
 from .notifications import Notifier
+from .routines import RoutineRegistry
 
 class NervousSystem:
     """Low-resource deterministic event loop. It does not keep an LLM loaded."""
     def __init__(self, config: dict, memory: MemoryStore, processes: ProcessRegistry | None = None,
-                 watches: WatchRegistry | None = None, notifier: Notifier | None = None):
+                 watches: WatchRegistry | None = None, notifier: Notifier | None = None,
+                 routines: RoutineRegistry | None = None, orchestrator=None, model_manager=None):
+        self.config = config
         self.cfg = config.get("daemon", {})
         self.memory = memory
         self.processes = processes or ProcessRegistry()
         self.watches = watches or WatchRegistry()
         self.notifier = notifier or Notifier()
+        self.routines = routines or RoutineRegistry()
+        self.orchestrator = orchestrator
+        self.model_manager = model_manager
         self.last_ports: set[str] = set()
         self.previous_running: dict[str, bool] = {}
         self.health_failures: dict[str, int] = {}
@@ -86,6 +92,16 @@ class NervousSystem:
         events.extend(self._todo_events())
         if self.cfg.get("watch_files", True):
             events.extend(self.watches.poll(max_events_per_watch=int(self.cfg.get("max_watch_events_per_tick", 25))))
+
+        routine_cfg = self.config.get("routines", {}) if hasattr(self, "config") else {}
+        if bool(routine_cfg.get("enabled", True)):
+            routine_events = self.routines.process(
+                list(events), self.memory, self.notifier,
+                orchestrator=self.orchestrator,
+                allow_model_wake=bool(routine_cfg.get("allow_model_wake", False)),
+                model_manager=self.model_manager,
+            )
+            events.extend(routine_events)
 
         for e in events:
             self.memory.add_event(e["kind"], e)

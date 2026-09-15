@@ -1,73 +1,76 @@
-# Living Assistant v0.3 Architecture
+# Living Assistant v0.4 Architecture
 
 ```text
-                     User / Tray / Local API
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │   Orchestrator   │
-                    └───────┬──────────┘
-                            │
-          ┌─────────────────┼──────────────────┐
-          │                 │                  │
-          ▼                 ▼                  ▼
-  Deterministic tools   Specialist router   Learned skills
-          │                 │
-          │            one active SLM
-          │                 │
-          │       coder / DB / security /
-          │       research / planner / general
-          │
-┌─────────┴─────────────────────────────────────────────┐
-│ Policy boundary                                      │
-│ workspace roots • approvals • SQL read-only          │
-│ shell deny rules • browser approval • quarantine     │
-└─────────┬─────────────────────────────────────────────┘
-          │
- ┌────────┼───────────┬───────────┬──────────────┐
- ▼        ▼           ▼           ▼              ▼
-files    shell      browser      git          desktop
-          │                                      │
-      projects/groups                     clipboard/screen
+                         ┌────────────────────────────┐
+                         │   User / CLI / Tray / API  │
+                         │   Voice / Browser session  │
+                         └──────────────┬─────────────┘
+                                        │
+                              intent / approved sensor
+                                        │
+                         ┌──────────────▼─────────────┐
+                         │        Orchestrator        │
+                         │  smallest model + tools    │
+                         └──────┬─────────────┬───────┘
+                                │             │
+                    deterministic tools       │ specialist handoff
+                                │             │
+              ┌─────────────────▼───┐   ┌────▼──────────────┐
+              │ Policy / Approvals  │   │ one active SLM     │
+              │ outside the model   │   │ at a time normally │
+              └─────────┬───────────┘   └───────────────────┘
+                        │
+  ┌─────────────────────▼────────────────────────────────────────────┐
+  │ files • shell • projects • DB • git • web • browser • desktop  │
+  │ voice • routines • quarantine • improvements • security         │
+  └─────────────────────────────────────────────────────────────────┘
 
-                 Low-resource nervous system
- ┌───────────────────────────────────────────────────────┐
- │ reminders • watches • port changes • process crashes │
- │ health checks • bounded restart • notifications      │
- │                         NO LLM                        │
- └───────────────────────────────────────────────────────┘
+                         LOW-RESOURCE NERVOUS SYSTEM
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ reminders • process crashes • health checks • file watches      │
+  │ new ports • deterministic routines • notifications              │
+  │ NO LLM remains loaded while idle                                │
+  └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Model lifecycle
+## Sleeping-agent model
 
-The orchestrator and specialists use a model manager. When the selected physical model changes, the old model is unloaded. The daemon/tray event loop does not require a language model.
+The system separates **roles** from **physical models**. On low/moderate hardware, several specialists can be the same quantized SLM with different system prompts. `ModelManager` unloads the previous model when a different physical model is activated.
 
-## Project groups
+## Sensors are privileged
 
-A project group is a deterministic ordered list of registered projects. Each project carries its own start command, test command, restart policy and optional health URL. The group controller validates every start command through the deterministic command policy, asks for one approval for the exact plan, and then launches each registered service.
+Microphone capture, clipboard reads and screenshots are treated as sensitive sensors. The model cannot directly read them; it can only request an approval-gated tool.
 
-## Coding workflow
+## Browser isolation
 
-Preferred coding path:
+Browser automation never attaches to the user's normal browser profile. Named sessions use Playwright-isolated contexts. A persistent session, when explicitly approved, gets an assistant-only profile directory. Session navigation is scoped to the host set established at session creation, and downloads remain disabled.
+
+## Routines
+
+Routines are deliberately deterministic first. `notify` and `todo` actions can run from the daemon without loading an LLM. `assistant_prompt` exists, but `routines.allow_model_wake` is `false` by default. When enabled, it still runs through a noninteractive runtime, so high-impact tool calls create approval requests instead of silently executing.
+
+## Self-improvement
+
+Self-improvement is a proposal pipeline, not unrestricted mutation:
 
 ```text
-inspect files → git status → plan → preview/write diff → tests → git diff → report
+observation / repeated failure
+          ↓
+proposal: exact replacement + diff + rationale + suggested tests
+          ↓
+base file SHA-256 recorded
+          ↓
+user review / approval
+          ↓
+conflict check + backup
+          ↓
+apply exact proposal
+          ↓
+run tests separately / inspect result
 ```
 
-Substantial changes can use an approval-gated new branch. Commit is also approval-gated and only commits already-staged content; the Git tool does not silently stage everything.
+The automatic apply path refuses to modify `security_policy.py`, `approval.py`, or `improvements.py`.
 
-## Desktop trust boundary
+## Trust boundary
 
-Clipboard contents and screen captures are high-value sources of accidental secret disclosure. They are therefore approval-gated even though the actions occur locally. The base package does not require desktop packages; they are an optional extra.
-
-## Browser trust boundary
-
-The Playwright controller launches an isolated browser context rather than attaching to the user's everyday browser profile. Page snapshots are observations, not instructions. Click/fill actions require approval. Browser-managed downloads are disabled; downloads go through the explicit web download/quarantine path instead.
-
-## Download quarantine
-
-Potentially executable files are stored outside approved project workspaces in the local application data quarantine folder. Metadata includes source URL and SHA-256. Release into a workspace requires approval and never implies execution.
-
-## Why deterministic controls live outside the LLM
-
-Prompts are guidance, not enforcement. A compromised website, README, log, database row or model output must not be able to relax security rules. The policy, workspace resolver, approval store, DB read-only check, quarantine and process supervision are normal code paths outside model reasoning.
+The LLM is not the security boundary. The deterministic tool layer validates workspace paths, SQL mode, downloads, browser scope, shell risk, approvals, and self-modification rules. External web/file/DB content remains untrusted observation data.

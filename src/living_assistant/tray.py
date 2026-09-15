@@ -11,7 +11,8 @@ def run_tray(runtime, dashboard_url: str = 'http://127.0.0.1:8787/dashboard'):
 
     from .daemon import NervousSystem
     stop_event = threading.Event()
-    nervous = NervousSystem(runtime.config, runtime.memory, runtime.processes, runtime.watches, runtime.notifier)
+    nervous = NervousSystem(runtime.config, runtime.memory, runtime.processes, runtime.watches, runtime.notifier,
+                            routines=runtime.routines, orchestrator=runtime.orchestrator, model_manager=runtime.model_manager)
 
     def loop():
         poll = max(5, int(runtime.config.get('daemon',{}).get('poll_seconds',15)))

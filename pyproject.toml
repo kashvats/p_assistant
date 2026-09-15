@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "living-assistant"
-version = "0.3.0"
-description = "Local-first hardware-adaptive desktop personal assistant with sleeping specialist agents."
+version = "0.4.0"
+description = "Local-first hardware-adaptive personal assistant with sleeping agents, routines, voice and safe self-improvement proposals."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -31,6 +31,12 @@ desktop = [
 browser = [
   "playwright>=1.45,<2",
 ]
+voice = [
+  "sounddevice>=0.4,<1",
+  "numpy>=1.26,<3",
+  "faster-whisper>=1,<2",
+  "pyttsx3>=2.90,<3",
+]
 db = [
   "psycopg[binary]>=3.2,<4",
   "pymysql>=1.1,<2",
@@ -48,3 +54,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]

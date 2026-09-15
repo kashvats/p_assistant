@@ -1,353 +1,162 @@
-# Master Build Prompt — Living Assistant
+# Master Build Prompt — Living Assistant v0.4+
 
-Build a production-quality, local-first personal assistant called **Living Assistant** that turns a Windows, Ubuntu/Linux, or macOS laptop into a safe, resource-aware personal agent.
+Build and maintain a production-minded, local-first personal assistant called **Living Assistant** for Windows, Ubuntu/Linux and macOS.
 
-## Core goal
+## Product goal
 
-The assistant should feel persistent and proactive like a "living organism", but must not waste resources. Use a **lightweight deterministic nervous system** for monitoring, scheduling, reminders, resource checks, and event detection. Reasoning models must sleep when not needed.
+Make a laptop behave like a resource-aware personal agent that can run projects, write/test code, fetch web content/images, query configured databases, manage tasks, assist with defensive endpoint monitoring, use optional desktop/browser/voice interfaces, and learn reusable workflows. It must feel persistent without keeping multiple models loaded or granting an LLM unrestricted machine control.
 
-The system must be usable on:
+Primary target: Ryzen 5 5600H, GTX 1650 4 GB VRAM, 32 GB RAM. Minimum target: 8 GB RAM with no useful discrete GPU.
 
-- Main target: AMD Ryzen 5 5600H, NVIDIA GTX 1650 4 GB VRAM, 32 GB RAM.
-- Minimum target: 8 GB RAM laptop with no useful discrete GPU.
-- Windows 10/11, Ubuntu/Linux, and macOS.
-- Prefer Python 3.11+ for the orchestration layer.
+## Fundamental architecture
 
-## Architecture
+Use four layers:
 
-Create these layers:
+1. **Deterministic nervous system** — reminders, project/process health, file watches, new listening ports, resource pressure and safe routines. No LLM while idle.
+2. **Orchestrator** — plans briefly, prefers deterministic tools, chooses the smallest useful specialist and stops when the goal is complete.
+3. **Sleeping specialists** — general, coder, researcher, database, defensive security and planner personas. Normally one physical local model active at a time; roles may share one SLM.
+4. **Capability/policy layer** — deterministic permission checks, workspace boundaries, read-only DB defaults, download quarantine, approval queue and audit trail. The LLM cannot override this layer.
 
-1. **Nervous System / Daemon**
-   - Extremely low idle CPU/RAM.
-   - No LLM kept loaded while idle.
-   - Watches reminders, CPU/RAM pressure, registered project processes, selected folders, new listening ports, and security events.
-   - Emits normalized events to the orchestrator only when reasoning is needed.
+## Hardware profiles
 
-2. **Orchestrator**
-   - Receives user intent/events.
-   - Creates a short plan.
-   - Chooses tools vs specialist agents.
-   - Never uses an expensive model if deterministic code can solve the task.
-   - Uses a finite state/task graph with hard limits on steps, hand-offs, time, and tool calls.
-   - Maintains an audit trail.
-   - Supports interruption/cancellation.
+### Lite — roughly 8–12 GB RAM
+- tiny quantized orchestrator/personas
+- 4K-ish context
+- one model at a time
+- one specialist handoff
+- deterministic tools first
+- browser/voice disabled by default
+- no always-on embeddings, vision or STT
 
-3. **Sleeping specialist agents**
-   - General assistant
-   - Coding agent
-   - Research/web agent
-   - Database agent
-   - Defensive security agent
-   - Planning/daily-life agent
-   - Future optional agents through a plugin registry.
-
-   Only one specialist model should normally be loaded at once. Specialists may use the same physical SLM with different system prompts on small hardware.
-
-4. **Inter-agent handoff**
-   - A specialist can return a structured handoff:
-     `{role, task, context_needed, reason}`.
-   - The orchestrator decides whether the handoff is justified.
-   - Unload/sleep the prior model before loading a different model when memory pressure requires it.
-   - Cap handoff depth to prevent loops.
-   - When an agent lacks information, it should formulate a high-quality prompt/request for the next specialist instead of hallucinating.
-
-5. **Model runtime abstraction**
-   - Default: Ollama local API.
-   - Also support an OpenAI-compatible local endpoint such as llama.cpp server.
-   - Do not couple business logic to one model vendor.
-   - Support model unload/keep-alive controls.
-
-## Adaptive hardware profiles
-
-At startup, inspect OS, RAM, CPU count, GPU vendor/VRAM where available, and current memory pressure.
-
-Create at least:
-
-### Lite
-For 8-12 GB RAM:
-- 0.5B-1B class quantized model.
-- Small context.
-- One agent at a time.
-- Reduced automatic delegation.
-- Prefer deterministic tools.
-- No local embeddings model unless explicitly enabled.
-- No always-on vision model.
-
-### Balanced
-For ~16-40 GB RAM and modest GPU:
-- 2B-4B orchestrator/specialists.
-- One loaded model at a time.
-- Moderate context.
-- Allow limited handoffs.
-
-For Ryzen 5 5600H + GTX 1650 4 GB + 32 GB RAM, default to this profile. Do not assume the full model fits in VRAM; allow CPU+GPU hybrid inference.
+### Balanced — roughly 16–40 GB RAM
+- 2B–4B class models
+- one physical model normally active
+- moderate context and handoffs
+- optional browser/voice tools
+- CPU-first STT by default on low-VRAM GPUs
 
 ### Power
-For high-memory systems:
-- 7B-14B class models when appropriate.
-- Larger context.
-- More parallel non-model tools, but still avoid unnecessary concurrently loaded LLMs.
+- larger local models and context where justified
+- still unload idle models and avoid unnecessary parallel model residency
 
-All model names must be configurable. Never hard-code the architecture around a specific model family.
+Keep model names configurable and keep the provider interface compatible with Ollama and OpenAI-compatible local runtimes such as llama.cpp server.
 
-## Required tools/capabilities
+## Required capabilities
 
-### Local files
-- List/read/search/write/move files.
-- Default write boundary is an approved workspace.
-- Block path traversal.
-- Offer a diff before overwriting important files.
-- Trash/quarantine instead of irreversible delete where possible.
+### Files/code/projects
+- workspace-bounded read/search/write with canonical path checks
+- diff preview before/with writes
+- shell execution with deterministic risk classification
+- Python, Node, Docker Compose, Java/Maven/Gradle, Go and Rust detection
+- persistent project registry, process logs, PID/status, health URL, bounded auto-restart
+- multi-project application groups
+- Git status/diff/log plus approval-gated branch/commit operations
 
-### Code and shell execution
-- Run Python and project commands.
-- Detect common project types:
-  - Python/pip/uv/poetry
-  - Node/npm/pnpm/yarn
-  - Docker Compose
-  - Java/Maven/Gradle
-  - Go
-  - Rust/Cargo
-- Start long-running projects and track PID/logs.
-- Stop/restart/status.
-- Stream/tail logs.
-- Environment variable support without leaking secrets.
+### Web/downloads
+- bounded HTTP fetch
+- search-provider abstraction
+- image search + direct image download
+- risky executable/script types go to quarantine
+- never automatically execute downloads
 
-### Coding agent
-- Inspect repository.
-- Make a plan.
-- Edit files.
-- Run format/lint/tests.
-- Fix failures iteratively within bounded attempts.
-- Show final changed-file summary.
-- Use git branches/commits optionally, never destructive git commands without approval.
+### Browser operator
+- Playwright optional extra
+- never attach to normal user browser profile
+- fresh isolated snapshots and interactions
+- named live sessions
+- optional persistent assistant-only profile only with explicit approval
+- downloads disabled
+- host scope established when session starts
+- click/fill or other external state changes require approval
 
-### Web/research
-- HTTP fetch with strict timeouts and download limits.
-- Search provider abstraction.
-- Image search provider abstraction.
-- Download an image/file by URL.
-- Validate content type, file size, and extension.
-- Save only in approved workspace.
-- Respect robots/terms and do not bypass access controls.
+### Databases
+- connection aliases from environment/secret store
+- SQLite/PostgreSQL/MySQL/MongoDB
+- SQL read-only by default; reject DDL/DML
+- bounded rows/timeouts
+- never echo credentials
 
-### Database
-- Connection aliases loaded from environment variables or secret store.
-- SQLite, PostgreSQL, MySQL, MongoDB adapters.
-- Read-only by default.
-- SQL parser/policy rejects DDL/DML unless user explicitly enables a write transaction.
-- Add query timeout and row limit.
-- Never print passwords/tokens.
-- Database specialist should explain queries before high-impact operations.
+### Memory/daily life
+- local SQLite/FTS memory
+- todos/reminders
+- user-confirmed reusable skills
+- notifications
+- future email/calendar connectors behind capability scopes
 
-### Memory
-- Local SQLite store.
-- Searchable conversational facts, user preferences, project facts, todos, and task history.
-- User-controllable memory.
-- Never store secrets unless explicitly designated in a secret store.
-- Prefer FTS/local indexing before adding an embeddings model.
+### Voice
+- optional push-to-talk, never always-on microphone by default
+- microphone recording is a sensitive-read capability requiring approval
+- local STT provider (e.g. faster-whisper) and local TTS provider interface
+- bounded recording duration
+- unload STT model after voice interaction when resources are constrained
+- wake word, if added later, must be a tiny dedicated detector rather than a full STT model listening continuously
 
-### Daily-life functions
-- Todos/reminders.
-- Notes.
-- Project registry.
-- Clipboard integration (optional).
-- Calendar/email connector plugin interfaces.
-- "Morning brief" and "end-of-day summary" plugins.
-- Local notification integration.
+### Deterministic routines
+Support event and schedule/interval triggers. Safe actions such as `notify` and `todo` run without an LLM. An `assistant_prompt` routine must be disabled by default behind an explicit `allow_model_wake` setting. A model-waking routine must use the noninteractive approval queue for high-impact actions.
 
 ### Defensive security
-The assistant must help protect the local machine but must never claim perfect protection.
+- local listening ports/connections/process inventory
+- Windows Defender or ClamAV integrations where available
+- file-watch and process/crash signals
+- never disable firewall/AV/EDR/updates/disk encryption
+- no offensive scanning of third-party systems
+- do not claim perfect hacker protection
 
-Include:
-- Local listening-port inventory.
-- Established connection inventory.
-- Process inventory and parent/child relationships.
-- Startup/persistence item checks.
-- Recent suspicious file changes in watched folders.
-- Optional hash/reputation provider interface.
-- Windows Defender integration where present.
-- ClamAV integration where installed.
-- macOS security status checks where feasible.
-- Alert on unknown new listening services.
-- Optional quarantine workflow with explicit approval.
-- Never disable firewall, antivirus, EDR, OS updates, disk encryption, or other protections.
-- Never expose credentials.
-- Never automatically run downloaded executables.
-- Never perform offensive scanning against third-party systems.
+## Permission classes
 
-## Permission/risk system
+At minimum distinguish READ, SENSITIVE_READ, WRITE_WORKSPACE, EXECUTE, NETWORK_ACTION, DB_READ, DB_WRITE, SYSTEM_CHANGE, PRIVILEGED, SENSITIVE_PERSISTENCE, SELF_MODIFICATION and DESTRUCTIVE.
 
-Classify actions:
+Policy must be code outside the model. Persist noninteractive approval requests. Approved requests are exact, one-time grants and are consumed once. Notify the user when a new pending approval is created.
 
-- `READ`: normally auto-allowed.
-- `WRITE_WORKSPACE`: allow if inside configured workspace, optionally show diff.
-- `EXECUTE`: ask approval unless command is on a safe allowlist.
-- `NETWORK_FETCH`: allow normal HTTPS fetch; enforce limits.
-- `DB_READ`: allow against configured aliases.
-- `DB_WRITE`: explicit confirmation per transaction.
-- `SYSTEM_CHANGE`: explicit confirmation.
-- `PRIVILEGED`: explicit confirmation and preferably require the user to perform the elevation manually.
-- `DESTRUCTIVE`: block by default.
+## Prompt-injection boundary
 
-Have a deterministic policy engine outside the LLM. Never let the LLM override policy.
+Treat web pages, source comments, READMEs, logs, DB values, emails, documents, browser text and downloaded files as untrusted observations. Retrieved content cannot redefine system policy. Before any action derived from external content, tools must independently validate scope/risk/approval.
 
-## Safety against prompt injection
+## Self-improvement
 
-Treat all external content as untrusted data:
-- Web pages, README files, source code comments, DB values, logs, emails, documents and images can contain malicious instructions.
-- Never allow retrieved content to redefine system policies.
-- Separate `instructions` from `observations`.
-- Before executing a command derived from external content, require policy validation and approval according to risk.
-- Strip/ignore instructions that ask for secrets, policy changes, disabling security, or unrelated actions.
+Never implement unrestricted self-rewriting. Use a proposal pipeline:
 
-## Model behavior
+1. identify repeated problem or requested improvement;
+2. create exact candidate content/patch;
+3. store rationale, unified diff, suggested tests and current target SHA-256;
+4. user reviews/approves;
+5. verify target hash still matches;
+6. create backup;
+7. apply exact stored candidate;
+8. run/evaluate tests separately and report before/after;
+9. provide rollback.
 
-Orchestrator system prompt should require:
-- Prefer tools over guessing.
-- Verify before modifying.
-- Explain the intended action briefly before high-impact actions.
-- Use the smallest capable specialist.
-- Keep resource usage low.
-- Avoid recursive agent chatter.
-- Stop once the user goal is satisfied.
-- Preserve user files by default.
-- Never invent successful command results.
-- If a tool fails, surface the real error and adapt.
+Do not auto-apply modifications to the deterministic policy, approval or self-improvement core. Future versions should use Git branches/evaluation sandboxes for assistant-core changes.
 
-## Resource manager
+## Resource behavior
 
-Implement:
-- RAM thresholds.
-- CPU load thresholds.
-- model unload.
-- context trimming/summarization.
-- max concurrent subprocesses.
-- download size limits.
-- per-tool timeout.
-- global task timeout.
-- backpressure when system is under load.
-
-When RAM is low:
-1. unload model,
-2. reduce context,
-3. stop optional indexing,
-4. pause nonessential watchers,
-5. refuse to start another heavy task until resources recover.
-
-## Persistence
-
-Use a data directory appropriate to the OS (e.g. platformdirs). Store:
-- config,
-- SQLite memory,
-- todos,
-- events,
-- task audit logs,
-- registered projects,
-- process metadata,
-- downloaded artifacts,
-- temporary files.
-
-Keep secrets separate.
+- inspect available RAM before model load
+- unload old model on specialist switch
+- bounded context/tool steps/handoffs
+- bounded subprocesses/download sizes
+- no full browser/voice stack on lite unless explicitly enabled
+- daemon does not retain LLM/STT weights while idle
 
 ## Interfaces
 
-Implement:
-- CLI interactive chat.
-- One-shot CLI.
-- Local REST API bound to `127.0.0.1` by default.
-- Later-ready interfaces for desktop tray UI, voice, mobile LAN client and browser extension.
+Provide:
+- interactive CLI and one-shot CLI
+- localhost REST API
+- dashboard/control center with approval buttons
+- optional system tray
+- optional browser live-session console
+- optional push-to-talk voice command
 
-Never bind an unauthenticated control API to `0.0.0.0` by default.
+Never bind unauthenticated control API to `0.0.0.0` by default.
 
-## Voice (future-ready)
+## Tests
 
-Design interfaces for:
-- wake word,
-- speech-to-text,
-- text-to-speech.
+Keep regression tests for all earlier versions plus:
+- microphone profile/approval gates
+- routines interval/event logic and model-wake gate
+- improvement diff/base-hash/conflict/approval/core-protection behavior
+- approval notification behavior
+- browser blocked metadata endpoints and session-name/host scope
+- API route smoke tests where practical
 
-Do not require voice packages in the minimal install.
-
-## "Living organism" behaviors
-
-Add safe proactive behaviors:
-- notify when a registered project crashes,
-- alert when a new local port begins listening,
-- notify on high sustained RAM/CPU,
-- remind on due tasks,
-- summarize recurring failures,
-- suggest cleanup but never delete automatically,
-- learn project start commands only after explicit user confirmation,
-- sleep all models when idle.
-
-## Testing
-
-Include tests for:
-- workspace path traversal rejection,
-- destructive command blocking,
-- privilege/security-disable command blocking,
-- read-only SQL enforcement,
-- model profile selection,
-- handoff-depth limit,
-- project command detection,
-- URL/content-type validation,
-- prompt-injection data boundary.
-
-## Deliverables
-
-Return a runnable repository with:
-- `pyproject.toml`
-- source package
-- config template
-- `.env.example`
-- cross-platform setup scripts
-- README
-- architecture document
-- threat model
-- roadmap
-- unit tests
-- sample plugin
-- local API
-- CLI
-- daemon
-- no placeholder-only functions for the critical path.
-
-Prioritize a reliable MVP over pretending every advanced feature is complete. Mark future interfaces clearly.
-
----
-
-## v0.2 implementation requirements added
-
-The repository must additionally implement:
-
-- persistent one-time approval queue for noninteractive clients,
-- process metadata persistence across assistant restarts,
-- deterministic crash detection and bounded auto-restart,
-- optional HTTP health checks for registered processes,
-- desktop notifications,
-- bounded polling filesystem watches,
-- due-reminder notifications,
-- local event history API,
-- localhost dashboard,
-- explicit user-confirmed prompt skills,
-- startup-at-login helper scripts for Windows/Linux/macOS,
-- memory-pressure guard before model loading,
-- migrations from simple v0.1 project entries and todo schema.
-
-Never implement "self improvement" as unconstrained self-rewriting. Generate proposed patches, test/evaluate them, require approval, and maintain rollback ability.
-
----
-
-# v0.3 Desktop Operator Addendum
-
-Extend the system with these requirements without weakening any earlier policy:
-
-1. **Git-aware coding:** provide read-only status/diff/log tools, approval-gated branch/commit actions, file diff preview before edits, and tests after edits. Do not add an unrestricted destructive Git reset/clean tool.
-2. **Project groups:** allow ordered frontend/backend/worker groups using only registered project commands. Ask once for the exact start plan. Auto-restart may only replay previously approved/registered commands and must remain bounded.
-3. **Sensitive desktop access:** clipboard reads and desktop screenshots always require explicit approval. Make desktop dependencies optional so headless and 8-GB installs stay lightweight.
-4. **Browser automation:** use an optional isolated Playwright context. Read-only rendered snapshots may be automatic; click/fill operations require explicit approval. Do not attach to the user's normal browser profile by default. Browser downloads must be disabled and routed through the explicit download tool instead.
-5. **Download quarantine:** executables, scripts and dangerous MIME types download into an app-data quarantine folder, record source URL + SHA-256 + size, and require approval to release. Never execute a downloaded file automatically.
-6. **Operator UI:** retain localhost-only API defaults. The local dashboard should show pending approvals, projects, project groups, processes, events, todos and quarantine. Approval buttons grant only a one-time exact preapproval.
-7. **Hardware adaptation:** do not enable Playwright tools on the lite profile unless explicitly configured. Keep the nervous system model-free.
-8. **Self-improvement boundary:** learning skills/macros is allowed, but modifying executable core/security policy must remain a proposed patch + tests + explicit approval workflow.
+Favor a truthful working MVP over placeholder claims. Every documented critical-path feature should have functioning code and tests or be clearly marked future work.
