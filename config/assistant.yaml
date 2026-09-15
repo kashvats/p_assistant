@@ -100,3 +100,27 @@ routines:
 self_improvement:
   enabled: true
   auto_apply_security_core: false
+
+
+personal:
+  timezone: ${ASSISTANT_TIMEZONE:local}
+  quiet_hours:
+    enabled: false
+    start: "22:00"
+    end: "07:00"
+
+briefings:
+  enabled: true
+  morning_time: "08:30"
+  evening_time: "20:30"
+  notify: true
+  use_model: false
+
+sessions:
+  enabled: true
+  retention_days: 30
+  max_context_messages: 12
+  redact_secrets: true
+
+connectors:
+  enabled: true

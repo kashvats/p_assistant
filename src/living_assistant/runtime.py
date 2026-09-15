@@ -20,6 +20,11 @@ from .routines import RoutineRegistry
 from .improvements import ImprovementStore, ImprovementEngine
 from .browser import BrowserController
 from .groups import ProjectGroupRegistry, ProjectGroupController
+from .personal_state import PersonalState
+from .calendar_store import CalendarStore
+from .sessions import SessionStore
+from .connectors import ConnectorRegistry
+from .briefing import BriefingEngine
 from .tools.filesystem import build_filesystem_tools
 from .tools.shell import build_shell_tools, ProcessRegistry
 from .tools.projects import build_project_tools, ProjectRegistry
@@ -34,6 +39,10 @@ from .tools.grouptools import build_group_tools
 from .tools.voicetools import build_voice_tools
 from .tools.routinetools import build_routine_tools
 from .tools.improvementtools import build_improvement_tools
+from .tools.calendartools import build_calendar_tools
+from .tools.personalstate import build_personal_state_tools
+from .tools.briefingtools import build_briefing_tools
+from .tools.sessiontools import build_session_tools
 
 @dataclass
 class Runtime:
@@ -57,80 +66,78 @@ class Runtime:
     routines: RoutineRegistry
     improvements: ImprovementEngine
     browser: BrowserController
+    personal: PersonalState
+    calendar: CalendarStore
+    sessions: SessionStore
+    connectors: ConnectorRegistry
+    briefings: BriefingEngine
     orchestrator: Orchestrator
     model_manager: ModelManager
 
 
 def build_runtime(interactive: bool = True) -> Runtime:
     load_dotenv()
-    cfg = load_config()
-    hw = detect_hardware()
-    profile = choose_profile(cfg, hw)
-    pcfg = cfg['profiles'][profile]
+    cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw); pcfg = cfg['profiles'][profile]
 
-    roots = []
-    for r in cfg.get('workspace_roots', ['./workspace']):
-        p = Path(r)
-        if not p.is_absolute(): p = project_root() / p
+    roots=[]
+    for r in cfg.get('workspace_roots',['./workspace']):
+        p=Path(r)
+        if not p.is_absolute(): p=project_root()/p
         roots.append(p)
 
-    projects = ProjectRegistry()
+    projects=ProjectRegistry()
     for item in projects.list().values():
-        if isinstance(item, dict) and item.get('path'):
-            rp = Path(item['path']).expanduser().resolve()
+        if isinstance(item,dict) and item.get('path'):
+            rp=Path(item['path']).expanduser().resolve()
             if rp.exists(): roots.append(rp)
 
-    ws = Workspace(roots)
-    approvals = ApprovalStore()
-    notifier = Notifier()
-    approval = ApprovalManager(interactive=interactive, store=approvals, notifier=notifier)
-    memory = MemoryStore()
-    processes = ProcessRegistry()
-    watches = WatchRegistry()
-    skills = SkillRegistry()
-    resources = ResourceManager(profile, cfg)
-    quarantine = QuarantineVault()
-    routines = RoutineRegistry()
-    improvement_store = ImprovementStore()
-    improvements = ImprovementEngine(ws, approval, improvement_store)
-    voice = VoiceEngine(ws, approval, cfg, profile)
-    groups = ProjectGroupRegistry()
-    group_controller = ProjectGroupController(groups, projects, processes, approval)
+    ws=Workspace(roots)
+    personal=PersonalState(timezone=str(cfg.get('personal',{}).get('timezone','local')), defaults=cfg.get('personal',{}))
+    notifier=Notifier(quiet_provider=personal.is_quiet)
+    approvals=ApprovalStore(); approval=ApprovalManager(interactive=interactive,store=approvals,notifier=notifier)
+    memory=MemoryStore(); processes=ProcessRegistry(); watches=WatchRegistry(); skills=SkillRegistry()
+    resources=ResourceManager(profile,cfg); quarantine=QuarantineVault(); routines=RoutineRegistry()
+    improvement_store=ImprovementStore(); improvements=ImprovementEngine(ws,approval,improvement_store)
+    voice=VoiceEngine(ws,approval,cfg,profile); groups=ProjectGroupRegistry()
+    group_controller=ProjectGroupController(groups,projects,processes,approval)
+    calendar=CalendarStore()
+    session_cfg=cfg.get('sessions',{})
+    sessions=SessionStore(retention_days=int(session_cfg.get('retention_days',30)), redact_secrets=bool(session_cfg.get('redact_secrets',True)))
+    connectors=ConnectorRegistry()
+    briefings=BriefingEngine(cfg,personal,memory,calendar,projects,processes,approvals,notifier)
 
-    provider = OllamaProvider(base_url=cfg['ollama']['base_url'])
-    mm = ModelManager(provider)
-    keep_alive = int(cfg['ollama'].get('keep_alive_seconds',45))
-    context_tokens = int(pcfg.get('context_tokens',4096))
+    provider=OllamaProvider(base_url=cfg['ollama']['base_url']); mm=ModelManager(provider)
+    keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
+    browser_cfg=cfg.get('browser',{})
+    browser_enabled=bool(browser_cfg.get('enabled',True)) and (profile!='lite' or bool(browser_cfg.get('lite_enabled',False)))
+    browser=BrowserController(ws,approval,headless=bool(browser_cfg.get('headless',False)))
 
-    browser_cfg = cfg.get('browser', {})
-    browser_enabled = bool(browser_cfg.get('enabled', True)) and (profile != 'lite' or bool(browser_cfg.get('lite_enabled', False)))
-    browser = BrowserController(ws, approval, headless=bool(browser_cfg.get('headless', False)))
-
-    tools = []
-    tools += build_filesystem_tools(ws, approval, bool(cfg.get('policy',{}).get('require_write_approval', False)))
-    tools += build_shell_tools(ws, approval, cfg, processes)
-    tools += build_project_tools(ws, projects)
+    tools=[]
+    tools += build_filesystem_tools(ws,approval,bool(cfg.get('policy',{}).get('require_write_approval',False)))
+    tools += build_shell_tools(ws,approval,cfg,processes)
+    tools += build_project_tools(ws,projects)
     tools += build_group_tools(group_controller)
-    tools += build_git_tools(ws, approval)
-    tools += build_web_tools(ws, cfg, approval, quarantine)
-    tools += build_browser_tools(browser, enabled=browser_enabled)
+    tools += build_git_tools(ws,approval)
+    tools += build_web_tools(ws,cfg,approval,quarantine)
+    tools += build_browser_tools(browser,enabled=browser_enabled)
     tools += build_database_tools(cfg)
-    tools += build_personal_tools(memory, notifier)
+    tools += build_personal_tools(memory,notifier)
+    tools += build_calendar_tools(calendar)
+    tools += build_personal_state_tools(personal)
+    tools += build_briefing_tools(briefings)
+    tools += build_session_tools(sessions)
     tools += build_routine_tools(routines)
     tools += build_improvement_tools(improvements)
     tools += build_voice_tools(voice)
-    tools += build_security_tools(ws, approval)
-    if bool(cfg.get('desktop',{}).get('enabled', True)):
-        tools += build_desktop_tools(ws, approval)
+    tools += build_security_tools(ws,approval)
+    if bool(cfg.get('desktop',{}).get('enabled',True)): tools += build_desktop_tools(ws,approval)
 
-    specialists = SpecialistRouter(
-        mm, pcfg['models'], keep_alive=keep_alive, max_handoffs=int(pcfg['max_handoffs']),
-        context_tokens=context_tokens, resource_manager=resources,
-    )
-    orchestrator = Orchestrator(
-        mm, pcfg['models']['orchestrator'], tools, specialists,
-        keep_alive=keep_alive, max_steps=int(pcfg['max_tool_steps']), context_tokens=context_tokens,
-        skills=skills, resource_manager=resources,
-    )
-    return Runtime(cfg, profile, hw, ws, memory, projects, groups, group_controller, processes, approvals,
-                   approval, watches, skills, notifier, resources, quarantine, voice, routines, improvements, browser, orchestrator, mm)
+    specialists=SpecialistRouter(mm,pcfg['models'],keep_alive=keep_alive,max_handoffs=int(pcfg['max_handoffs']),
+                                 context_tokens=context_tokens,resource_manager=resources)
+    orchestrator=Orchestrator(mm,pcfg['models']['orchestrator'],tools,specialists,
+                              keep_alive=keep_alive,max_steps=int(pcfg['max_tool_steps']),context_tokens=context_tokens,
+                              skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
+                              max_session_messages=int(session_cfg.get('max_context_messages',12)))
+    return Runtime(cfg,profile,hw,ws,memory,projects,groups,group_controller,processes,approvals,
+                   approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,browser,
+                   personal,calendar,sessions,connectors,briefings,orchestrator,mm)

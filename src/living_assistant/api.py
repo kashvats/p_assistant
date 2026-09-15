@@ -5,29 +5,23 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from .runtime import build_runtime
 
-app = FastAPI(title='Living Assistant Local API', version='0.4.0')
+app = FastAPI(title='Living Assistant Local API', version='0.5.0')
 runtime = None
 
 class AskRequest(BaseModel):
     message: str
     context: str = ''
-
-class ApprovalDecision(BaseModel):
-    approved: bool
-
+    session_id: str | None = None
+class ApprovalDecision(BaseModel): approved: bool
 class BrowserStartRequest(BaseModel):
-    name: str
-    url: str
-    persistent: bool = False
-    allowed_hosts: list[str] = Field(default_factory=list)
-
+    name: str; url: str; persistent: bool = False; allowed_hosts: list[str] = Field(default_factory=list)
 class BrowserInteractRequest(BaseModel):
-    action: str
-    selector: str
-    value: str | None = None
-
-class BrowserNavigateRequest(BaseModel):
-    url: str
+    action: str; selector: str; value: str | None = None
+class BrowserNavigateRequest(BaseModel): url: str
+class CalendarEventRequest(BaseModel):
+    title: str; start_at: str; end_at: str | None = None; location: str | None = None; notes: str | None = None
+class FocusRequest(BaseModel): minutes: int = 60; label: str | None = None
+class QuietRequest(BaseModel): start: str='22:00'; end: str='07:00'; enabled: bool=True
 
 
 def _rt():
@@ -35,137 +29,118 @@ def _rt():
     if runtime is None: runtime = build_runtime(interactive=False)
     return runtime
 
-
 def _auth(authorization: str | None):
-    token = os.environ.get('ASSISTANT_API_TOKEN','')
-    if token and authorization != f'Bearer {token}':
-        raise HTTPException(status_code=401, detail='Invalid token')
+    token=os.environ.get('ASSISTANT_API_TOKEN','')
+    if token and authorization != f'Bearer {token}': raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.4.0'}
-
+def health(): return {'ok':True,'service':'living-assistant','version':'0.5.0'}
 @app.get('/status')
-def status(authorization: str | None = Header(default=None)):
-    _auth(authorization); rt=_rt()
-    return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot()}
-
+def status(authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}
 @app.post('/ask')
-def ask(req: AskRequest, authorization: str | None = Header(default=None)):
-    _auth(authorization); return {'answer':_rt().orchestrator.run(req.message, req.context)}
-
+def ask(req: AskRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt()
+    if req.session_id: rt.sessions.ensure(req.session_id)
+    return {'answer':rt.orchestrator.run(req.message,req.context,session_id=req.session_id),'session_id':req.session_id}
 @app.get('/projects')
-def projects(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().projects.list()
-
+def projects(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().projects.list()
 @app.get('/groups')
-def groups(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().groups.list()
-
+def groups(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().groups.list()
 @app.get('/processes')
-def processes(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().processes.list()
-
+def processes(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().processes.list()
 @app.get('/events')
-def events(limit: int=100, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().memory.list_events(min(max(limit,1),500))
-
+def events(limit: int=100,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().memory.list_events(min(max(limit,1),500))
 @app.get('/todos')
-def todos(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().memory.list_todos(include_done=True)
-
+def todos(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().memory.list_todos(include_done=True)
 @app.get('/approvals')
-def approvals(status: str='pending', authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().approvals.list(status=None if status=='all' else status)
-
+def approvals(status: str='pending',authorization: str | None=Header(default=None)): _auth(authorization); return _rt().approvals.list(status=None if status=='all' else status)
 @app.post('/approvals/{approval_id}')
-def approval_decide(approval_id: str, decision: ApprovalDecision, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().approvals.resolve(approval_id, decision.approved)
-
+def approval_decide(approval_id: str,decision: ApprovalDecision,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().approvals.resolve(approval_id,decision.approved)
 @app.get('/watches')
-def watches(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().watches.list()
-
+def watches(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().watches.list()
 @app.get('/skills')
-def skills(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().skills.list()
-
+def skills(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().skills.list()
 @app.get('/quarantine')
-def quarantine(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().quarantine.list()
-
+def quarantine(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().quarantine.list()
 @app.get('/routines')
-def routines(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().routines.list()
-
+def routines(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().routines.list()
 @app.get('/improvements')
-def improvements(status: str='pending', authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().improvements.store.list(None if status=='all' else status)
-
+def improvements(status: str='pending',authorization: str | None=Header(default=None)): _auth(authorization); return _rt().improvements.store.list(None if status=='all' else status)
 @app.post('/improvements/{proposal_id}/apply')
-def improvement_apply(proposal_id: str, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().improvements.apply(proposal_id)
-
+def improvement_apply(proposal_id: str,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().improvements.apply(proposal_id)
 @app.post('/improvements/{proposal_id}/rollback')
-def improvement_rollback(proposal_id: str, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().improvements.rollback(proposal_id)
-
+def improvement_rollback(proposal_id: str,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().improvements.rollback(proposal_id)
 @app.get('/voice/status')
-def voice_status(authorization: str | None = Header(default=None)):
+def voice_status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt(); return {'enabled':rt.voice.enabled(),'profile':rt.profile,'config':rt.config.get('voice',{})}
-
 @app.get('/browser/sessions')
-def browser_sessions(authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().browser.list_sessions()
-
+def browser_sessions(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().browser.list_sessions()
 @app.post('/browser/sessions')
-def browser_session_start(req: BrowserStartRequest, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().browser.start_session(req.name,req.url,req.persistent,req.allowed_hosts)
-
+def browser_session_start(req: BrowserStartRequest,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().browser.start_session(req.name,req.url,req.persistent,req.allowed_hosts)
 @app.post('/browser/sessions/{name}/navigate')
-def browser_session_navigate(name: str, req: BrowserNavigateRequest, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().browser.navigate_session(name,req.url)
-
+def browser_session_navigate(name: str,req: BrowserNavigateRequest,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().browser.navigate_session(name,req.url)
 @app.post('/browser/sessions/{name}/interact')
-def browser_session_interact(name: str, req: BrowserInteractRequest, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().browser.interact_session(name,req.action,req.selector,req.value)
-
+def browser_session_interact(name: str,req: BrowserInteractRequest,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().browser.interact_session(name,req.action,req.selector,req.value)
 @app.delete('/browser/sessions/{name}')
-def browser_session_close(name: str, authorization: str | None = Header(default=None)):
-    _auth(authorization); return _rt().browser.close_session(name,False)
+def browser_session_close(name: str,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().browser.close_session(name,False)
 
-@app.get('/dashboard', response_class=HTMLResponse)
+@app.get('/calendar')
+def calendar(start: str | None=None,end: str | None=None,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().calendar.list(start,end)
+@app.post('/calendar')
+def calendar_add(req: CalendarEventRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().calendar.add(req.title,req.start_at,req.end_at,req.location,req.notes)
+@app.delete('/calendar/{event_id}')
+def calendar_cancel(event_id: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); return {'ok':_rt().calendar.cancel(event_id)}
+@app.get('/briefing/{kind}')
+def briefing(kind: str,authorization: str | None=Header(default=None)):
+    _auth(authorization)
+    if kind not in {'morning','evening'}: raise HTTPException(status_code=400,detail='kind must be morning or evening')
+    return _rt().briefings.build(kind)
+@app.get('/personal')
+def personal(authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return {**rt.personal.status(),'queued_notifications':rt.notifier.queued()}
+@app.post('/personal/focus')
+def focus(req: FocusRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().personal.start_focus(req.minutes,req.label)
+@app.delete('/personal/focus')
+def focus_stop(authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); state=rt.personal.stop_focus(); rt.notifier.flush(20); return state
+@app.post('/personal/quiet')
+def quiet(req: QuietRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().personal.set_quiet_hours(req.start,req.end,req.enabled)
+@app.get('/sessions')
+def sessions(limit: int=50,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().sessions.list(limit)
+@app.get('/sessions/{session_id}')
+def session_get(session_id: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return {'session':rt.sessions.get(session_id),'messages':rt.sessions.recent_messages(session_id,50)}
+@app.delete('/sessions/{session_id}')
+def session_delete(session_id: str,authorization: str | None=Header(default=None)): _auth(authorization); return {'ok':_rt().sessions.delete(session_id)}
+@app.get('/connectors')
+def connectors(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().connectors.list()
+@app.get('/notifications/queued')
+def queued_notifications(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().notifier.queued()
+@app.post('/notifications/flush')
+def flush_notifications(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().notifier.flush(50)
+
+@app.get('/dashboard',response_class=HTMLResponse)
 def dashboard():
     if os.environ.get('ASSISTANT_API_TOKEN'):
         return HTMLResponse('<h2>Living Assistant</h2><p>Dashboard is disabled while ASSISTANT_API_TOKEN is set. Use authenticated API endpoints.</p>')
-    page = r'''<!doctype html><html><head><meta charset="utf-8"><title>Living Assistant</title>
-<style>
-body{font-family:system-ui;margin:24px;max-width:1400px;background:#f7f7f7;color:#171717}
-header{display:flex;gap:12px;align-items:center;justify-content:space-between}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-section{background:white;border:1px solid #ddd;border-radius:12px;padding:14px}pre{background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto;max-height:420px}
-button{padding:7px 11px;border-radius:8px;border:1px solid #aaa;cursor:pointer}.approve{background:#e6ffed}.deny{background:#ffecec}.approval{border-bottom:1px solid #ddd;padding:10px 0}
-small{color:#666}@media(max-width:850px){.grid{grid-template-columns:1fr}}
-</style></head><body>
-<header><div><h1>Living Assistant Control Center</h1><small>Localhost-only desktop operator</small></div><button onclick="load()">Refresh</button></header>
-<div class="grid">
+    page=r'''<!doctype html><html><head><meta charset="utf-8"><title>Living Assistant</title>
+<style>body{font-family:system-ui;margin:24px;max-width:1450px;background:#f7f7f7;color:#171717}header{display:flex;gap:12px;align-items:center;justify-content:space-between}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}section{background:white;border:1px solid #ddd;border-radius:12px;padding:14px}pre{background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto;max-height:420px}button{padding:7px 11px;border-radius:8px;border:1px solid #aaa;cursor:pointer}.approve{background:#e6ffed}.deny{background:#ffecec}.approval{border-bottom:1px solid #ddd;padding:10px 0}small{color:#666}@media(max-width:850px){.grid{grid-template-columns:1fr}}</style></head><body>
+<header><div><h1>Living Assistant Control Center</h1><small>Localhost-only personal operating layer</small></div><button onclick="load()">Refresh</button></header><div class="grid">
 <section><h2>Status</h2><pre id="status"></pre></section><section><h2>Approvals</h2><div id="approvals"></div></section>
-<section><h2>Projects</h2><pre id="projects"></pre></section><section><h2>Groups</h2><pre id="groups"></pre></section>
-<section><h2>Processes</h2><pre id="processes"></pre></section><section><h2>Quarantine</h2><pre id="quarantine"></pre></section>
+<section><h2>Personal state</h2><pre id="personal"></pre></section><section><h2>Calendar</h2><pre id="calendar"></pre></section>
+<section><h2>Morning briefing</h2><pre id="briefing"></pre></section><section><h2>Sessions</h2><pre id="sessions"></pre></section>
+<section><h2>Projects</h2><pre id="projects"></pre></section><section><h2>Processes</h2><pre id="processes"></pre></section>
 <section><h2>Recent events</h2><pre id="events"></pre></section><section><h2>Todos</h2><pre id="todos"></pre></section>
-<section><h2>Routines</h2><pre id="routines"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section>
-<section><h2>Browser sessions</h2><pre id="browser-sessions"></pre></section><section><h2>Voice</h2><pre id="voice-status"></pre></section>
+<section><h2>Routines</h2><pre id="routines"></pre></section><section><h2>Queued notifications</h2><pre id="notifications"></pre></section>
+<section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section>
 </div><script>
-async function j(u,opt){let r=await fetch(u,opt);return await r.json()}
-async function decide(id,approved){await j('/approvals/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});load()}
-async function load(){
- for(let k of ['status','projects','groups','processes','quarantine','events','todos','routines','improvements']) document.getElementById(k).textContent=JSON.stringify(await j('/'+k),null,2);
- document.getElementById('browser-sessions').textContent=JSON.stringify(await j('/browser/sessions'),null,2);
- document.getElementById('voice-status').textContent=JSON.stringify(await j('/voice/status'),null,2);
- let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';
- if(!a.length) box.textContent='No pending approvals.';
- for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br>'+
- '<button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}
-}
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-load();setInterval(load,8000)
+async function j(u,opt){let r=await fetch(u,opt);return await r.json()}async function decide(id,approved){await j('/approvals/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});load()}
+async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements'])document.getElementById(k).textContent=JSON.stringify(await j('/'+k),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
 </script></body></html>'''
     return HTMLResponse(page)

@@ -1,4 +1,4 @@
-# Master Build Prompt — Living Assistant v0.4+
+# Master Build Prompt — Living Assistant v0.5+
 
 Build and maintain a production-minded, local-first personal assistant called **Living Assistant** for Windows, Ubuntu/Linux and macOS.
 
@@ -76,12 +76,17 @@ Keep model names configurable and keep the provider interface compatible with Ol
 - bounded rows/timeouts
 - never echo credentials
 
-### Memory/daily life
-- local SQLite/FTS memory
+### Personal operating layer
+- local SQLite/FTS memory and user-confirmed reusable skills
 - todos/reminders
-- user-confirmed reusable skills
-- notifications
-- future email/calendar connectors behind capability scopes
+- local calendar with create/list/cancel and ICS export
+- deterministic morning/evening briefing
+- quiet hours and bounded focus mode
+- durable notification queue during quiet periods
+- local conversation/session history with bounded context and retention controls
+- redact common credential patterns before persisting session messages
+- provider-neutral connector registry; store metadata/env-prefix only, never credentials
+- external email/calendar/files providers remain capability-scoped adapters
 
 ### Voice
 - optional push-to-talk, never always-on microphone by default
@@ -92,7 +97,7 @@ Keep model names configurable and keep the provider interface compatible with Ol
 - wake word, if added later, must be a tiny dedicated detector rather than a full STT model listening continuously
 
 ### Deterministic routines
-Support event and schedule/interval triggers. Safe actions such as `notify` and `todo` run without an LLM. An `assistant_prompt` routine must be disabled by default behind an explicit `allow_model_wake` setting. A model-waking routine must use the noninteractive approval queue for high-impact actions.
+Support event, interval, daily HH:MM, and weekly weekday+HH:MM triggers. Safe actions such as `notify` and `todo` run without an LLM. An `assistant_prompt` routine must be disabled by default behind an explicit `allow_model_wake` setting. A model-waking routine must use the noninteractive approval queue for high-impact actions and must not wake a model while focus/quiet mode is active.
 
 ### Defensive security
 - local listening ports/connections/process inventory
@@ -157,6 +162,11 @@ Keep regression tests for all earlier versions plus:
 - improvement diff/base-hash/conflict/approval/core-protection behavior
 - approval notification behavior
 - browser blocked metadata endpoints and session-name/host scope
+- personal quiet/focus behavior and durable notification queue
+- calendar/briefing scheduling
+- daily/weekly routine triggers
+- session retention/search/secret-redaction behavior
+- connector registry metadata-only behavior
 - API route smoke tests where practical
 
 Favor a truthful working MVP over placeholder claims. Every documented critical-path feature should have functioning code and tests or be clearly marked future work.

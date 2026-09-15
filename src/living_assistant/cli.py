@@ -26,11 +26,17 @@ browser_app = typer.Typer(help='Optional isolated browser sessions.')
 voice_app = typer.Typer(help='Optional local push-to-talk STT/TTS.')
 routine_app = typer.Typer(help='Deterministic event/interval routines.')
 improve_app = typer.Typer(help='Reviewable self-improvement/file-change proposals.')
+calendar_app = typer.Typer(help='Local personal calendar and agenda.')
+personal_app = typer.Typer(help='Quiet hours, focus mode and personal operating state.')
+briefing_app = typer.Typer(help='Morning/evening deterministic briefings.')
+session_app = typer.Typer(help='Local conversation/session history.')
+integration_app = typer.Typer(help='Connector metadata and future external integrations.')
 for sub, name in [
     (project_app,'project'),(group_app,'group'),(security_app,'security'),(approval_app,'approval'),
     (watch_app,'watch'),(skill_app,'skill'),(todo_app,'todo'),(quarantine_app,'quarantine'),
     (git_app,'git'),(desktop_app,'desktop'),(browser_app,'browser'),(voice_app,'voice'),
-    (routine_app,'routine'),(improve_app,'improve')]:
+    (routine_app,'routine'),(improve_app,'improve'),(calendar_app,'calendar'),(personal_app,'personal'),
+    (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration')]:
     app.add_typer(sub, name=name)
 
 @app.command()
@@ -55,34 +61,42 @@ def doctor():
         console.print(f'[red]Ollama check failed:[/red] {e}')
 
 @app.command()
-def ask(message: str, cwd: str = typer.Option('.', help='Workspace-relative working directory.')):
+def ask(message: str, cwd: str = typer.Option('.', help='Workspace-relative working directory.'),
+        session: str | None = typer.Option(None, '--session', help='Optional local session id for continuity.')):
     rt = build_runtime(interactive=True)
-    try: console.print(rt.orchestrator.run(message, context=f'Preferred working directory: {cwd}'))
+    if session: rt.sessions.ensure(session, title='one-shot')
+    try: console.print(rt.orchestrator.run(message, context=f'Preferred working directory: {cwd}', session_id=session))
     finally: rt.model_manager.sleep()
 
 @app.command()
-def chat():
+def chat(session: str | None = typer.Option(None, '--session'), history: bool = typer.Option(True, '--history/--no-history')):
     rt = build_runtime(interactive=True)
-    console.print(f'[bold green]Living Assistant[/bold green] profile={rt.profile}. Type /exit to quit.')
+    sid = session
+    if history:
+        if sid: rt.sessions.ensure(sid)
+        else: sid = rt.sessions.create('Interactive chat')['id']
+    console.print(f'[bold green]Living Assistant[/bold green] profile={rt.profile}. Type /exit to quit.' + (f' Session={sid}' if sid else ' History disabled.'))
     try:
         while True:
             text = input('you> ').strip()
             if not text: continue
             if text in {'/exit','/quit','exit','quit'}: break
-            console.print(rt.orchestrator.run(text))
+            console.print(rt.orchestrator.run(text, session_id=sid))
     finally: rt.model_manager.sleep()
 
 @app.command()
 def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
-                  routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager).run_forever()
+                  routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
+                  briefings=rt.briefings, sessions=rt.sessions).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
-                                routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager).tick())
+                                routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
+                                briefings=rt.briefings, sessions=rt.sessions).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -190,6 +204,15 @@ def approval_approve(approval_id: str): console.print(build_runtime(interactive=
 @approval_app.command('deny')
 def approval_deny(approval_id: str): console.print(build_runtime(interactive=False).approvals.resolve(approval_id,False))
 
+@approval_app.command('ui')
+def approval_ui():
+    rt=build_runtime(interactive=False)
+    try:
+        from .approval_ui import run_approval_ui
+        run_approval_ui(rt)
+    except RuntimeError as e:
+        console.print(f'[red]{e}[/red]'); raise typer.Exit(2)
+
 @watch_app.command('add')
 def watch_add(name: str,path: str,recursive: bool=True,extensions: str=''):
     rt=build_runtime(interactive=False); console.print(rt.watches.add(name,path,recursive,[x.strip() for x in extensions.split(',') if x.strip()]))
@@ -210,6 +233,10 @@ def skill_list(): console.print(build_runtime(interactive=False).skills.list())
 
 @skill_app.command('remove')
 def skill_remove(name: str): console.print({'ok':build_runtime(interactive=False).skills.remove(name)})
+
+@todo_app.command('add')
+def todo_add(title: str, due_at: str | None = None):
+    console.print({'ok':True,'id':build_runtime(interactive=False).memory.add_todo(title,due_at)})
 
 @todo_app.command('list')
 def todo_list(all: bool=False): console.print(build_runtime(interactive=False).memory.list_todos(include_done=all))
@@ -380,6 +407,21 @@ def routine_add_interval_todo(name: str, seconds: int, title: str):
     rt=build_runtime(interactive=False)
     console.print(rt.routines.add(name, {'type':'interval','seconds':seconds}, {'type':'todo','title':title}))
 
+@routine_app.command('add-daily-notify')
+def routine_add_daily_notify(name: str, at: str, message: str):
+    rt=build_runtime(interactive=False)
+    console.print(rt.routines.add(name, {'type':'daily','time':at}, {'type':'notify','message':message}))
+
+@routine_app.command('add-daily-todo')
+def routine_add_daily_todo(name: str, at: str, title: str):
+    rt=build_runtime(interactive=False)
+    console.print(rt.routines.add(name, {'type':'daily','time':at}, {'type':'todo','title':title}))
+
+@routine_app.command('add-weekly-notify')
+def routine_add_weekly_notify(name: str, days: str, at: str, message: str):
+    rt=build_runtime(interactive=False); day_list=[x.strip().lower() for x in days.split(',') if x.strip()]
+    console.print(rt.routines.add(name, {'type':'weekly','days':day_list,'time':at}, {'type':'notify','message':message}))
+
 @routine_app.command('add-prompt')
 def routine_add_prompt(name: str, seconds: int, prompt: str):
     rt=build_runtime(interactive=False)
@@ -425,5 +467,96 @@ def improve_rollback(proposal_id: str):
 @improve_app.command('reject')
 def improve_reject(proposal_id: str):
     console.print(build_runtime(interactive=False).improvements.reject(proposal_id))
+
+
+@calendar_app.command('add')
+def calendar_add(title: str, start_at: str, end_at: str | None = None, location: str | None = None, notes: str | None = None):
+    console.print(build_runtime(interactive=False).calendar.add(title,start_at,end_at,location,notes))
+
+@calendar_app.command('list')
+def calendar_list(start: str | None = None, end: str | None = None, limit: int = 50):
+    console.print(build_runtime(interactive=False).calendar.list(start,end,limit=limit))
+
+@calendar_app.command('upcoming')
+def calendar_upcoming(hours: int = 24):
+    console.print(build_runtime(interactive=False).calendar.upcoming(hours=hours))
+
+@calendar_app.command('cancel')
+def calendar_cancel(event_id: str):
+    console.print({'ok':build_runtime(interactive=False).calendar.cancel(event_id)})
+
+@calendar_app.command('export')
+def calendar_export(destination: str = 'artifacts/calendar.ics'):
+    rt=build_runtime(interactive=False); target=rt.workspace.resolve(destination)
+    console.print({'ok':True,'path':rt.calendar.export_ics(target)})
+
+@personal_app.command('status')
+def personal_status():
+    rt=build_runtime(interactive=False); console.print({**rt.personal.status(),'queued_notifications':len(rt.notifier.queued())})
+
+@personal_app.command('quiet')
+def personal_quiet(start: str = typer.Argument('22:00'), end: str = typer.Argument('07:00'), enabled: bool=True):
+    console.print(build_runtime(interactive=False).personal.set_quiet_hours(start,end,enabled))
+
+@personal_app.command('quiet-off')
+def personal_quiet_off():
+    console.print(build_runtime(interactive=False).personal.set_quiet_enabled(False))
+
+@personal_app.command('focus')
+def personal_focus(minutes: int = typer.Argument(60), label: str | None=None):
+    console.print(build_runtime(interactive=False).personal.start_focus(minutes,label))
+
+@personal_app.command('focus-off')
+def personal_focus_off():
+    rt=build_runtime(interactive=False); console.print(rt.personal.stop_focus()); console.print(rt.notifier.flush(max_items=20))
+
+@personal_app.command('flush-notifications')
+def personal_flush_notifications():
+    console.print(build_runtime(interactive=False).notifier.flush(max_items=50))
+
+@briefing_app.command('now')
+def briefing_now(kind: str = typer.Argument('morning'), notify: bool=False):
+    rt=build_runtime(interactive=False)
+    if kind not in {'morning','evening'}: console.print('[red]kind must be morning or evening[/red]'); raise typer.Exit(2)
+    result=rt.briefings.build(kind); console.print(result['text'])
+    if notify: console.print(rt.notifier.send('Living Assistant',result['text']))
+
+@session_app.command('list')
+def session_list(limit: int=50):
+    console.print(build_runtime(interactive=False).sessions.list(limit))
+
+@session_app.command('show')
+def session_show(session_id: str, limit: int=50):
+    rt=build_runtime(interactive=False); console.print({'session':rt.sessions.get(session_id),'messages':rt.sessions.recent_messages(session_id,limit)})
+
+@session_app.command('search')
+def session_search(query: str, limit: int=50):
+    console.print(build_runtime(interactive=False).sessions.search(query,limit))
+
+@session_app.command('delete')
+def session_delete(session_id: str):
+    if input(f'Delete local session {session_id}? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
+    console.print({'ok':build_runtime(interactive=False).sessions.delete(session_id)})
+
+@integration_app.command('list')
+def integration_list():
+    console.print(build_runtime(interactive=False).connectors.list())
+
+@integration_app.command('add')
+def integration_add(name: str, kind: str, provider: str, capabilities: str, env_prefix: str | None=None):
+    caps=[x.strip() for x in capabilities.split(',') if x.strip()]
+    console.print(build_runtime(interactive=False).connectors.add(name,kind,provider,caps,env_prefix))
+
+@integration_app.command('enable')
+def integration_enable(name: str):
+    console.print({'ok':build_runtime(interactive=False).connectors.set_enabled(name,True)})
+
+@integration_app.command('disable')
+def integration_disable(name: str):
+    console.print({'ok':build_runtime(interactive=False).connectors.set_enabled(name,False)})
+
+@integration_app.command('remove')
+def integration_remove(name: str):
+    console.print({'ok':build_runtime(interactive=False).connectors.remove(name)})
 
 if __name__ == '__main__': app()

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0
+
+- Added local SQLite personal calendar with create/list/cancel and iCalendar export.
+- Added deterministic morning/evening briefings from calendar, todos, project state, approvals and recent attention events.
+- Added quiet hours and bounded focus mode. Non-urgent notifications are durably queued and flushed after quiet mode.
+- Added daily and weekly clock-based deterministic routine triggers.
+- Added local session history with bounded context, retention pruning, search/delete controls and common secret redaction.
+- Added native Tkinter approval review window.
+- Added provider-neutral connector metadata registry that stores no credentials.
+- Model-waking routines are suppressed while focus/quiet mode is active.
+- Added personal/calendar/briefing/session/connectors/queued-notification API and dashboard surfaces.
+- Expanded regression suite to 44 passing tests.
+
 ## 0.4.0
 
 - Added optional local push-to-talk voice layer with microphone approval, local faster-whisper STT and offline pyttsx3 TTS interfaces.

@@ -1,29 +1,34 @@
-# Living Assistant v0.4
+# Living Assistant v0.5 — Personal Operating Layer
 
-A local-first, hardware-adaptive personal assistant for Windows, Ubuntu/Linux and macOS. It is designed to feel persistent without wasting resources: a deterministic nervous system stays awake while local SLMs sleep until reasoning is actually required.
+A local-first, hardware-adaptive personal assistant for Windows, Ubuntu/Linux and macOS. A deterministic **nervous system** stays awake for lightweight monitoring/scheduling while local SLMs sleep until reasoning is needed.
 
-## v0.4 highlights
+## v0.5 highlights
 
-- Local orchestrator + sleeping specialist personas.
-- Safe shell/code execution, project supervision and multi-service groups.
-- Files, Git, web/image download, DB reads, memory, todos and defensive security inspection.
-- Optional clipboard/screenshot desktop tools.
-- Optional isolated Playwright browser sessions.
-- **Optional push-to-talk voice**: microphone → local STT → orchestrator → optional local TTS.
-- **Deterministic routines** driven by time intervals or assistant events.
-- **Reviewable self-improvement proposals** with diff, conflict check, backup and approval.
-- Persistent approval queue with desktop notifications.
-- Risky downloads go to quarantine rather than being executed.
+Everything from v0.4 remains, plus:
+
+- **Local calendar/agenda** with create/list/cancel and `.ics` export.
+- **Morning and evening briefings** built deterministically from calendar, todos, project health, approvals and recent important events.
+- **Quiet hours + focus mode**. Non-urgent notifications are durably queued and flushed later instead of being lost.
+- **Daily + weekly routines** in addition to event/interval routines. These do not need an LLM.
+- **Local conversation/session history** with bounded context, configurable retention and common credential redaction.
+- **Native approval window** using Tkinter (`organism approval ui`).
+- **Connector registry** for future mail/calendar/files/contact providers. The registry stores metadata/env-prefixes, never credentials.
+- Background model-waking routines are suppressed while quiet/focus mode is active.
+- Expanded test suite: **44 passing tests**.
 
 ## Hardware profiles
 
 ### Main target — Ryzen 5 5600H / GTX 1650 4 GB / 32 GB RAM
 
-Use `balanced`. Default roles use 4B/2B class local models, but normally only one physical model is active at a time. Voice STT defaults to a small CPU model so it does not compete with the 4 GB GPU.
+Use the auto-selected `balanced` profile. Default roles use 4B/2B class local models, with normally one physical model active at a time. STT stays CPU-first by default so it does not fight a 4 GB GPU for VRAM.
 
 ### 8 GB systems
 
-Use `lite` automatically. The default keeps one tiny SLM, short context, one handoff, deterministic tools, and no browser/voice sensor tools unless explicitly enabled.
+The `lite` profile uses one tiny SLM, short context and deterministic tools first. Browser and voice sensor tools remain disabled by default. Calendar, briefings, quiet hours, routines, sessions and the daemon are lightweight and still usable.
+
+## Upgrading from v0.4
+
+v0.5 uses additive SQLite tables and the same platform-specific data directory, so existing projects, approvals, todos, routines and skills remain reusable. Keep a backup of your assistant data directory before replacing a working installation, then install this repository with `pip install -e .`.
 
 ## Install
 
@@ -45,155 +50,147 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-Install Ollama separately, start its local service, then:
+Install/start Ollama separately, then:
 
 ```bash
 organism doctor
 ```
 
-### Optional extras
-
-Desktop/tray/screenshot/clipboard:
+Optional extras:
 
 ```bash
-pip install -e ".[desktop]"
+pip install -e ".[desktop]"  # tray, clipboard, screenshots
+pip install -e ".[browser]"  # Playwright operator
+pip install -e ".[voice]"    # local push-to-talk STT/TTS
+playwright install chromium    # when browser extra is used
 ```
 
-Browser automation:
+## Personal calendar
 
 ```bash
-pip install -e ".[browser]"
-playwright install chromium
+organism calendar add "Client call" 2026-09-15T15:30:00 --end-at 2026-09-15T16:00:00
+organism calendar upcoming --hours 48
+organism calendar list
+organism calendar export artifacts/my-calendar.ics
 ```
 
-Voice:
+The calendar is local SQLite data. External calendar providers are intentionally not hard-wired into the core.
+
+## Morning / evening briefing
 
 ```bash
-pip install -e ".[voice]"
+organism briefing now morning
+organism briefing now evening
 ```
 
-Some operating systems may also require their normal microphone/PortAudio packages or permissions.
+Default daemon schedule:
 
-## Chat / one-shot
+```yaml
+briefings:
+  enabled: true
+  morning_time: "08:30"
+  evening_time: "20:30"
+  notify: true
+  use_model: false
+```
+
+Briefings are deterministic by default, so they do **not** load an SLM just to tell you today's agenda.
+
+## Quiet hours and focus mode
+
+```bash
+organism personal quiet 22:00 07:00
+organism personal focus 60 --label "Deep work"
+organism personal status
+organism personal focus-off
+organism personal quiet-off
+```
+
+During quiet/focus mode, non-urgent notifications are placed into a local queue. They can be flushed automatically when quiet mode ends or manually:
+
+```bash
+organism personal flush-notifications
+```
+
+## Daily and weekly routines
+
+```bash
+organism routine add-daily-notify morning-water 09:00 "Drink water"
+organism routine add-daily-todo logs 18:30 "Review production alerts"
+organism routine add-weekly-notify backup "sun" 19:00 "Check laptop backup"
+organism routine add-weekly-notify planning "mon,wed,fri" 09:15 "Review top priorities"
+```
+
+Existing event/interval routines still work. Model-waking `assistant_prompt` routines remain disabled by default and are also prevented from waking a model while focus/quiet mode is active.
+
+## Session continuity
+
+Interactive chat creates a local session by default:
 
 ```bash
 organism chat
-organism ask "Inspect my project and explain why it fails"
 ```
 
-## Push-to-talk voice
+Reuse a known session:
 
 ```bash
-organism voice status
-organism voice record --seconds 5
-organism voice transcribe artifacts/voice-input.wav
-organism voice ask --seconds 6 --speak
+organism chat --session SESSION_ID
+organism ask "Continue debugging the API" --session SESSION_ID
 ```
 
-Microphone recording always goes through the sensitive-read approval path. There is **no always-on microphone** in v0.4.
-
-## Isolated browser sessions
-
-For natural-language browser work, use `organism chat` or the local API so one runtime stays alive. For direct CLI use, `browser live` keeps the session in one process:
+Inspect/search/delete history:
 
 ```bash
-organism browser live docs https://example.com
+organism session list
+organism session show SESSION_ID
+organism session search "RetailEye"
+organism session delete SESSION_ID
 ```
 
-Inside it:
-
-```text
-snapshot
-goto https://example.com/docs
-click a.next
-fill input[name=q] local agent
-quit
-```
-
-A persistent browser profile is opt-in:
+Disable history for a chat:
 
 ```bash
-organism browser live work https://example.com --persistent
+organism chat --no-history
 ```
 
-It uses an assistant-only profile, never your normal Chrome/Edge/Firefox profile.
+Default policy stores only a bounded history for 30 days and redacts common patterns such as `password=...`, bearer tokens, API keys and private-key blocks before persistence. This is defense-in-depth, **not** a substitute for keeping secrets in environment variables or a password manager.
 
-## Routines
+## Native approval window
 
-Event notification:
+Pending noninteractive actions can be reviewed without living in a terminal:
 
 ```bash
-organism routine add-event-notify backend-crash project_process_crashed "A managed project crashed"
+organism approval ui
 ```
 
-Periodic notification:
+The Tkinter window shows the exact action, reason and risk kind and provides **Approve once** / **Deny** controls.
+
+## Connector registry
+
+v0.5 introduces a provider-neutral connector registry without storing credentials:
 
 ```bash
-organism routine add-interval-notify posture 3600 "Stand up and stretch"
+organism integration add work-mail mail gmail "read,draft" --env-prefix WORK_MAIL
+organism integration list
+organism integration disable work-mail
 ```
 
-Periodic todo:
+Actual Gmail/Google Calendar/etc. provider implementations remain separate capability modules. Secrets must come from environment variables or OS secret storage, not the registry JSON.
 
-```bash
-organism routine add-interval-todo review-logs 21600 "Review production alerts"
-```
+## Existing operator capabilities
 
-A model-waking prompt routine can be configured, but it remains inert while this setting is false:
+The previous layers remain:
 
-```yaml
-routines:
-  allow_model_wake: false
-```
-
-This prevents a background scheduler from silently turning into an autonomous high-impact agent.
-
-## Self-improvement proposal workflow
-
-The model can call `propose_improvement`, or you can create a proposal from an edited candidate file:
-
-```bash
-organism improve propose workspace/app.py /tmp/new-app.py \
-  "Improve retry handling" \
-  "Repeated transient network failures are not retried" \
-  --tests "pytest,python -m compileall src"
-```
-
-Review:
-
-```bash
-organism improve list
-organism improve show PROPOSAL_ID
-```
-
-Apply exact proposal:
-
-```bash
-organism improve apply PROPOSAL_ID
-organism improve rollback PROPOSAL_ID
-```
-
-The engine checks the original file hash, asks approval, makes a backup, and then writes the stored exact content. Security/approval/self-improvement core files are never auto-applied.
-
-## Projects
-
-```bash
-organism project add api /path/to/backend \
-  --start "uvicorn app.main:app --port 8000" \
-  --test "pytest" \
-  --auto-restart
-
-organism project run api
-organism project processes
-organism project logs PROCESS_ID --lines 200
-```
-
-Project groups:
-
-```bash
-organism group add retaileye "mediamtx,api,frontend"
-organism group plan retaileye
-organism group run retaileye
-```
+- project registration, process supervision, logs, health checks and bounded auto-restart;
+- frontend/backend/worker project groups;
+- Git status/diff and approval-gated branch/commit operations;
+- file/code operations with workspace boundaries and diffs;
+- bounded web fetch, image search/download and executable quarantine;
+- SQLite/PostgreSQL/MySQL/MongoDB read-only adapters;
+- defensive process/port/network inspection and Defender/ClamAV integration;
+- optional isolated Playwright browser sessions;
+- optional push-to-talk local STT/TTS;
+- reviewable, approval-gated self-improvement proposals.
 
 ## Nervous system
 
@@ -201,7 +198,18 @@ organism group run retaileye
 organism daemon
 ```
 
-It handles process supervision, reminders, health checks, file watches, port changes and deterministic routines without keeping an SLM loaded.
+While idle it performs deterministic work only:
+
+```text
+reminders / calendar / briefings / routines
+              │
+project health / crashes / file watches / ports
+              │
+quiet-hours queue / session retention maintenance
+              │
+              ▼
+       NO LLM KEPT LOADED
+```
 
 ## Control Center
 
@@ -211,13 +219,13 @@ organism serve
 
 Open `http://127.0.0.1:8787/dashboard`.
 
-The dashboard includes status, approvals, projects, groups, processes, quarantine, events, todos, routines, improvement proposals, browser sessions and voice status.
+v0.5 adds personal state, calendar, deterministic briefing, session history, queued notifications and connectors to the dashboard/API.
 
 ## Security model
 
-The assistant is deliberately **not** an unrestricted root shell. It blocks destructive/security-disabling patterns, asks approval for privileged/state-changing operations, constrains file access to workspace roots, keeps DB access read-only by default, and treats external content as untrusted data.
+The assistant is not an unrestricted root shell and cannot guarantee that your laptop will never be hacked. Deterministic code outside the LLM enforces destructive-command blocking, approvals, workspace boundaries, DB read-only defaults, quarantine and browser/sensor scope.
 
-It helps with defensive monitoring but cannot guarantee protection from hackers. Keep normal OS security, firewall/EDR/antivirus, disk encryption, updates, MFA and backups enabled.
+Keep OS updates, Defender/EDR/antivirus, firewall, disk encryption, MFA, backups and a password manager enabled.
 
 ## Tests
 
@@ -225,4 +233,4 @@ It helps with defensive monitoring but cannot guarantee protection from hackers.
 pytest -q
 ```
 
-The v0.4 repository currently includes 33 passing tests covering prior safety/migration behavior plus routines, voice gating, approval notifications, browser scoping and self-improvement conflict/approval controls.
+Current repository: **44 passing tests**.
