@@ -62,3 +62,5 @@ daemon:
   high_memory_percent: 88
   high_cpu_percent: 92
   alert_on_new_listening_port: true
+  watch_files: true
+  max_watch_events_per_tick: 25

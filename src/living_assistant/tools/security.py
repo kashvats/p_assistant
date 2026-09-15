@@ -64,8 +64,9 @@ def build_security_tools(workspace: Workspace, approval: ApprovalManager) -> lis
     def antivirus_quick_scan(path: str = "."):
         target = workspace.resolve(path)
         osname = platform.system()
-        if not approval.approve(f"Antivirus scan: {target}", "This invokes the installed local antivirus scanner."):
-            return {"ok":False,"approved":False}
+        req = approval.request(f"Antivirus scan: {target}", "This invokes the installed local antivirus scanner.", "EXECUTE")
+        if not req.get("allowed"):
+            return {"ok":False,"approval_required":True,**req}
         if osname == "Windows":
             # Defender custom scan is bounded to the approved workspace path.
             cmd = ["powershell","-NoProfile","-Command", f"Start-MpScan -ScanType CustomScan -ScanPath '{str(target).replace(chr(39), chr(39)+chr(39))}'"]

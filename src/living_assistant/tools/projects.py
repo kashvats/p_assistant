@@ -1,70 +1,149 @@
 from __future__ import annotations
 from pathlib import Path
-import json
+import json, time
 from .base import Tool
 from ..workspace import Workspace
 from ..config import data_dir
 
+
 def detect_project(path: Path) -> dict:
-    found = []
-    commands = []
+    found: list[str] = []
+    commands: list[str] = []
+    tests: list[str] = []
     if (path / "package.json").exists():
         found.append("node")
         try:
             pkg = json.loads((path / "package.json").read_text(encoding="utf-8"))
             scripts = pkg.get("scripts", {})
-            if "dev" in scripts: commands.append("npm run dev")
-            elif "start" in scripts: commands.append("npm start")
+            if "dev" in scripts:
+                commands.append("npm run dev")
+            elif "start" in scripts:
+                commands.append("npm start")
+            if "test" in scripts:
+                tests.append("npm test")
         except Exception:
             pass
     if (path / "pyproject.toml").exists() or (path / "requirements.txt").exists():
         found.append("python")
-    if (path / "docker-compose.yml").exists() or (path / "compose.yml").exists() or (path / "compose.yaml").exists():
+        if (path / "manage.py").exists():
+            commands.append("python manage.py runserver")
+        if (path / "pytest.ini").exists() or (path / "tests").exists():
+            tests.append("pytest")
+    if any((path / n).exists() for n in ("docker-compose.yml", "compose.yml", "compose.yaml")):
         found.append("docker-compose")
         commands.append("docker compose up")
     if (path / "pom.xml").exists():
-        found.append("maven"); commands.append("mvn spring-boot:run")
+        found.append("maven")
+        commands.append("mvn spring-boot:run")
+        tests.append("mvn test")
     if (path / "gradlew").exists() or (path / "gradlew.bat").exists():
-        found.append("gradle"); commands.append("./gradlew bootRun")
+        found.append("gradle")
+        commands.append("./gradlew bootRun")
+        tests.append("./gradlew test")
     if (path / "go.mod").exists():
-        found.append("go"); commands.append("go run .")
+        found.append("go")
+        commands.append("go run .")
+        tests.append("go test ./...")
     if (path / "Cargo.toml").exists():
-        found.append("rust"); commands.append("cargo run")
-    return {"path": str(path), "types": found, "suggested_commands": commands}
+        found.append("rust")
+        commands.append("cargo run")
+        tests.append("cargo test")
+    return {"path": str(path), "types": found, "suggested_commands": commands, "suggested_test_commands": tests}
+
 
 class ProjectRegistry:
-    def __init__(self):
-        self.path = data_dir() / "projects.json"
+    def __init__(self, path: Path | None = None):
+        self.path = path or (data_dir() / "projects.json")
         if not self.path.exists():
             self.path.write_text("{}", encoding="utf-8")
+        self._migrate()
 
-    def _load(self):
-        return json.loads(self.path.read_text(encoding="utf-8"))
+    def _load_raw(self):
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
 
-    def add(self, name: str, path: str):
-        data = self._load(); data[name] = str(Path(path).expanduser().resolve())
+    def _save(self, data: dict):
         self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        return data[name]
 
-    def list(self):
-        return self._load()
+    def _migrate(self):
+        data = self._load_raw()
+        changed = False
+        for name, item in list(data.items()):
+            if isinstance(item, str):
+                data[name] = {
+                    "path": str(Path(item).expanduser().resolve()),
+                    "start_command": None,
+                    "test_command": None,
+                    "auto_restart": False,
+                    "max_restarts": 3,
+                    "health_url": None,
+                    "created_at": time.time(),
+                }
+                changed = True
+        if changed:
+            self._save(data)
 
-    def get(self, name: str):
-        return self._load().get(name)
+    def add(self, name: str, path: str, start_command: str | None = None,
+            test_command: str | None = None, auto_restart: bool = False,
+            max_restarts: int = 3, health_url: str | None = None) -> dict:
+        data = self._load_raw()
+        resolved = Path(path).expanduser().resolve()
+        detected = detect_project(resolved)
+        item = {
+            "path": str(resolved),
+            "start_command": start_command or (detected["suggested_commands"][0] if detected["suggested_commands"] else None),
+            "test_command": test_command or (detected["suggested_test_commands"][0] if detected["suggested_test_commands"] else None),
+            "auto_restart": bool(auto_restart),
+            "max_restarts": max(0, min(int(max_restarts), 20)),
+            "health_url": health_url,
+            "created_at": data.get(name, {}).get("created_at", time.time()) if isinstance(data.get(name), dict) else time.time(),
+            "updated_at": time.time(),
+        }
+        data[name] = item
+        self._save(data)
+        return {"name": name, **item}
+
+    def update(self, name: str, **changes) -> dict:
+        data = self._load_raw()
+        if name not in data:
+            raise KeyError(name)
+        allowed = {"start_command", "test_command", "auto_restart", "max_restarts", "health_url"}
+        for k, v in changes.items():
+            if k in allowed and v is not None:
+                if k == "max_restarts":
+                    v = max(0, min(int(v), 20))
+                data[name][k] = v
+        data[name]["updated_at"] = time.time()
+        self._save(data)
+        return {"name": name, **data[name]}
+
+    def list(self) -> dict:
+        return self._load_raw()
+
+    def get(self, name: str) -> dict | None:
+        item = self._load_raw().get(name)
+        return {"name": name, **item} if isinstance(item, dict) else None
+
+    def remove(self, name: str) -> bool:
+        data = self._load_raw(); existed = name in data; data.pop(name, None); self._save(data); return existed
+
 
 def build_project_tools(workspace: Workspace, registry: ProjectRegistry) -> list[Tool]:
     def project_detect(path: str = "."):
         return detect_project(workspace.resolve(path))
 
     def project_get(name: str):
-        p = registry.get(name)
-        if not p: return {"found": False}
-        # Registered projects still must fall under approved roots.
-        return {"found": True, **detect_project(workspace.resolve(p))}
+        item = registry.get(name)
+        if not item:
+            return {"found": False}
+        p = workspace.resolve(item["path"])
+        return {"found": True, "project": item, "detected": detect_project(p)}
 
     return [
-        Tool("project_detect", "Detect project type and likely start commands in a workspace directory.",
+        Tool("project_detect", "Detect project type and likely start/test commands in a workspace directory.",
              {"type":"object","properties":{"path":{"type":"string","default":"."}}}, project_detect),
-        Tool("project_get", "Get a registered project and detect how it can be run.",
+        Tool("project_get", "Get a registered project's approved path, commands, restart policy and detected project type.",
              {"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}, project_get),
     ]

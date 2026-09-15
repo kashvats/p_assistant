@@ -47,3 +47,12 @@ This project is not a replacement for:
 - password manager,
 - MFA,
 - secure router configuration.
+
+## v0.2 additional controls
+
+- Noninteractive dangerous actions are queued for one-time approval instead of silently running.
+- Approval is matched to the exact action/reason/risk hash and consumed once.
+- Auto-restart can only replay a previously registered command and has a hard restart cap.
+- User skills are prompt context only; they do not modify deterministic policy.
+- File watchers are explicitly registered and bounded by a maximum scan/event count.
+- The CLI refuses to expose the local control API on a non-loopback address.

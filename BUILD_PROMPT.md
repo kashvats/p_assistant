@@ -314,3 +314,25 @@ Return a runnable repository with:
 - no placeholder-only functions for the critical path.
 
 Prioritize a reliable MVP over pretending every advanced feature is complete. Mark future interfaces clearly.
+
+---
+
+## v0.2 implementation requirements added
+
+The repository must additionally implement:
+
+- persistent one-time approval queue for noninteractive clients,
+- process metadata persistence across assistant restarts,
+- deterministic crash detection and bounded auto-restart,
+- optional HTTP health checks for registered processes,
+- desktop notifications,
+- bounded polling filesystem watches,
+- due-reminder notifications,
+- local event history API,
+- localhost dashboard,
+- explicit user-confirmed prompt skills,
+- startup-at-login helper scripts for Windows/Linux/macOS,
+- memory-pressure guard before model loading,
+- migrations from simple v0.1 project entries and todo schema.
+
+Never implement "self improvement" as unconstrained self-rewriting. Generate proposed patches, test/evaluate them, require approval, and maintain rollback ability.
