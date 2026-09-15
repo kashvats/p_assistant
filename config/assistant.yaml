@@ -27,13 +27,13 @@ profiles:
     max_handoffs: 2
     max_tool_steps: 10
     models:
-      orchestrator: qwen3.5:4b
-      general: qwen3.5:4b
-      coder: qwen3.5:4b
-      researcher: qwen3.5:2b
-      security: qwen3.5:2b
-      database: qwen3.5:2b
-      planner: qwen3.5:2b
+      orchestrator: qwen2.5:1.5b
+      general: qwen2.5:1.5b
+      coder: qwen2.5:1.5b
+      researcher: qwen2.5:1.5b
+      security: qwen2.5:1.5b
+      database: qwen2.5:1.5b
+      planner: qwen2.5:1.5b
 
   power:
     min_ram_gb: 48
