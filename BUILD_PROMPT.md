@@ -1,4 +1,4 @@
-# Master Build Prompt — Living Assistant v0.5+
+# Master Build Prompt — Living Assistant v0.6+
 
 Build and maintain a production-minded, local-first personal assistant called **Living Assistant** for Windows, Ubuntu/Linux and macOS.
 
@@ -99,10 +99,25 @@ Keep model names configurable and keep the provider interface compatible with Ol
 ### Deterministic routines
 Support event, interval, daily HH:MM, and weekly weekday+HH:MM triggers. Safe actions such as `notify` and `todo` run without an LLM. An `assistant_prompt` routine must be disabled by default behind an explicit `allow_model_wake` setting. A model-waking routine must use the noninteractive approval queue for high-impact actions and must not wake a model while focus/quiet mode is active.
 
-### Defensive security
-- local listening ports/connections/process inventory
-- Windows Defender or ClamAV integrations where available
-- file-watch and process/crash signals
+### Defensive Security Guardian
+- cross-platform startup/persistence inventory for Windows, Linux and macOS
+- persistence reference must not be silently initialized by default; explicit known-good capture is required
+- hash selected startup files so edits to an existing persistence file are observable
+- persistent listening-service baseline with public-vs-loopback signal severity
+- file-integrity baselines for explicitly selected sensitive paths with file-count/size bounds
+- agent/API baseline mutation requires approval because reference replacement can erase evidence
+- deterministic process triage with explainable signals, ancestry, executable path and connection metadata
+- configurable automatic process-alert threshold; never call a heuristic a malware verdict
+- firewall, antivirus/endpoint-protection and disk-encryption posture through read-only OS-native commands
+- slow package/update enumeration is on-demand, not part of every daemon tick
+- persistent deduplicated findings with severity, first/last seen, count and open/resolved state
+- current-user-only, critical-process-blocked, approval-gated graceful containment
+- SHA-256 + OS signature/package-owner inspection where supported
+- quarantine provenance with source host/path, original filename, risk reason, scan/release history
+- strip URL userinfo/query/fragment before persisting quarantine source metadata
+- redact common secrets from startup/process text before persistence
+- Windows Defender or ClamAV scanning integrations where available
+- no automatic suspicious-file deletion, no automatic force-kill
 - never disable firewall/AV/EDR/updates/disk encryption
 - no offensive scanning of third-party systems
 - do not claim perfect hacker protection
@@ -167,6 +182,12 @@ Keep regression tests for all earlier versions plus:
 - daily/weekly routine triggers
 - session retention/search/secret-redaction behavior
 - connector registry metadata-only behavior
+- missing-baseline must not silently become trusted
+- integrity baseline added/changed/removed detection
+- finding deduplication and reopen behavior
+- process-signal scoring and critical containment safeguards
+- quarantine provenance and signed-URL secret stripping
+- security posture disabled-state evaluator
 - API route smoke tests where practical
 
 Favor a truthful working MVP over placeholder claims. Every documented critical-path feature should have functioning code and tests or be clearly marked future work.

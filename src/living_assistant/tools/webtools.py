@@ -6,7 +6,7 @@ import httpx
 from .base import Tool
 from ..workspace import Workspace
 from ..security_policy import sanitize_external_observation
-from ..quarantine import QuarantineVault, is_risky_download
+from ..quarantine import QuarantineVault, is_risky_download, download_risk_reasons
 from ..approval import ApprovalManager
 
 IMAGE_TYPES = {'image/jpeg','.jpg','image/png','.png','image/webp','.webp','image/gif','.gif','image/svg+xml','.svg'}
@@ -30,7 +30,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
 
     def web_fetch(url: str):
         if not _https_url(url): return {'ok':False,'error':'Only http/https URLs are allowed.'}
-        with httpx.Client(follow_redirects=True, timeout=20.0, headers={'User-Agent':'LivingAssistant/0.3'}) as c:
+        with httpx.Client(follow_redirects=True, timeout=20.0, headers={'User-Agent':'LivingAssistant/0.6'}) as c:
             with c.stream('GET', url) as r:
                 r.raise_for_status(); ctype = r.headers.get('content-type',''); buf = bytearray()
                 for chunk in r.iter_bytes():
@@ -44,7 +44,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
 
     def _stream_download(url: str, dest: Path) -> tuple[int,str,str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        with httpx.Client(follow_redirects=True, timeout=30.0, headers={'User-Agent':'LivingAssistant/0.3'}) as c:
+        with httpx.Client(follow_redirects=True, timeout=30.0, headers={'User-Agent':'LivingAssistant/0.6'}) as c:
             with c.stream('GET', url) as r:
                 r.raise_for_status(); ctype = r.headers.get('content-type','').split(';')[0].strip().lower(); total = 0
                 final_url = str(r.url)
@@ -69,7 +69,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         risky = is_risky_download(dest.name, ctype)
         quarantine_non_image = bool(dcfg.get('quarantine_all_non_images', False)) and not ctype.startswith('image/')
         if (bool(dcfg.get('quarantine_risky_files', True)) and risky) or quarantine_non_image:
-            item = quarantine.register(item_id, temp, final_url, ctype)
+            item = quarantine.register(item_id,temp,final_url,ctype,original_name=dest.name,risk_reasons=download_risk_reasons(dest.name,ctype))
             return {'ok':True,'quarantined':True,'item':item,
                     'message':'Downloaded into quarantine and not released/executed.'}
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -86,8 +86,10 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         req = approval.request(f'Release quarantined file {item_id} -> {target}',
                                f"SHA256={item.get('sha256')} source={item.get('source_url')}", 'QUARANTINE_RELEASE')
         if not req.get('allowed'): return {'ok':False,'approval_required':True,**req}
+        verification=quarantine.verify(item_id)
+        if not verification.get('ok'):
+            return {'ok':False,'blocked':True,'error':'Quarantine artifact changed after registration; refusing release.','verification':verification}
         source = Path(item['path'])
-        if not source.exists(): return {'ok':False,'error':'Quarantine file is missing.'}
         target.parent.mkdir(parents=True, exist_ok=True)
         source.replace(target); quarantine.mark_released(item_id, str(target))
         return {'ok':True,'path':str(target),'sha256':item.get('sha256')}

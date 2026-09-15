@@ -1,32 +1,33 @@
 # Roadmap
 
-## v0.6 — Security guardian
-
-- OS-specific startup/persistence inventory for Windows, Linux and macOS.
-- File-integrity baselines for explicitly selected sensitive folders.
-- Network baseline learning with false-positive controls.
-- Richer process ancestry/signature metadata.
-- Optional file/hash reputation provider interface.
-- Quarantine restore with provenance and scan status.
-- Security posture report covering updates/firewall/AV/disk-encryption signals where safely queryable.
-- Never disable security protections or perform offensive scanning against third parties.
-
 ## v0.7 — Evaluated self-improvement
 
-- Git branch creation for assistant-core proposals.
-- Isolated evaluation sandbox.
-- Automatic unit tests/lint/benchmark before review.
-- Before/after result report and explicit promotion step.
-- Deterministic rollback.
-- No candidate may replace the running security boundary before explicit approval.
+- Assistant-core proposals created on dedicated Git branches.
+- Isolated test/evaluation workspace before promotion.
+- Automated unit test, lint and task benchmark runs.
+- Before/after evaluation report with resource-cost comparison.
+- Explicit promotion/merge step and deterministic rollback.
+- Security-policy/approval core remains outside automatic promotion.
+- Model-router benchmarking so specialist model choices are based on local hardware/task results rather than fixed assumptions.
 
 ## v0.8 — Connected personal layer
 
-- Capability-scoped provider implementations for email/calendar/files/contact systems.
-- Draft-first email behavior; send requires explicit permission.
+- Capability-scoped email/calendar/files/contact providers.
+- Draft-first email workflow; sending requires explicit permission.
 - Calendar conflict detection and proposal-first rescheduling.
-- Connector audit logs and token-scope inspection.
-- Optional wake-word detector using a tiny dedicated local model.
+- Connector audit log and token-scope inspection.
+- Credential storage through OS keychain/secret service rather than config files.
+- Optional tiny wake-word detector that wakes STT only after a local trigger.
+
+## v0.9 — Security Guardian expansion
+
+- Optional signed-hash/reputation provider interface.
+- OS package/signature trust enrichment for more platforms.
+- User-reviewed security allowlists with expiry/review dates.
+- Better Windows scheduled-task and service change attribution.
+- Optional high-value-folder canary files.
+- Security event export compatible with common SIEM/log pipelines.
+- Never perform offensive scanning or automatically disable protections.
 
 ## Later
 

@@ -1,38 +1,42 @@
 # Changelog
 
+## 0.6.0
+
+- Added cross-platform Security Guardian with persistent startup/persistence and listening-service baselines.
+- Baselines are **not silently initialized** by default; `organism security initialize` requires an explicit known-good-state decision.
+- Added common Linux/macOS persistence-file hashing so edits to existing startup files can be detected.
+- Added protected-file integrity baselines with added/changed/removed detection and bounded hashing.
+- Added deterministic process triage, ancestry inspection, connection metadata and configurable automatic alert threshold.
+- Added established network-activity summary without offensive scanning.
+- Added firewall, antivirus/endpoint-protection and disk-encryption posture checks plus optional update posture.
+- Added persistent deduplicated security findings with severity, status, count, first/last seen and reopen behavior.
+- Added approval-gated containment for non-critical current-user-owned processes.
+- Added executable SHA-256 plus OS signature/package ownership inspection when supported.
+- Added richer quarantine provenance, scan history and release history; signed URL queries are stripped before persistence.
+- Quarantine release now verifies the current SHA-256 still matches the registered artifact, blocking post-registration tampering.
+- Integrity baselines record symlink metadata without hashing through nested symlinks outside the selected tree.
+- Startup/persistence text is redacted for common token/password patterns before storage.
+- Security baseline changes and finding resolution through agent/API paths require explicit approval.
+- Dashboard Security Guardian uses cached posture instead of repeatedly invoking OS security commands.
+- Security desktop notifications honor a minimum severity threshold.
+- Added Security Guardian/quarantine/workspace modules to the self-improvement protected-core list.
+- Expanded regression suite to 61 passing tests.
+
 ## 0.5.0
 
-- Added local SQLite personal calendar with create/list/cancel and iCalendar export.
-- Added deterministic morning/evening briefings from calendar, todos, project state, approvals and recent attention events.
-- Added quiet hours and bounded focus mode. Non-urgent notifications are durably queued and flushed after quiet mode.
-- Added daily and weekly clock-based deterministic routine triggers.
-- Added local session history with bounded context, retention pruning, search/delete controls and common secret redaction.
-- Added native Tkinter approval review window.
-- Added provider-neutral connector metadata registry that stores no credentials.
-- Model-waking routines are suppressed while focus/quiet mode is active.
-- Added personal/calendar/briefing/session/connectors/queued-notification API and dashboard surfaces.
-- Expanded regression suite to 44 passing tests.
+- Added local calendar, deterministic briefings, quiet/focus mode, clock routines, local session continuity, approval UI and connector metadata registry.
 
 ## 0.4.0
 
-- Added optional local push-to-talk voice layer with microphone approval, local faster-whisper STT and offline pyttsx3 TTS interfaces.
-- Added deterministic event/interval routines. Model-waking routines are disabled by default and must be explicitly enabled.
-- Added reviewable improvement proposal engine with exact diffs, base-hash conflict detection, backups and approval-gated apply.
-- Security-policy, approval and improvement-engine core files cannot be auto-applied by the improvement engine.
-- Added named isolated Playwright browser sessions, optional assistant-only persistent browser profiles, host scoping and live-session CLI.
-- Added native notification when a noninteractive high-impact action enters the approval queue.
-- Added API/dashboard surfaces for routines, improvement proposals, browser sessions and voice status.
-- Added `voice`, `routine`, `improve`, and expanded `browser` CLI command groups.
-- Lite profile continues to omit browser and voice model/sensor tools by default.
-- Expanded test suite to 33 passing tests.
+- Added push-to-talk voice, routines, reviewable self-improvement and persistent isolated browser sessions.
 
 ## 0.3.0
 
-- Git-aware coding tools, project groups, clipboard/screenshot tools, optional browser automation and download quarantine.
+- Added Git-aware coding tools, project groups, desktop sensors, browser automation and download quarantine.
 
 ## 0.2.0
 
-- Persistent process supervision, filesystem watches, notifications, approvals and user-confirmed skills.
+- Added persistent process supervision, filesystem watches, notifications, approvals and user-confirmed skills.
 
 ## 0.1.0
 

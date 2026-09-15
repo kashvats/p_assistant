@@ -124,3 +124,13 @@ sessions:
 
 connectors:
   enabled: true
+
+security_guardian:
+  enabled: true
+  auto_initialize_baselines: false
+  scan_interval_seconds: 300
+  posture_interval_seconds: 3600
+  integrity_max_files: 1000
+  integrity_max_file_mb: 20
+  notify_min_severity: medium
+  process_alert_score: 60

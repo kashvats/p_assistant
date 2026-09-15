@@ -1,82 +1,106 @@
-# Living Assistant v0.5 Architecture
+# Living Assistant v0.6 Architecture
 
 ```text
-                   ┌─────────────────────────────────────┐
-                   │ User / CLI / Tray / Local API       │
-                   │ Voice / Browser / Approval Window   │
-                   └─────────────────┬───────────────────┘
-                                     │
-                           intent / approved sensor
-                                     │
-                   ┌─────────────────▼───────────────────┐
-                   │            Orchestrator             │
-                   │ tools first • smallest useful SLM   │
-                   └──────────┬──────────────┬───────────┘
-                              │              │
-                    deterministic tools      │ specialist handoff
-                              │              │
-              ┌───────────────▼──────┐  ┌────▼──────────────┐
-              │ Policy / Approvals   │  │ one active SLM     │
-              │ outside the model    │  │ normally at a time │
-              └───────────────┬──────┘  └───────────────────┘
+                  ┌──────────────────────────────────────┐
+                  │ User / CLI / Tray / Local API        │
+                  │ Voice / Browser / Approval Window    │
+                  └─────────────────┬────────────────────┘
+                                    │
+                             intent / event
+                                    │
+                  ┌─────────────────▼────────────────────┐
+                  │            Orchestrator              │
+                  │ tools first • smallest useful SLM    │
+                  └───────────┬─────────────┬────────────┘
+                              │             │
+                     deterministic tools    │ specialist handoff
+                              │             │
+              ┌───────────────▼──────┐ ┌────▼──────────────┐
+              │ Policy / Approvals   │ │ one active SLM     │
+              │ outside model        │ │ normally at a time │
+              └───────────────┬──────┘ └───────────────────┘
                               │
   ┌───────────────────────────▼─────────────────────────────────────┐
   │ files • shell • git • DB • web • browser • desktop • voice    │
-  │ projects • security • quarantine • improvement proposals       │
-  │ calendar • todos • sessions • briefing • personal state        │
-  └─────────────────────────────────────────────────────────────────┘
-
-                        PERSONAL OPERATING LAYER
-  ┌─────────────────────────────────────────────────────────────────┐
-  │ Local calendar        Session history       Connector metadata   │
-  │ Todos/reminders       Quiet hours/focus     Morning/evening brief│
-  │ Daily/weekly routines Notification queue    Retention/redaction  │
-  └──────────────────────────────┬──────────────────────────────────┘
-                                 │
-                         LOW-RESOURCE NERVOUS SYSTEM
-  ┌──────────────────────────────▼──────────────────────────────────┐
-  │ project crashes • health checks • file watches • local ports   │
-  │ reminders • daily/weekly routines • briefings • queue flush    │
-  │ session retention maintenance                                  │
-  │                  NO LLM REMAINS LOADED WHILE IDLE              │
+  │ projects • calendar • sessions • quarantine • improvements     │
+  └───────────────────────────┬─────────────────────────────────────┘
+                              │
+                    SECURITY GUARDIAN LAYER
+  ┌───────────────────────────▼─────────────────────────────────────┐
+  │ startup/persistence baseline       listener baseline            │
+  │ protected-file hashes              process triage/ancestry      │
+  │ firewall/AV/encryption posture     quarantine provenance        │
+  │ persistent deduplicated findings  approval-gated containment   │
+  └───────────────────────────┬─────────────────────────────────────┘
+                              │
+                     PERSONAL OPERATING LAYER
+  ┌───────────────────────────▼─────────────────────────────────────┐
+  │ calendar • todos • quiet/focus • briefings • routines          │
+  │ sessions • notification queue • connector metadata             │
+  └───────────────────────────┬─────────────────────────────────────┘
+                              │
+                    LOW-RESOURCE NERVOUS SYSTEM
+  ┌───────────────────────────▼─────────────────────────────────────┐
+  │ project crashes • health checks • file watches • reminders     │
+  │ security scans • posture cache • routine/briefing scheduler    │
+  │ session retention • notification severity/quiet-hours policy   │
+  │                    NO LLM WHILE IDLE                           │
   └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Sleeping agents
+## Security trust model
 
-Roles are separated from physical model residency. On low/moderate hardware, general/coder/research/security/database/planner roles may share the same quantized SLM with different system prompts. `ModelManager` unloads the old physical model when switching when necessary.
+The LLM is **not** allowed to decide what is trusted. The Security Guardian is deterministic code. It records observations and creates findings; it does not convert a heuristic into a malware verdict.
 
-## Personal state and notifications
+Three reference types exist:
 
-`PersonalState` persists focus mode and quiet hours. `Notifier` checks this state before native notification delivery. Non-urgent notifications produced during quiet time are stored in a bounded local queue and later flushed; the producer can safely mark a reminder delivered because the queue is durable.
+1. **Startup/persistence baseline** — normalized startup objects plus hashes for selected startup files.
+2. **Listener baseline** — local address/port + process/executable identity for listening services.
+3. **Integrity baselines** — bounded SHA-256 snapshots of explicitly selected paths.
 
-## Calendar and briefings
+By default these baselines are **not automatically initialized**. `organism security initialize` is an explicit known-good-state operation. Agent/API baseline mutations require approval because resetting a reference can hide a previous change.
 
-`CalendarStore` is a local SQLite calendar independent of any cloud provider. `BriefingEngine` combines local calendar events, due/overdue todos, managed-process state, pending approvals and selected recent events. Scheduled briefings are deterministic and do not require model inference.
+## Findings
 
-## Session continuity
+`SecurityGuardian` stores findings in SQLite with:
 
-`SessionStore` keeps bounded local chat history with configurable retention. The orchestrator receives only a small recent window for a named session. Common credential shapes are redacted before storage. Old assistant text is context, never policy authority.
+- stable fingerprint;
+- kind and severity;
+- first/last seen;
+- occurrence count;
+- open/resolved status;
+- structured details.
 
-## Routines
+Repeated polls update an existing finding instead of emitting endless new alerts. If a resolved condition returns, the finding can reopen and alert again.
 
-Routines support:
+## Process triage
 
-- event triggers;
-- interval triggers;
-- daily `HH:MM` triggers;
-- weekly weekday + `HH:MM` triggers.
+Process scoring is intentionally explainable. Current signals include temporary/download execution locations, temporary executables opening listeners, encoded PowerShell and selected Office → script-host/LOLBin ancestry.
 
-`notify` and `todo` actions need no LLM. Model-waking prompt routines are disabled by default; even when enabled, the daemon will not wake a model during focus/quiet mode.
+Only scores above a configured threshold become automatic findings. On-demand inspection can show lower-scoring signals. A score is not proof of maliciousness.
 
-## Connector boundary
+Containment is narrower than observation:
 
-`ConnectorRegistry` stores only provider metadata, capability names and an optional environment-variable prefix. It deliberately does not store passwords/tokens. Vendor-specific mail/calendar/files connectors can be added later without changing the orchestrator architecture.
+- current-user-owned process only;
+- protected critical-process denylist;
+- explicit approval;
+- graceful terminate only;
+- no automatic file deletion or force-kill.
 
-## Sensors, browser and self-improvement
+## Posture
 
-Microphone, clipboard and screenshots remain approval-gated sensitive sensors. Browser profiles remain isolated from the user's normal browser. Self-improvement remains an exact proposal/diff/hash/backup/approval pipeline; deterministic security-policy core files are excluded from automatic application.
+Live posture can inspect firewall, endpoint protection and disk encryption using OS-native read-only commands. Slow update/package checks are on-demand. The daemon refreshes normal posture on a slower cadence and stores a cached snapshot used by the dashboard.
 
-## Trust boundary
+Unknown/unavailable tools are not automatically treated as compromise. Only positively identified disabled/off states produce protection findings.
 
-The LLM is **not** the security boundary. Workspace checks, SQL policy, shell risk, approvals, notification behavior, session retention, browser scope, quarantine and self-modification rules are deterministic code.
+## Quarantine
+
+Downloads first land in a private quarantine location when type/risk rules require it. Persistent provenance strips URL userinfo/query/fragment so signed URLs and tokens are not stored. Quarantined executables are never auto-run. Release remains explicit.
+
+## Personal/privacy layer
+
+Quiet/focus behavior, sessions, reminders and briefings remain independent of security findings. Startup commands and process command lines are redacted for common credential forms before security persistence. Session history uses its own bounded redaction/retention controls.
+
+## Model/resource layer
+
+Security monitoring does not wake an SLM. A security specialist model may be invoked only when the user asks for interpretation or a finding/routine explicitly needs reasoning and policy permits it. ModelManager still keeps normally one physical local model active at a time.

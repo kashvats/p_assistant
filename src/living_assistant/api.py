@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from .runtime import build_runtime
 
-app = FastAPI(title='Living Assistant Local API', version='0.5.0')
+app = FastAPI(title='Living Assistant Local API', version='0.6.0')
 runtime = None
 
 class AskRequest(BaseModel):
@@ -22,6 +22,8 @@ class CalendarEventRequest(BaseModel):
     title: str; start_at: str; end_at: str | None = None; location: str | None = None; notes: str | None = None
 class FocusRequest(BaseModel): minutes: int = 60; label: str | None = None
 class QuietRequest(BaseModel): start: str='22:00'; end: str='07:00'; enabled: bool=True
+class IntegrityBaselineRequest(BaseModel):
+    name: str; path: str; recursive: bool=True; extensions: list[str]=Field(default_factory=list)
 
 
 def _rt():
@@ -34,7 +36,7 @@ def _auth(authorization: str | None):
     if token and authorization != f'Bearer {token}': raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.5.0'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.6.0'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}
@@ -63,6 +65,82 @@ def watches(authorization: str | None=Header(default=None)): _auth(authorization
 def skills(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().skills.list()
 @app.get('/quarantine')
 def quarantine(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().quarantine.list()
+@app.get('/quarantine/{item_id}')
+def quarantine_item(item_id: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); item=rt.quarantine.get(item_id)
+    if not item: raise HTTPException(status_code=404,detail='Unknown quarantine item')
+    from .security_guardian import file_signature
+    return {'item':item,'file':file_signature(item['path'])}
+@app.post('/quarantine/{item_id}/scan')
+def quarantine_scan(item_id: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); item=rt.quarantine.get(item_id)
+    if not item: raise HTTPException(status_code=404,detail='Unknown quarantine item')
+    result=rt.guardian.scan_path_antivirus(item['path'])
+    if result.get('ok') or result.get('returncode') is not None: rt.quarantine.record_scan(item_id,result.get('provider','unknown'),result)
+    return result
+@app.get('/security/summary')
+def security_summary(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.summary()
+@app.get('/security/posture')
+def security_posture(updates: bool=False,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.posture(include_updates=updates)
+@app.get('/security/findings')
+def security_findings(status: str='open',authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.findings(None if status=='all' else status,200)
+@app.post('/security/findings/{finding_id}/resolve')
+def security_finding_resolve(finding_id: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); req=rt.approval_manager.request(f'Resolve security finding {finding_id}','Mark a security finding as resolved.','SECURITY_FINDING_RESOLVE')
+    if not req.get('allowed'): return {'ok':False,'approval_required':True,**req}
+    return {'ok':rt.guardian.resolve_finding(finding_id)}
+@app.get('/security/startup')
+def security_startup(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.check_startup_baseline(record=True)
+@app.post('/security/startup/capture')
+def security_startup_capture(authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); req=rt.approval_manager.request('Replace startup persistence baseline','Capture current startup/persistence state as trusted reference.','SECURITY_BASELINE_CHANGE')
+    if not req.get('allowed'): return {'ok':False,'approval_required':True,**req}
+    return rt.guardian.capture_startup_baseline()
+@app.get('/security/network')
+def security_network(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.check_network_baseline(record=True)
+@app.post('/security/network/capture')
+def security_network_capture(authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); req=rt.approval_manager.request('Replace listening-service baseline','Capture current listening services as trusted reference.','SECURITY_BASELINE_CHANGE')
+    if not req.get('allowed'): return {'ok':False,'approval_required':True,**req}
+    return rt.guardian.capture_network_baseline()
+@app.get('/security/integrity')
+def security_integrity(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.list_integrity_baselines()
+@app.post('/security/integrity')
+def security_integrity_add(req: IntegrityBaselineRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); target=rt.workspace.resolve(req.path); approval=rt.approval_manager.request(f'Security baseline change: {req.name}',f'Create or replace integrity baseline for {target}.','SECURITY_BASELINE_CHANGE')
+    if not approval.get('allowed'): return {'ok':False,'approval_required':True,**approval}
+    return rt.guardian.add_integrity_baseline(req.name,target,req.recursive,req.extensions)
+@app.get('/security/integrity/{name}/check')
+def security_integrity_check(name: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.check_integrity_baseline(name,record=True)
+@app.post('/security/integrity/{name}/refresh')
+def security_integrity_refresh(name: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); approval=rt.approval_manager.request(f'Refresh security baseline: {name}','Replace stored protected-file hashes with current file hashes.','SECURITY_BASELINE_CHANGE')
+    if not approval.get('allowed'): return {'ok':False,'approval_required':True,**approval}
+    return rt.guardian.refresh_integrity_baseline(name)
+@app.delete('/security/integrity/{name}')
+def security_integrity_remove(name: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); approval=rt.approval_manager.request(f'Remove security baseline: {name}','Stop monitoring this protected-file baseline.','SECURITY_BASELINE_CHANGE')
+    if not approval.get('allowed'): return {'ok':False,'approval_required':True,**approval}
+    return {'ok':rt.guardian.remove_integrity_baseline(name)}
+@app.get('/security/processes/triage')
+def security_processes_triage(min_score: int=30,authorization: str | None=Header(default=None)):
+    _auth(authorization); from .security_guardian import process_triage; return process_triage(min_score=min_score,limit=100)
+@app.get('/security/network/activity')
+def security_network_activity(limit: int=100,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.network_activity(limit)
+@app.get('/security/process/{pid}')
+def security_process(pid: int,authorization: str | None=Header(default=None)):
+    _auth(authorization); from .security_guardian import inspect_process; return inspect_process(pid)
+@app.post('/security/process/{pid}/contain')
+def security_process_contain(pid: int,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().guardian.terminate_user_process(pid)
 @app.get('/routines')
 def routines(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().routines.list()
 @app.get('/improvements')
@@ -131,16 +209,16 @@ def dashboard():
         return HTMLResponse('<h2>Living Assistant</h2><p>Dashboard is disabled while ASSISTANT_API_TOKEN is set. Use authenticated API endpoints.</p>')
     page=r'''<!doctype html><html><head><meta charset="utf-8"><title>Living Assistant</title>
 <style>body{font-family:system-ui;margin:24px;max-width:1450px;background:#f7f7f7;color:#171717}header{display:flex;gap:12px;align-items:center;justify-content:space-between}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}section{background:white;border:1px solid #ddd;border-radius:12px;padding:14px}pre{background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto;max-height:420px}button{padding:7px 11px;border-radius:8px;border:1px solid #aaa;cursor:pointer}.approve{background:#e6ffed}.deny{background:#ffecec}.approval{border-bottom:1px solid #ddd;padding:10px 0}small{color:#666}@media(max-width:850px){.grid{grid-template-columns:1fr}}</style></head><body>
-<header><div><h1>Living Assistant Control Center</h1><small>Localhost-only personal operating layer</small></div><button onclick="load()">Refresh</button></header><div class="grid">
+<header><div><h1>Living Assistant Control Center</h1><small>Localhost-only personal operating + security layer</small></div><button onclick="load()">Refresh</button></header><div class="grid">
 <section><h2>Status</h2><pre id="status"></pre></section><section><h2>Approvals</h2><div id="approvals"></div></section>
 <section><h2>Personal state</h2><pre id="personal"></pre></section><section><h2>Calendar</h2><pre id="calendar"></pre></section>
 <section><h2>Morning briefing</h2><pre id="briefing"></pre></section><section><h2>Sessions</h2><pre id="sessions"></pre></section>
 <section><h2>Projects</h2><pre id="projects"></pre></section><section><h2>Processes</h2><pre id="processes"></pre></section>
 <section><h2>Recent events</h2><pre id="events"></pre></section><section><h2>Todos</h2><pre id="todos"></pre></section>
 <section><h2>Routines</h2><pre id="routines"></pre></section><section><h2>Queued notifications</h2><pre id="notifications"></pre></section>
-<section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section>
+<section><h2>Security Guardian</h2><pre id="security"></pre></section><section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section>
 </div><script>
 async function j(u,opt){let r=await fetch(u,opt);return await r.json()}async function decide(id,approved){await j('/approvals/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});load()}
-async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements'])document.getElementById(k).textContent=JSON.stringify(await j('/'+k),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
+async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements'])document.getElementById(k).textContent=JSON.stringify(await j('/'+k),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('security').textContent=JSON.stringify(await j('/security/summary'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
 </script></body></html>'''
     return HTMLResponse(page)

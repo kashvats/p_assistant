@@ -25,6 +25,7 @@ from .calendar_store import CalendarStore
 from .sessions import SessionStore
 from .connectors import ConnectorRegistry
 from .briefing import BriefingEngine
+from .security_guardian import SecurityGuardian
 from .tools.filesystem import build_filesystem_tools
 from .tools.shell import build_shell_tools, ProcessRegistry
 from .tools.projects import build_project_tools, ProjectRegistry
@@ -71,6 +72,7 @@ class Runtime:
     sessions: SessionStore
     connectors: ConnectorRegistry
     briefings: BriefingEngine
+    guardian: SecurityGuardian
     orchestrator: Orchestrator
     model_manager: ModelManager
 
@@ -105,6 +107,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     sessions=SessionStore(retention_days=int(session_cfg.get('retention_days',30)), redact_secrets=bool(session_cfg.get('redact_secrets',True)))
     connectors=ConnectorRegistry()
     briefings=BriefingEngine(cfg,personal,memory,calendar,projects,processes,approvals,notifier)
+    guardian=SecurityGuardian(cfg,approval=approval)
 
     provider=OllamaProvider(base_url=cfg['ollama']['base_url']); mm=ModelManager(provider)
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
@@ -129,7 +132,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_routine_tools(routines)
     tools += build_improvement_tools(improvements)
     tools += build_voice_tools(voice)
-    tools += build_security_tools(ws,approval)
+    tools += build_security_tools(ws,approval,guardian)
     if bool(cfg.get('desktop',{}).get('enabled',True)): tools += build_desktop_tools(ws,approval)
 
     specialists=SpecialistRouter(mm,pcfg['models'],keep_alive=keep_alive,max_handoffs=int(pcfg['max_handoffs']),
@@ -140,4 +143,4 @@ def build_runtime(interactive: bool = True) -> Runtime:
                               max_session_messages=int(session_cfg.get('max_context_messages',12)))
     return Runtime(cfg,profile,hw,ws,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,browser,
-                   personal,calendar,sessions,connectors,briefings,orchestrator,mm)
+                   personal,calendar,sessions,connectors,briefings,guardian,orchestrator,mm)

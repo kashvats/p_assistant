@@ -9,6 +9,7 @@ from .config import load_config
 from .daemon import NervousSystem
 from .tools.security import audit_local, antivirus_status
 from .security_policy import classify_command
+from .security_guardian import startup_inventory, inspect_process, file_signature, process_triage, network_activity_summary
 
 app = typer.Typer(no_args_is_help=True, help='Living Assistant local-first personal agent.')
 console = Console()
@@ -48,6 +49,7 @@ def doctor():
     console.print('[bold]Configured models[/bold]', sorted(set(models.values())))
     console.print('[bold]Optional desktop install[/bold] pip install -e ".[desktop]"')
     console.print('[bold]Optional voice install[/bold] pip install -e ".[voice]"')
+    console.print('[bold]Security onboarding[/bold] organism security initialize')
     if profile != 'lite': console.print('[bold]Optional browser install[/bold] pip install -e ".[browser]" && playwright install chromium')
     try:
         rt = build_runtime(interactive=False)
@@ -89,14 +91,14 @@ def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                   routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                  briefings=rt.briefings, sessions=rt.sessions).run_forever()
+                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                                 routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                                briefings=rt.briefings, sessions=rt.sessions).tick())
+                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -252,9 +254,26 @@ def quarantine_release(item_id: str,destination: str):
     rt=build_runtime(interactive=True); item=rt.quarantine.get(item_id)
     if not item: console.print('[red]Unknown quarantine item.[/red]'); raise typer.Exit(1)
     target=rt.workspace.resolve(destination)
+    verification=rt.quarantine.verify(item_id)
+    if not verification.get('ok'): console.print({'ok':False,'blocked':True,'error':'Quarantine artifact changed after registration.','verification':verification}); raise typer.Exit(1)
     if input(f"Release {item_id} ({item.get('sha256')}) to {target}? [y/N]: ").strip().lower() not in {'y','yes'}: raise typer.Exit(1)
     from pathlib import Path as P
     source=P(item['path']); target.parent.mkdir(parents=True,exist_ok=True); source.replace(target); rt.quarantine.mark_released(item_id,str(target)); console.print({'ok':True,'path':str(target)})
+
+@quarantine_app.command('inspect')
+def quarantine_inspect(item_id: str):
+    rt=build_runtime(interactive=False); item=rt.quarantine.get(item_id)
+    if not item: console.print('[red]Unknown quarantine item.[/red]'); raise typer.Exit(1)
+    console.print({'item':item,'file':file_signature(item['path'])})
+
+@quarantine_app.command('scan')
+def quarantine_scan(item_id: str):
+    rt=build_runtime(interactive=True); item=rt.quarantine.get(item_id)
+    if not item: console.print('[red]Unknown quarantine item.[/red]'); raise typer.Exit(1)
+    result=rt.guardian.scan_path_antivirus(item['path'])
+    if result.get('ok') or result.get('returncode') is not None:
+        rt.quarantine.record_scan(item_id,result.get('provider','unknown'),result)
+    console.print(result)
 
 @git_app.command('status')
 def git_status(path: str='.'):
@@ -286,6 +305,72 @@ def security_audit(): console.print(audit_local())
 
 @security_app.command('antivirus-status')
 def security_av_status(): console.print(antivirus_status())
+
+@security_app.command('posture')
+def security_posture(include_updates: bool = typer.Option(False,'--updates')):
+    console.print(build_runtime(interactive=False).guardian.posture(include_updates=include_updates))
+
+@security_app.command('findings')
+def security_findings(status: str = 'open'):
+    console.print(build_runtime(interactive=False).guardian.findings(None if status=='all' else status))
+
+@security_app.command('resolve')
+def security_resolve(finding_id: str):
+    console.print({'ok':build_runtime(interactive=False).guardian.resolve_finding(finding_id)})
+
+@security_app.command('initialize')
+def security_initialize():
+    console.print('[yellow]This will treat the current startup items and listening services as the trusted reference.[/yellow]')
+    if input('Only continue if you believe the machine is currently in a known-good state. Continue? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
+    rt=build_runtime(interactive=False)
+    console.print({'startup':rt.guardian.capture_startup_baseline(),'network':rt.guardian.capture_network_baseline(),'posture':rt.guardian.posture_scan(record=True)})
+
+@security_app.command('startup-inventory')
+def security_startup_inventory(): console.print(startup_inventory())
+
+@security_app.command('startup-capture')
+def security_startup_capture(): console.print(build_runtime(interactive=False).guardian.capture_startup_baseline())
+
+@security_app.command('startup-check')
+def security_startup_check(): console.print(build_runtime(interactive=False).guardian.check_startup_baseline(record=True))
+
+@security_app.command('network-capture')
+def security_network_capture(): console.print(build_runtime(interactive=False).guardian.capture_network_baseline())
+
+@security_app.command('network-check')
+def security_network_check(): console.print(build_runtime(interactive=False).guardian.check_network_baseline(record=True))
+
+@security_app.command('process')
+def security_process(pid: int): console.print(inspect_process(pid))
+
+@security_app.command('process-triage')
+def security_process_triage(min_score: int=30): console.print(process_triage(min_score=min_score,limit=100))
+
+@security_app.command('network-activity')
+def security_network_activity(limit: int=100): console.print(network_activity_summary(limit))
+
+@security_app.command('file-signature')
+def security_file_signature(path: str): console.print(file_signature(Path(path).expanduser()))
+
+@security_app.command('baseline-add')
+def security_baseline_add(name: str,path: str,recursive: bool=True,extensions: str=''):
+    exts=[x.strip() for x in extensions.split(',') if x.strip()]
+    console.print(build_runtime(interactive=False).guardian.add_integrity_baseline(name,Path(path).expanduser(),recursive,exts))
+
+@security_app.command('baseline-list')
+def security_baseline_list(): console.print(build_runtime(interactive=False).guardian.list_integrity_baselines())
+
+@security_app.command('baseline-check')
+def security_baseline_check(name: str): console.print(build_runtime(interactive=False).guardian.check_integrity_baseline(name,record=True))
+
+@security_app.command('baseline-refresh')
+def security_baseline_refresh(name: str): console.print(build_runtime(interactive=False).guardian.refresh_integrity_baseline(name))
+
+@security_app.command('baseline-remove')
+def security_baseline_remove(name: str): console.print({'ok':build_runtime(interactive=False).guardian.remove_integrity_baseline(name)})
+
+@security_app.command('contain-process')
+def security_contain_process(pid: int): console.print(build_runtime(interactive=True).guardian.terminate_user_process(pid))
 
 
 

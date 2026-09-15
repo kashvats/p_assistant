@@ -13,13 +13,13 @@ class NervousSystem:
     def __init__(self, config: dict, memory: MemoryStore, processes: ProcessRegistry | None = None,
                  watches: WatchRegistry | None = None, notifier: Notifier | None = None,
                  routines: RoutineRegistry | None = None, orchestrator=None, model_manager=None,
-                 briefings=None, sessions=None):
+                 briefings=None, sessions=None, guardian=None):
         self.config=config; self.cfg=config.get('daemon',{}); self.memory=memory
         self.processes=processes or ProcessRegistry(); self.watches=watches or WatchRegistry()
         self.notifier=notifier or Notifier(); self.routines=routines or RoutineRegistry()
-        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions
+        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian
         self.last_ports=set(); self.previous_running={}; self.health_failures={}; self.restart_exhausted_notified=set()
-        self.last_maintenance=0.0
+        self.last_maintenance=0.0; self.last_security_scan=0.0; self.last_security_posture_scan=0.0
 
     def _ports(self):
         audit=audit_local(); return {str(x.get('local')) for x in audit.get('listening_ports',[]) if x.get('local')}
@@ -68,6 +68,24 @@ class NervousSystem:
         if self.briefings is not None:
             events.extend(self.briefings.process_due())
 
+        security_cfg=self.config.get('security_guardian',{})
+        now_ts=time.time()
+        if self.guardian is not None and bool(security_cfg.get('enabled',True)):
+            interval=max(60,int(security_cfg.get('scan_interval_seconds',300)))
+            if now_ts-self.last_security_scan>=interval:
+                try: events.extend(self.guardian.periodic_scan())
+                except Exception as exc: events.append({'kind':'security_guardian_error','error':str(exc)})
+                self.last_security_scan=now_ts
+            posture_interval=max(300,int(security_cfg.get('posture_interval_seconds',3600)))
+            if now_ts-self.last_security_posture_scan>=posture_interval:
+                try:
+                    posture_scan=self.guardian.posture_scan(record=True)
+                    for finding in posture_scan.get('findings',[]):
+                        if finding.get('_new'):
+                            events.append({'kind':'security_posture_weakened','severity':finding.get('severity','medium'),'finding_id':finding.get('id'),'title':finding.get('title')})
+                except Exception as exc: events.append({'kind':'security_guardian_error','error':str(exc)})
+                self.last_security_posture_scan=now_ts
+
         routine_cfg=self.config.get('routines',{})
         if bool(routine_cfg.get('enabled',True)):
             events.extend(self.routines.process(list(events),self.memory,self.notifier,orchestrator=self.orchestrator,
@@ -76,8 +94,14 @@ class NervousSystem:
         todo_notified=set()
         for e in events:
             self.memory.add_event(e['kind'],e)
-            if e['kind'] in {'project_process_crashed','project_process_restarted','project_restart_exhausted','project_health_failed','todo_due','new_listening_port'}:
-                result=self.notifier.send('Living Assistant',self._event_message(e))
+            if e['kind'] in {'project_process_crashed','project_process_restarted','project_restart_exhausted','project_health_failed','todo_due','new_listening_port','security_baseline_missing','security_new_persistence','security_new_listener','security_integrity_change','security_suspicious_process','security_posture_weakened','security_guardian_error'}:
+                should_notify=True
+                if str(e.get('kind','')).startswith('security_'):
+                    ranks={'low':1,'medium':2,'high':3,'critical':4}
+                    wanted=str(self.config.get('security_guardian',{}).get('notify_min_severity','medium')).lower()
+                    severity=str(e.get('severity','medium')).lower()
+                    should_notify=ranks.get(severity,2)>=ranks.get(wanted,2)
+                result=self.notifier.send('Living Assistant',self._event_message(e)) if should_notify else {'ok':True,'suppressed':True}
                 if e['kind']=='todo_due' and result.get('ok'):
                     todo_notified.add(int(e['todo_id']))
         for todo_id in todo_notified: self.memory.mark_todo_notified(todo_id)
@@ -98,6 +122,14 @@ class NervousSystem:
         if kind=='project_process_restarted': return f"Restarted: {e.get('name')} (attempt {e.get('restart_count')})"
         if kind=='project_restart_exhausted': return f"Auto-restart exhausted for {e.get('name')}"
         if kind=='project_health_failed': return f"Health check failed for {e.get('name')}"
+        if kind=='security_baseline_missing': return f"Security setup needed: initialize the {e.get('baseline')} baseline"
+        if kind=='security_new_persistence': return 'Security: new startup/persistence item detected'
+        if kind=='security_new_listener':
+            x=e.get('listener') or {}; return f"Security: new listener {x.get('ip')}:{x.get('port')} ({x.get('process') or 'unknown process'})"
+        if kind=='security_integrity_change': return f"Security: protected files changed in {e.get('baseline') or e.get('path')}"
+        if kind=='security_suspicious_process': return f"Security: suspicious process signals for {e.get('name')} (PID {e.get('pid')})"
+        if kind=='security_posture_weakened': return f"Security posture: {e.get('title') or 'protection weakened'}"
+        if kind=='security_guardian_error': return f"Security guardian error: {e.get('error')}"
         return kind or 'Event'
 
     def run_forever(self):
