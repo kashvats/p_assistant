@@ -1,41 +1,124 @@
-# Threat Model — v0.6
+# Threat Model — v0.7
 
 ## Protected assets
 
-Local files/repositories, credentials, databases, browser/sensor data, calendar/session history, running services, OS security settings, security baselines/findings and quarantine artifacts.
+- local source repositories and personal files;
+- credentials and connector secrets;
+- databases;
+- active project processes;
+- operating-system security controls;
+- personal memory/calendar/session history;
+- the assistant policy/approval/security/evaluation core;
+- integrity of self-improvement evidence.
 
-## Main threats
+## Existing threats
 
-- Prompt injection from web pages, code/comments, logs, DB rows, documents, emails or downloaded content.
-- Hallucinated destructive shell/database/system actions.
-- Baseline poisoning: compromised state being silently accepted as trusted.
-- Baseline tampering: an agent resetting integrity/startup/network references to hide a change.
-- False-positive containment killing an important process.
-- Secret persistence through startup commands, process command lines, session text or signed download URLs.
-- Malware-like executable downloads being run before review.
-- Disabled firewall/AV/real-time protection going unnoticed.
-- High-volume polling spamming alerts or consuming resources.
-- Self-improvement weakening deterministic security controls.
+The v0.6 model still applies: prompt injection, destructive shell actions, path escape, accidental DB writes, secret exfiltration, malicious downloads, security-control disabling, unauthorized API access and resource exhaustion.
 
-## Controls
+## New evaluated-self-improvement threats
 
-- Security policy and guardian logic live outside the LLM.
-- Baselines are not auto-initialized by default; known-good capture is explicit.
-- Agent/API baseline mutation requires approval.
-- Findings are deduplicated and severity-gated before native notifications.
-- Containment is current-user-only, critical-process-blocked and approval-gated.
-- No automatic force-kill or suspicious-file deletion.
-- Startup/process text is redacted for common credential patterns before persistence.
-- Quarantine strips URL query/userinfo and stores hashes/provenance instead of executing downloads.
-- Browser profiles are isolated; DB writes/destructive shell remain policy-controlled.
-- Live posture checks are read-only; the dashboard consumes cached posture.
-- Unknown security-tool state is not interpreted as compromise.
-- No offensive scanning of third-party systems.
+### 1. Malicious test/benchmark command
 
-## Important limitations
+A proposal or external file may suggest a command that has harmful side effects.
 
-Heuristics can miss malware and can flag legitimate software. A clean guardian dashboard is not evidence that a machine is uncompromised. Baselines are only as trustworthy as the machine state when captured.
+Controls:
 
-Pattern-based credential redaction is incomplete by nature. Local assistant data should still be protected by the OS account and disk encryption.
+- deterministic command policy check;
+- privileged/destructive evaluation commands refused;
+- exact command plan shown in an approval request;
+- commands launch as argv with `shell=False`, preventing implicit shell chaining/redirection/substitution;
+- timeout and output limits;
+- evaluation and promotion remain separate.
 
-Living Assistant is not an EDR/antivirus replacement and cannot guarantee prevention of hacking. Keep the OS patched, firewall/endpoint protection enabled, disk encryption on, MFA configured, backups tested and credentials in a password manager/secret store.
+Residual risk: approved commands still run as the local user. Worktrees are **not an OS sandbox**.
+
+### 2. Benchmark gaming
+
+A candidate could optimize only for a synthetic benchmark or manipulate output while harming real behavior.
+
+Controls:
+
+- reusable user-defined task suites;
+- tests/static checks plus performance gates;
+- reports preserve raw command output/metrics;
+- no automatic promotion based on a model score.
+
+Residual risk: benchmark quality is ultimately determined by the suite design.
+
+### 3. Thermal/cache/order bias
+
+Running all baseline trials first and candidate trials later could bias comparisons.
+
+Controls:
+
+- warmups;
+- repeated runs;
+- alternating baseline/candidate order;
+- median metrics.
+
+### 4. Candidate changes after evaluation
+
+An evaluation branch could be modified after a passing report.
+
+Controls:
+
+- candidate committed before measurement;
+- candidate SHA persisted;
+- promotion verifies branch tip equals stored SHA;
+- promotion merges the exact SHA, not arbitrary branch contents.
+
+### 5. Active repository changes after evaluation
+
+Another commit could land after the benchmark, invalidating the comparison.
+
+Controls:
+
+- base SHA persisted;
+- promotion requires clean active checkout;
+- current HEAD must equal evaluated base SHA;
+- otherwise re-evaluation is required.
+
+### 6. Test cross-contamination
+
+One command could modify files used by later commands.
+
+Controls in Git mode:
+
+- reset to exact baseline/candidate commit before each check and benchmark repetition;
+- remove untracked files between runs.
+
+Copy-mode isolation is weaker and documented as such.
+
+### 7. Self-modification of the guardrails
+
+A candidate could attempt to weaken the code that decides whether it passes/promotes.
+
+Controls:
+
+- security/policy/approval/improvement/evaluation/workspace/quarantine/config core remains protected from automatic promotion;
+- such changes require manual human review outside the automatic pipeline.
+
+### 8. Resource exhaustion
+
+A benchmark can consume excessive RAM/CPU or hang.
+
+Controls:
+
+- available-RAM precheck;
+- profile-adaptive repetitions;
+- per-command timeout;
+- process-tree termination on timeout;
+- bounded command count;
+- copy size/file-count limits.
+
+## Non-goals
+
+v0.7 does not provide:
+
+- kernel/container-grade sandboxing;
+- proof that a benchmark represents production behavior;
+- proof that a passing candidate is bug-free;
+- automatic trust of code from the internet;
+- unrestricted recursive self-modification.
+
+Use containers/VMs for untrusted code and retain OS security controls, backups and normal code review.

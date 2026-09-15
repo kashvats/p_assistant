@@ -100,6 +100,21 @@ routines:
 self_improvement:
   enabled: true
   auto_apply_security_core: false
+  evaluation:
+    enabled: true
+    benchmark_repetitions: 3
+    benchmark_repetitions_by_profile: {lite: 1, balanced: 3, power: 5}
+    benchmark_warmup_runs: 1
+    benchmark_warmup_runs_by_profile: {lite: 0, balanced: 1, power: 1}
+    minimum_available_ram_gb_by_profile: {lite: 0.5, balanced: 1.0, power: 2.0}
+    max_benchmark_repetitions: 10
+    max_latency_regression_pct: 15
+    max_memory_regression_pct: 15
+    command_timeout_seconds: 300
+    max_commands: 12
+    max_command_chars: 4000
+    copy_max_files: 8000
+    copy_max_mb: 500
 
 
 personal:

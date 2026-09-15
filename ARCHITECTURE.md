@@ -1,106 +1,97 @@
-# Living Assistant v0.6 Architecture
+# Living Assistant v0.7 Architecture
 
 ```text
-                  ┌──────────────────────────────────────┐
-                  │ User / CLI / Tray / Local API        │
-                  │ Voice / Browser / Approval Window    │
-                  └─────────────────┬────────────────────┘
-                                    │
-                             intent / event
-                                    │
-                  ┌─────────────────▼────────────────────┐
-                  │            Orchestrator              │
-                  │ tools first • smallest useful SLM    │
-                  └───────────┬─────────────┬────────────┘
-                              │             │
-                     deterministic tools    │ specialist handoff
-                              │             │
-              ┌───────────────▼──────┐ ┌────▼──────────────┐
-              │ Policy / Approvals   │ │ one active SLM     │
-              │ outside model        │ │ normally at a time │
-              └───────────────┬──────┘ └───────────────────┘
-                              │
-  ┌───────────────────────────▼─────────────────────────────────────┐
-  │ files • shell • git • DB • web • browser • desktop • voice    │
-  │ projects • calendar • sessions • quarantine • improvements     │
-  └───────────────────────────┬─────────────────────────────────────┘
-                              │
-                    SECURITY GUARDIAN LAYER
-  ┌───────────────────────────▼─────────────────────────────────────┐
-  │ startup/persistence baseline       listener baseline            │
-  │ protected-file hashes              process triage/ancestry      │
-  │ firewall/AV/encryption posture     quarantine provenance        │
-  │ persistent deduplicated findings  approval-gated containment   │
-  └───────────────────────────┬─────────────────────────────────────┘
-                              │
-                     PERSONAL OPERATING LAYER
-  ┌───────────────────────────▼─────────────────────────────────────┐
-  │ calendar • todos • quiet/focus • briefings • routines          │
-  │ sessions • notification queue • connector metadata             │
-  └───────────────────────────┬─────────────────────────────────────┘
-                              │
-                    LOW-RESOURCE NERVOUS SYSTEM
-  ┌───────────────────────────▼─────────────────────────────────────┐
-  │ project crashes • health checks • file watches • reminders     │
-  │ security scans • posture cache • routine/briefing scheduler    │
-  │ session retention • notification severity/quiet-hours policy   │
-  │                    NO LLM WHILE IDLE                           │
-  └─────────────────────────────────────────────────────────────────┘
+                         User / Voice / API / Tray
+                                  │
+                                  ▼
+                         ┌─────────────────┐
+                         │  Orchestrator   │
+                         └───────┬─────────┘
+                                 │
+                ┌────────────────┼────────────────┐
+                │                │                │
+        deterministic tools   specialists     personal layer
+                │                │                │
+                ▼                ▼                ▼
+        files/projects/db    sleeping SLMs   calendar/routines
+        browser/security                    focus/briefings
+                │
+                ▼
+      ┌───────────────────────────────┐
+      │ Evaluated Self-Improvement    │
+      │ proposal → evaluate → promote │
+      └───────────────┬───────────────┘
+                      │
+          ┌───────────┴───────────┐
+          ▼                       ▼
+    baseline worktree       candidate worktree
+        @ BASE                @ candidate commit
+          │                       │
+          └────── measurements ───┘
+                      │
+                regression gates
+                      │
+                approval boundary
+                      │
+                      ▼
+                 active checkout
 ```
 
-## Security trust model
+## Nervous system
 
-The LLM is **not** allowed to decide what is trusted. The Security Guardian is deterministic code. It records observations and creates findings; it does not convert a heuristic into a malware verdict.
+The daemon remains deterministic and low-resource. It monitors reminders, routines, projects, filesystem watches, security baselines and posture without keeping an LLM loaded.
 
-Three reference types exist:
+## Model layer
 
-1. **Startup/persistence baseline** — normalized startup objects plus hashes for selected startup files.
-2. **Listener baseline** — local address/port + process/executable identity for listening services.
-3. **Integrity baselines** — bounded SHA-256 snapshots of explicitly selected paths.
+One specialist model is normally active at a time. Roles can share the same physical SLM on small hardware. The model proposes and reasons; deterministic tools enforce workspace, security, DB and approval boundaries.
 
-By default these baselines are **not automatically initialized**. `organism security initialize` is an explicit known-good-state operation. Agent/API baseline mutations require approval because resetting a reference can hide a previous change.
+## Evaluation layer
 
-## Findings
+`EvaluationStore` persists reusable suites and immutable evaluation reports in SQLite.
 
-`SecurityGuardian` stores findings in SQLite with:
+`EvaluationEngine` resolves a proposal, constructs an exact command plan, requests approval, creates isolated repository states, runs checks, records measurements, calculates gates and controls promotion/rollback.
 
-- stable fingerprint;
-- kind and severity;
-- first/last seen;
-- occurrence count;
-- open/resolved status;
-- structured details.
+### Git mode
 
-Repeated polls update an existing finding instead of emitting endless new alerts. If a resolved condition returns, the finding can reopen and alert again.
+```text
+repo clean @ base SHA
+   │
+   ├── detached baseline worktree
+   │
+   └── candidate branch/worktree
+             │
+             └── exact proposal committed
+```
 
-## Process triage
+The candidate branch survives worktree cleanup. Promotion verifies the branch tip still equals the candidate SHA and merges the SHA itself.
 
-Process scoring is intentionally explainable. Current signals include temporary/download execution locations, temporary executables opening listeners, encoded PowerShell and selected Office → script-host/LOLBin ancestry.
+### Copy mode
 
-Only scores above a configured threshold become automatic findings. On-demand inspection can show lower-scoring signals. A score is not proof of maliciousness.
+Non-Git projects use bounded baseline/candidate copies under the assistant data directory. This has weaker reproducibility and no immutable commit identity, so Git mode is preferred.
 
-Containment is narrower than observation:
+## Approval boundaries
 
-- current-user-owned process only;
-- protected critical-process denylist;
-- explicit approval;
-- graceful terminate only;
-- no automatic file deletion or force-kill.
+Separate approval classes include:
 
-## Posture
+- `SELF_EVALUATION`: run exact local evaluation commands;
+- `SELF_PROMOTION`: modify the active repository after a passing report;
+- `SELF_PROMOTION_ROLLBACK`: create a Git revert;
+- `SELF_EVALUATION_CLEANUP`: delete an isolated evaluation branch.
 
-Live posture can inspect firewall, endpoint protection and disk encryption using OS-native read-only commands. Slow update/package checks are on-demand. The daemon refreshes normal posture on a slower cadence and stores a cached snapshot used by the dashboard.
+Approval for one class does not authorize another.
 
-Unknown/unavailable tools are not automatically treated as compromise. Only positively identified disabled/off states produce protection findings.
+## Resource adaptation
 
-## Quarantine
+Evaluation repetitions are profile-aware:
 
-Downloads first land in a private quarantine location when type/risk rules require it. Persistent provenance strips URL userinfo/query/fragment so signed URLs and tokens are not stored. Quarantined executables are never auto-run. Release remains explicit.
+- lite: 1 measured run, no warmup;
+- balanced: 3 measured runs, 1 warmup;
+- power: 5 measured runs, 1 warmup.
 
-## Personal/privacy layer
+An available-RAM floor is checked before evaluation starts.
 
-Quiet/focus behavior, sessions, reminders and briefings remain independent of security findings. Startup commands and process command lines are redacted for common credential forms before security persistence. Session history uses its own bounded redaction/retention controls.
+## Security boundary
 
-## Model/resource layer
+`security_policy.py`, `security_guardian.py`, `approval.py`, `improvements.py`, `evaluation.py`, `workspace.py`, `quarantine.py` and `assistant.yaml` are protected from automatic proposal application/promotion.
 
-Security monitoring does not wake an SLM. A security specialist model may be invoked only when the user asks for interpretation or a finding/routine explicitly needs reasoning and policy permits it. ModelManager still keeps normally one physical local model active at a time.
+External content remains untrusted observation data. Evaluation commands are not taken as trusted merely because they appear in a proposal; the exact plan is approval-gated.

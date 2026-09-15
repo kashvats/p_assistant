@@ -1,25 +1,32 @@
 # Changelog
 
+## 0.7.0
+
+- Added persistent evaluated-self-improvement suites with tests, lint/static checks, benchmarks and regression budgets.
+- Added Git baseline/candidate worktrees and dedicated `living-assistant/eval/<id>` candidate branches.
+- Candidate changes are committed before measurement so reports identify an immutable candidate SHA.
+- Added bounded non-Git baseline/candidate copy mode.
+- Evaluation command plans are policy-checked and require a dedicated `SELF_EVALUATION` approval.
+- Added per-command timeout, bounded logs, wall-clock timing and process-tree peak RSS measurement.
+- Added hardware-adaptive benchmark repetition/warmup defaults for lite/balanced/power profiles.
+- Added warmup and interleaved baseline/candidate benchmark ordering.
+- Git worktrees reset to exact commits between checks and benchmark repetitions.
+- Added candidate-check and latency/RAM regression gates.
+- Added separate `SELF_PROMOTION` approval after a passing evaluation.
+- Promotion requires a clean source checkout at the original base SHA.
+- Promotion verifies the evaluation branch tip still equals the stored candidate SHA and merges that exact SHA.
+- Added approval-gated `git revert` rollback for promoted evaluations without history rewriting.
+- Added evaluation-branch cleanup action.
+- Added evaluation suite/report CLI, API, dashboard and orchestrator tools.
+- Added `evaluation.py` to the protected self-improvement core.
+- Expanded regression suite to **75 passing tests**.
+
 ## 0.6.0
 
 - Added cross-platform Security Guardian with persistent startup/persistence and listening-service baselines.
-- Baselines are **not silently initialized** by default; `organism security initialize` requires an explicit known-good-state decision.
-- Added common Linux/macOS persistence-file hashing so edits to existing startup files can be detected.
-- Added protected-file integrity baselines with added/changed/removed detection and bounded hashing.
-- Added deterministic process triage, ancestry inspection, connection metadata and configurable automatic alert threshold.
-- Added established network-activity summary without offensive scanning.
-- Added firewall, antivirus/endpoint-protection and disk-encryption posture checks plus optional update posture.
-- Added persistent deduplicated security findings with severity, status, count, first/last seen and reopen behavior.
-- Added approval-gated containment for non-critical current-user-owned processes.
-- Added executable SHA-256 plus OS signature/package ownership inspection when supported.
-- Added richer quarantine provenance, scan history and release history; signed URL queries are stripped before persistence.
-- Quarantine release now verifies the current SHA-256 still matches the registered artifact, blocking post-registration tampering.
-- Integrity baselines record symlink metadata without hashing through nested symlinks outside the selected tree.
-- Startup/persistence text is redacted for common token/password patterns before storage.
-- Security baseline changes and finding resolution through agent/API paths require explicit approval.
-- Dashboard Security Guardian uses cached posture instead of repeatedly invoking OS security commands.
-- Security desktop notifications honor a minimum severity threshold.
-- Added Security Guardian/quarantine/workspace modules to the self-improvement protected-core list.
+- Baselines are not silently initialized by default.
+- Added protected-file integrity baselines, process triage, network summaries, security posture, findings and approval-gated containment.
+- Added richer quarantine provenance and tamper checks.
 - Expanded regression suite to 61 passing tests.
 
 ## 0.5.0

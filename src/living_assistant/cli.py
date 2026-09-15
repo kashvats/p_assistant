@@ -535,7 +535,7 @@ def improve_show(proposal_id: str):
     console.print(build_runtime(interactive=False).improvements.store.get(proposal_id))
 
 @improve_app.command('propose')
-def improve_propose(target_path: str, content_file: str, title: str, rationale: str, tests: str = ''):
+def improve_propose(target_path: str, content_file: str, title: str, rationale: str, tests: str = typer.Option('', '--tests', help='Comma-separated suggested test commands.')):
     rt=build_runtime(interactive=False)
     new_content=Path(content_file).expanduser().read_text(encoding='utf-8')
     test_list=[x.strip() for x in tests.split(',') if x.strip()]
@@ -552,6 +552,59 @@ def improve_rollback(proposal_id: str):
 @improve_app.command('reject')
 def improve_reject(proposal_id: str):
     console.print(build_runtime(interactive=False).improvements.reject(proposal_id))
+
+@improve_app.command('suite-add')
+def improve_suite_add(name: str, project_path: str,
+                      test: list[str] = typer.Option([], '--test', help='Repeatable test command.'),
+                      lint: list[str] = typer.Option([], '--lint', help='Repeatable lint/static-check command.'),
+                      benchmark: list[str] = typer.Option([], '--benchmark', help='Repeatable benchmark command.'),
+                      repetitions: int | None = typer.Option(None, '--repetitions'),
+                      max_latency_regression_pct: float | None = typer.Option(None, '--max-latency-regression-pct'),
+                      max_memory_regression_pct: float | None = typer.Option(None, '--max-memory-regression-pct')):
+    rt=build_runtime(interactive=False)
+    console.print(rt.evaluations.create_suite(name,project_path,test,lint,benchmark,repetitions,max_latency_regression_pct,max_memory_regression_pct))
+
+@improve_app.command('suite-list')
+def improve_suite_list():
+    console.print(build_runtime(interactive=False).evaluations.store.list_suites())
+
+@improve_app.command('suite-remove')
+def improve_suite_remove(name: str):
+    console.print({'ok':build_runtime(interactive=False).evaluations.store.delete_suite(name)})
+
+@improve_app.command('evaluate')
+def improve_evaluate(proposal_id: str, suite: str | None = typer.Option(None, '--suite'),
+                     project_path: str | None = typer.Option(None, '--project'),
+                     test: list[str] = typer.Option([], '--test'),
+                     lint: list[str] = typer.Option([], '--lint'),
+                     benchmark: list[str] = typer.Option([], '--benchmark'),
+                     repetitions: int | None = typer.Option(None, '--repetitions')):
+    rt=build_runtime(interactive=True)
+    console.print(rt.evaluations.evaluate(
+        proposal_id, suite_name=suite, project_path=project_path,
+        test_commands=(test or None), lint_commands=(lint or None), benchmark_commands=(benchmark or None),
+        repetitions=repetitions,
+    ))
+
+@improve_app.command('evaluations')
+def improve_evaluations(status: str = 'all'):
+    console.print(build_runtime(interactive=False).evaluations.store.list(None if status=='all' else status))
+
+@improve_app.command('report')
+def improve_report(evaluation_id: str):
+    console.print(build_runtime(interactive=False).evaluations.store.get(evaluation_id))
+
+@improve_app.command('promote')
+def improve_promote(evaluation_id: str):
+    console.print(build_runtime(interactive=True).evaluations.promote(evaluation_id))
+
+@improve_app.command('revert-promotion')
+def improve_revert_promotion(evaluation_id: str):
+    console.print(build_runtime(interactive=True).evaluations.revert_promotion(evaluation_id))
+
+@improve_app.command('cleanup-evaluation')
+def improve_cleanup_evaluation(evaluation_id: str):
+    console.print(build_runtime(interactive=True).evaluations.cleanup_branch(evaluation_id))
 
 
 @calendar_app.command('add')

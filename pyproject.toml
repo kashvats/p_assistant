@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "living-assistant"
-version = "0.6.0"
-description = "Local-first hardware-adaptive personal operating assistant with defensive Security Guardian, sleeping agents and deterministic automation."
+version = "0.7.0"
+description = "Local-first personal operating assistant with evaluated self-improvement, defensive Security Guardian, sleeping agents and deterministic automation."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

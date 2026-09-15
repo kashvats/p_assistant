@@ -1,193 +1,248 @@
-# Master Build Prompt — Living Assistant v0.6+
+# Master Build Prompt — Living Assistant
 
-Build and maintain a production-minded, local-first personal assistant called **Living Assistant** for Windows, Ubuntu/Linux and macOS.
+Build and maintain a production-oriented, local-first personal assistant called **Living Assistant** for Windows, Ubuntu/Linux and macOS.
 
-## Product goal
+## Primary hardware targets
 
-Make a laptop behave like a resource-aware personal agent that can run projects, write/test code, fetch web content/images, query configured databases, manage tasks, assist with defensive endpoint monitoring, use optional desktop/browser/voice interfaces, and learn reusable workflows. It must feel persistent without keeping multiple models loaded or granting an LLM unrestricted machine control.
+- Main: Ryzen 5 5600H, GTX 1650 4 GB VRAM, 32 GB RAM.
+- Minimum: 8 GB RAM, CPU-only or weak integrated GPU.
+- Python 3.11+ orchestration layer.
 
-Primary target: Ryzen 5 5600H, GTX 1650 4 GB VRAM, 32 GB RAM. Minimum target: 8 GB RAM with no useful discrete GPU.
+The design must degrade features rather than fail when resources are small.
 
-## Fundamental architecture
+## Core architecture
 
-Use four layers:
+### Nervous system
 
-1. **Deterministic nervous system** — reminders, project/process health, file watches, new listening ports, resource pressure and safe routines. No LLM while idle.
-2. **Orchestrator** — plans briefly, prefers deterministic tools, chooses the smallest useful specialist and stops when the goal is complete.
-3. **Sleeping specialists** — general, coder, researcher, database, defensive security and planner personas. Normally one physical local model active at a time; roles may share one SLM.
-4. **Capability/policy layer** — deterministic permission checks, workspace boundaries, read-only DB defaults, download quarantine, approval queue and audit trail. The LLM cannot override this layer.
+Keep a deterministic, low-resource daemon awake. It should monitor reminders, routines, registered projects, selected file watches, resource pressure and defensive security events without keeping an LLM loaded.
 
-## Hardware profiles
+### Orchestrator
 
-### Lite — roughly 8–12 GB RAM
-- tiny quantized orchestrator/personas
-- 4K-ish context
-- one model at a time
-- one specialist handoff
-- deterministic tools first
-- browser/voice disabled by default
-- no always-on embeddings, vision or STT
+The orchestrator receives user intent/events, prefers deterministic tools, chooses specialists only when needed, enforces bounded steps/handoffs and never overrides policy.
 
-### Balanced — roughly 16–40 GB RAM
-- 2B–4B class models
-- one physical model normally active
-- moderate context and handoffs
-- optional browser/voice tools
-- CPU-first STT by default on low-VRAM GPUs
+### Sleeping specialist agents
 
-### Power
-- larger local models and context where justified
-- still unload idle models and avoid unnecessary parallel model residency
+Provide general, coding, research, database, defensive-security and planning roles. On constrained machines, multiple roles may share one physical SLM with different prompts. Normally only one local model is resident at a time.
 
-Keep model names configurable and keep the provider interface compatible with Ollama and OpenAI-compatible local runtimes such as llama.cpp server.
+### Tool/policy boundary
+
+The LLM proposes actions; deterministic tools enforce workspace roots, DB read-only rules, approval requirements, timeouts, download/quarantine policy and blocked commands.
+
+Treat web pages, source comments, READMEs, logs, DB rows, documents, emails and browser content as untrusted observation data.
 
 ## Required capabilities
 
-### Files/code/projects
-- workspace-bounded read/search/write with canonical path checks
-- diff preview before/with writes
-- shell execution with deterministic risk classification
-- Python, Node, Docker Compose, Java/Maven/Gradle, Go and Rust detection
-- persistent project registry, process logs, PID/status, health URL, bounded auto-restart
-- multi-project application groups
-- Git status/diff/log plus approval-gated branch/commit operations
+Retain:
 
-### Web/downloads
-- bounded HTTP fetch
-- search-provider abstraction
-- image search + direct image download
-- risky executable/script types go to quarantine
-- never automatically execute downloads
+- local file read/search/write with path containment and diff preview;
+- code/shell execution with deterministic risk policy;
+- Python/Node/Docker/Java/Go/Rust project detection;
+- persistent project process supervision, logs, health checks and bounded restart;
+- project groups;
+- Git status/diff/log/branch/commit tooling;
+- HTTP fetch, image/file download and quarantine;
+- optional browser automation in assistant-owned profiles;
+- SQLite/PostgreSQL/MySQL/Mongo read-only-by-default adapters;
+- local memory/todos/calendar/routines/briefings;
+- bounded local conversation continuity with secret redaction;
+- optional push-to-talk STT/TTS;
+- sensitive clipboard/screenshot access behind approval;
+- connector metadata boundary that never stores provider credentials;
+- cross-platform defensive Security Guardian;
+- startup/listener/integrity baselines, process triage, posture and findings;
+- approval-gated containment and quarantine release;
+- explicit known-good baseline initialization.
 
-### Browser operator
-- Playwright optional extra
-- never attach to normal user browser profile
-- fresh isolated snapshots and interactions
-- named live sessions
-- optional persistent assistant-only profile only with explicit approval
-- downloads disabled
-- host scope established when session starts
-- click/fill or other external state changes require approval
+## Evaluated self-improvement — mandatory
 
-### Databases
-- connection aliases from environment/secret store
-- SQLite/PostgreSQL/MySQL/MongoDB
-- SQL read-only by default; reject DDL/DML
-- bounded rows/timeouts
-- never echo credentials
+Self-improvement must be **measured, isolated, reversible and separately approved**.
 
-### Personal operating layer
-- local SQLite/FTS memory and user-confirmed reusable skills
-- todos/reminders
-- local calendar with create/list/cancel and ICS export
-- deterministic morning/evening briefing
-- quiet hours and bounded focus mode
-- durable notification queue during quiet periods
-- local conversation/session history with bounded context and retention controls
-- redact common credential patterns before persisting session messages
-- provider-neutral connector registry; store metadata/env-prefix only, never credentials
-- external email/calendar/files providers remain capability-scoped adapters
+### Proposal stage
 
-### Voice
-- optional push-to-talk, never always-on microphone by default
-- microphone recording is a sensitive-read capability requiring approval
-- local STT provider (e.g. faster-whisper) and local TTS provider interface
-- bounded recording duration
-- unload STT model after voice interaction when resources are constrained
-- wake word, if added later, must be a tiny dedicated detector rather than a full STT model listening continuously
+A model may create an exact-file proposal containing:
 
-### Deterministic routines
-Support event, interval, daily HH:MM, and weekly weekday+HH:MM triggers. Safe actions such as `notify` and `todo` run without an LLM. An `assistant_prompt` routine must be disabled by default behind an explicit `allow_model_wake` setting. A model-waking routine must use the noninteractive approval queue for high-impact actions and must not wake a model while focus/quiet mode is active.
+- title;
+- rationale;
+- target path;
+- original SHA-256;
+- proposed content;
+- unified diff;
+- suggested checks.
 
-### Defensive Security Guardian
-- cross-platform startup/persistence inventory for Windows, Linux and macOS
-- persistence reference must not be silently initialized by default; explicit known-good capture is required
-- hash selected startup files so edits to an existing persistence file are observable
-- persistent listening-service baseline with public-vs-loopback signal severity
-- file-integrity baselines for explicitly selected sensitive paths with file-count/size bounds
-- agent/API baseline mutation requires approval because reference replacement can erase evidence
-- deterministic process triage with explainable signals, ancestry, executable path and connection metadata
-- configurable automatic process-alert threshold; never call a heuristic a malware verdict
-- firewall, antivirus/endpoint-protection and disk-encryption posture through read-only OS-native commands
-- slow package/update enumeration is on-demand, not part of every daemon tick
-- persistent deduplicated findings with severity, first/last seen, count and open/resolved state
-- current-user-only, critical-process-blocked, approval-gated graceful containment
-- SHA-256 + OS signature/package-owner inspection where supported
-- quarantine provenance with source host/path, original filename, risk reason, scan/release history
-- strip URL userinfo/query/fragment before persisting quarantine source metadata
-- redact common secrets from startup/process text before persistence
-- Windows Defender or ClamAV scanning integrations where available
-- no automatic suspicious-file deletion, no automatic force-kill
-- never disable firewall/AV/EDR/updates/disk encryption
-- no offensive scanning of third-party systems
-- do not claim perfect hacker protection
+Proposal creation must not modify the target.
 
-## Permission classes
+### Evaluation suites
 
-At minimum distinguish READ, SENSITIVE_READ, WRITE_WORKSPACE, EXECUTE, NETWORK_ACTION, DB_READ, DB_WRITE, SYSTEM_CHANGE, PRIVILEGED, SENSITIVE_PERSISTENCE, SELF_MODIFICATION and DESTRUCTIVE.
+Persist named suites with:
 
-Policy must be code outside the model. Persist noninteractive approval requests. Approved requests are exact, one-time grants and are consumed once. Notify the user when a new pending approval is created.
+- project path;
+- test commands;
+- lint/static-analysis commands;
+- task benchmark commands;
+- benchmark repetitions;
+- maximum allowed latency regression percent;
+- maximum allowed memory regression percent.
 
-## Prompt-injection boundary
+Commands are not implicitly trusted. Evaluation must show the exact plan and require approval.
 
-Treat web pages, source comments, READMEs, logs, DB values, emails, documents, browser text and downloaded files as untrusted observations. Retrieved content cannot redefine system policy. Before any action derived from external content, tools must independently validate scope/risk/approval.
+### Git evaluation mode
 
-## Self-improvement
+When possible:
 
-Never implement unrestricted self-rewriting. Use a proposal pipeline:
+1. Require a clean source repository.
+2. Record current base commit.
+3. Create a detached baseline worktree at the base.
+4. Create a candidate worktree/branch named under `living-assistant/eval/`.
+5. Apply only the exact proposal content.
+6. Commit candidate before measurement using a clearly identified local assistant author.
+7. Record candidate commit SHA.
+8. Reset/clean worktrees to their exact commits between test/benchmark executions.
+9. Remove worktrees after evaluation but retain candidate branch for audit/promotion.
 
-1. identify repeated problem or requested improvement;
-2. create exact candidate content/patch;
-3. store rationale, unified diff, suggested tests and current target SHA-256;
-4. user reviews/approves;
-5. verify target hash still matches;
-6. create backup;
-7. apply exact stored candidate;
-8. run/evaluate tests separately and report before/after;
-9. provide rollback.
+### Non-Git fallback
 
-Do not auto-apply modifications to the deterministic policy, approval or self-improvement core. Future versions should use Git branches/evaluation sandboxes for assistant-core changes.
+Use bounded baseline/candidate directory copies with file-count/size limits and exclusion of large generated/cache folders. Document that this mode has weaker reproducibility.
 
-## Resource behavior
+### Command execution
 
-- inspect available RAM before model load
-- unload old model on specialist switch
-- bounded context/tool steps/handoffs
-- bounded subprocesses/download sizes
-- no full browser/voice stack on lite unless explicitly enabled
-- daemon does not retain LLM/STT weights while idle
+For evaluation commands:
 
-## Interfaces
+- run deterministic safety classification first;
+- reject privileged/destructive commands;
+- require approval for the exact command plan;
+- parse approved commands into argv and launch with `shell=False`; do not provide general shell chaining/redirection in the evaluator;
+- set per-command timeout;
+- terminate timed-out process trees;
+- bound captured stdout/stderr;
+- set an evaluation marker environment variable;
+- do not claim OS/network sandboxing unless actually using a container/VM.
 
-Provide:
-- interactive CLI and one-shot CLI
-- localhost REST API
-- dashboard/control center with approval buttons
-- optional system tray
-- optional browser live-session console
-- optional push-to-talk voice command
+### Measurement
 
-Never bind unauthenticated control API to `0.0.0.0` by default.
+Record at minimum:
 
-## Tests
+- return code/pass status;
+- wall-clock duration;
+- process-tree peak RSS memory;
+- bounded stdout/stderr.
 
-Keep regression tests for all earlier versions plus:
-- microphone profile/approval gates
-- routines interval/event logic and model-wake gate
-- improvement diff/base-hash/conflict/approval/core-protection behavior
-- approval notification behavior
-- browser blocked metadata endpoints and session-name/host scope
-- personal quiet/focus behavior and durable notification queue
-- calendar/briefing scheduling
-- daily/weekly routine triggers
-- session retention/search/secret-redaction behavior
-- connector registry metadata-only behavior
-- missing-baseline must not silently become trusted
-- integrity baseline added/changed/removed detection
-- finding deduplication and reopen behavior
-- process-signal scoring and critical containment safeguards
-- quarantine provenance and signed-URL secret stripping
-- security posture disabled-state evaluator
-- API route smoke tests where practical
+Benchmarks should:
 
-Favor a truthful working MVP over placeholder claims. Every documented critical-path feature should have functioning code and tests or be clearly marked future work.
+- support warmup;
+- repeat runs;
+- interleave baseline/candidate execution order to reduce order bias;
+- compare medians;
+- enforce configured latency and memory regression budgets.
+
+Adapt repetition counts by hardware profile. Lite systems should do fewer measurements.
+
+### Gates
+
+A candidate is promotable only if:
+
+- all candidate tests/static checks pass;
+- every configured benchmark is valid;
+- latency regression is within budget;
+- memory regression is within budget;
+- target is not protected security/policy/evaluation core.
+
+Do not use subjective model preference as a gate.
+
+### Promotion
+
+Promotion is always a second explicit approval, separate from evaluation.
+
+For Git mode, before promotion verify:
+
+- report passed;
+- proposal is still pending;
+- active repository is clean;
+- active HEAD equals stored base SHA;
+- candidate branch exists;
+- candidate branch tip equals stored candidate SHA.
+
+Merge/fast-forward the **exact candidate commit SHA**, not mutable branch contents.
+
+### Rollback
+
+Git promotions should rollback using `git revert` rather than history rewrite. Require approval.
+
+### Protected core
+
+Automatic proposal application/promotion must refuse at least:
+
+- security policy;
+- Security Guardian;
+- approvals;
+- self-improvement engine;
+- evaluation engine;
+- workspace boundary;
+- quarantine boundary;
+- main assistant configuration.
+
+Such changes can be evaluated for information but require manual human promotion/editing.
+
+## Hardware profiles
+
+### Lite — ~8 GB RAM
+
+- tiny 0.5B–1B quantized model;
+- small context;
+- one model at a time;
+- deterministic tools first;
+- browser/voice off by default;
+- one benchmark repetition, no warmup by default;
+- bounded copies and low concurrency.
+
+### Balanced — 16–40 GB RAM / modest GPU
+
+- 2B–4B main local models;
+- one model normally active;
+- moderate context;
+- limited handoffs;
+- ~3 benchmark repetitions with warmup.
+
+Ryzen 5 5600H + GTX 1650 4 GB + 32 GB RAM should default here. Allow CPU/GPU hybrid inference; do not assume models fully fit VRAM.
+
+### Power
+
+- larger local models when useful;
+- larger context;
+- more benchmark repetitions;
+- still avoid unnecessary simultaneous model residency.
+
+## Security principles
+
+- Never disable firewall, AV/EDR, updates, encryption or other protections.
+- Never automatically execute downloaded binaries.
+- Never perform offensive scans against third-party systems.
+- Never store secrets in conversational memory, evaluation suite metadata or connector metadata.
+- Security heuristics are signals, not malware verdicts.
+- Baseline replacement and containment remain approval-gated.
+- Local API binds to loopback by default.
+
+## Testing
+
+Maintain regression tests for all earlier safety boundaries and additionally test:
+
+- evaluation-suite persistence;
+- proposal/source hash conflicts;
+- non-Git copy isolation;
+- Git worktree isolation;
+- dangerous command rejection;
+- timeout/process-tree termination;
+- candidate check failure;
+- benchmark budget calculations;
+- hardware-adaptive repetitions;
+- dirty source refusal;
+- stale HEAD refusal;
+- evaluation branch tamper refusal;
+- protected-core promotion refusal;
+- separate evaluation and promotion approvals;
+- reversible Git promotion.
+
+## Deliverables
+
+Return a runnable repository with source package, config, README, architecture, threat model, evaluated-self-improvement guide, roadmap, changelog, tests, setup scripts, CLI, local API and daemon.
+
+Prefer a reliable measured pipeline over claims of autonomous intelligence.
