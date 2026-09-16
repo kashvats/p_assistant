@@ -1,10 +1,11 @@
 $ErrorActionPreference = "Stop"
-if (-not (Test-Path ".venv")) {
+if (-not (Test-Path ".venv\Scripts\python.exe")) {
   python -m venv .venv
 }
-& .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -e .
+$Py = (Resolve-Path ".venv\Scripts\python.exe").Path
+& $Py -m pip install --upgrade pip
+& $Py -m pip install -e .
 Write-Host ""
 Write-Host "Living Assistant installed."
-Write-Host "Next: install/start Ollama, then run: organism doctor"
+Write-Host "Activation is optional; this bootstrap does not depend on PowerShell script execution policy."
+Write-Host "Next: install/start Ollama, then run: .\.venv\Scripts\organism.exe doctor"

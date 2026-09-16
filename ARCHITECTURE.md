@@ -1,4 +1,4 @@
-# Living Assistant v0.8 Architecture
+# Living Assistant Architecture — through v0.16
 
 ```text
                          User / Voice / API / Tray
@@ -145,3 +145,44 @@ Tool outcomes -> redacted episodes -> repeated recovery candidate
 ```
 
 Experience memory is advisory. Current tool evidence and deterministic policy always have higher authority. Automatic traces start below the normal context-injection threshold and only become influential after repeated evidence or verification.
+
+## v0.12 connector boundary
+
+External services are reached through `ConnectorManager`; providers do not get direct access to the orchestrator. `ConnectorRegistry` stores non-secret metadata, `CredentialStore` resolves environment/OS-keyring secrets, and `OAuthManager` owns Google/Microsoft/GitHub authorization flows. Each provider action maps to one declared capability and write actions are routed through `ApprovalManager`. Returned provider content is explicitly wrapped as untrusted external observation data.
+
+## v0.13 adaptive model runtime
+
+The model layer now separates **residency** from **generation concurrency**. `ResourceManager` derives a conservative runtime policy from the selected profile plus dedicated VRAM, Apple unified memory, or system RAM. `ModelManager` owns bounded generation leases, per-model slots, resident-model LRU state, preload/unload operations and pressure-aware admission.
+
+```text
+Orchestrator / Specialists
+          │
+          ▼
+   ModelManager lease
+    ├─ global generation budget
+    ├─ per-model concurrency budget
+    ├─ RAM/VRAM/thermal admission
+    └─ LRU resident-model eviction
+          │
+          ▼
+       Ollama API
+   /api/chat · /api/ps
+```
+
+The assistant deliberately does not rewrite Ollama server environment variables. Its own budget can be stricter than Ollama's; the server may also enforce a stricter limit. Low-resource/lite machines retain the original one-model-at-a-time behavior.
+
+
+## v0.15 Security Sensor Platform
+
+Security sensors run in the deterministic/model-free layer. Platform collectors normalize recent OS telemetry into bounded event records. Correlation rules create Guardian findings; models may explain those findings but do not bypass policy or directly classify/contain based on free-form reasoning.
+
+High-impact network isolation remains outside model authority. Manual isolation requires one-time approval. Automatic isolation is disabled/unarmed by default and, if explicitly enabled, requires multiple independent deterministic signals before the reversible platform backend is invoked.
+
+The macOS Endpoint Security integration is split deliberately: an entitled/code-signed native notification helper produces local NDJSON, while Python consumes that telemetry. The Python process never claims or circumvents Apple's entitlement.
+
+
+## v0.16 platform hardening layer
+
+`platform_hardening.py` centralizes capability probes, semantic-preserving link creation and suspend/resume detection. On Windows, ordinary symlink creation is attempted first; directory junctions and file hard links are fallbacks when privilege/Developer Mode prevents a symlink. Copying is never implicit because it changes link semantics.
+
+Security walkers use a no-link-traversal iterator that treats POSIX symlinks and Windows reparse points as boundaries. The daemon treats a long tick gap as a resume boundary, then refreshes ephemeral state before normal file/network/security processing to reduce false alerts. Per-user service installers remain unprivileged by default: Scheduled Task on Windows, systemd user service on Linux and LaunchAgent on macOS.

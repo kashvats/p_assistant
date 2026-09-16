@@ -1,5 +1,99 @@
 # Changelog
 
+## 0.16.0
+
+- Added runtime cross-platform capability probes and `organism platform` diagnostics.
+- Added Windows non-admin link fallback: symlink -> directory junction / file hard link; copies remain explicit only.
+- Added conservative Windows reparse-point detection so security scans/watchers do not recurse through junctions.
+- Made historical symlink-specific tests skip rather than fail when true symlink semantics are unavailable.
+- Added sleep/resume detection with filesystem-watch rebaselining, listener refresh, health-counter reset and model-runtime resynchronization.
+- Added graceful SIGTERM handling for background-service shutdown.
+- Hardened macOS LaunchAgent generation with `plistlib`, `plutil`, `launchctl bootstrap/bootout` and user GUI domain targeting.
+- Hardened Linux user-systemd unit quoting, stop timeout and service-status visibility.
+- Hardened Windows Scheduled Task settings for non-admin/login use and battery operation.
+- Removed Windows bootstrap dependency on PowerShell activation scripts/execution policy.
+- Made workspace listings survive broken/inaccessible links or reparse points.
+- Added platform status/service API routes and cross-platform regression coverage.
+
+
+## 0.15.0
+
+- Added normalized Windows Sysmon and selected Security Event Log ingestion with deterministic event-chain correlation.
+- Added Linux auditd/ausearch ingestion with audit-serial record grouping and journald fallback.
+- Added macOS Endpoint Security notification-helper source/protocol plus Unified Log fallback; entitlement/code signing remain mandatory.
+- Added DNS telemetry normalization and optional local DNS NDJSON adapter.
+- Added optional local TLS/SNI metadata adapter without pretending ECH-hidden SNI is universally observable.
+- Added explicit SHA-256 reputation lookup for files/running processes; file bytes are never uploaded.
+- Added signed-binary/local package trust database with hash/signer/status drift detection.
+- Added optional local YARA scanning with explicit approval and no automatic rule downloads.
+- Added USB device and browser-extension metadata baselines, including permission-gain detection.
+- Added bounded ransomware-like mass file-change burst detection.
+- Added backup-integrity baselines and checks.
+- Added reversible approval-gated network isolation and separately armed multi-signal automatic isolation policy.
+- Persisted partial isolation state so network restore remains available after partial failures.
+- Added sensor API, CLI, agent-tool and dashboard status surfaces.
+- Added 24 focused sensor/security regressions while preserving the full cumulative suite.
+
+## 0.14.0
+
+- Added accessibility-first Desktop Intelligence controller.
+- Added Windows UI Automation foreground-tree inspection.
+- Added macOS System Events accessibility inspection.
+- Added Linux AT-SPI semantic inspection with window-list fallback.
+- Added multi-monitor geometry and per-monitor screenshot capture.
+- Added approval-gated mouse movement, clicks, typing and hotkeys.
+- Added optional sleeping Ollama vision fallback, disabled by default.
+- Blocked remote screenshot analysis unless explicitly enabled.
+- Added desktop capability API/CLI/tool surfaces and dashboard status.
+- Preserved v0.13 adaptive model runtime and all earlier hardening.
+
+
+## 0.13.0
+- Added hardware-adaptive model residency with strict single-model fallback on lite and low-VRAM systems.
+- Added dedicated-VRAM, Apple unified-memory and CPU/system-RAM thresholds for 1/2/3 resident models.
+- Added separate maximum resident-model and concurrent-generation budgets.
+- Added per-model generation serialization by default to avoid multiplying context memory unexpectedly.
+- Added LRU eviction of idle resident models and conservative RAM/VRAM admission checks.
+- Added best-effort CPU/GPU thermal telemetry and concurrency throttling under configured temperature pressure.
+- Added Ollama `/api/ps` running-model inspection and explicit model preload/unload support.
+- Added longer keep-alive for multi-model residency while retaining the original short/sleeping behavior on single-model systems.
+- Added `organism model` CLI controls, model-runtime API routes, dashboard resident-model status and doctor recommendations.
+- Preserved compatibility with older/custom model managers that implement only the original `activate()` API.
+- Added thread-level regression coverage for cross-model concurrency, same-model serialization, LRU eviction, pressure fallback and thermal throttling.
+
+## 0.12.0
+- Replaced metadata-only connector support with executable capability-scoped connectors.
+- Added Google Gmail, Calendar and Drive actions with loopback OAuth + PKCE.
+- Added Microsoft 365 Outlook, Calendar and OneDrive actions with OAuth device authorization.
+- Added GitHub pull-request list/detail/files/review actions with device authorization or token auth.
+- Added Telegram and Discord read/send bot bridges.
+- Added Notion search/page read/create support and local Obsidian vault search/read/write support.
+- Added environment + optional OS-keyring credential resolution; connector secrets are not stored in assistant JSON/SQLite state.
+- Added per-connector capability enforcement and explicit approval for every external write/send/review action.
+- Added untrusted-external wrapping and response bounds for connector reads.
+- Added connector CLI, agent tools and authenticated localhost API routes.
+- Added OAuth/capability/traversal/secret-handling regression coverage.
+
+## 0.11.0
+- Added opt-in hands-free local wake-word listening with explicit microphone approval.
+- Added openWakeWord adapter with lazy model loading and a separate optional `wakeword` dependency extra.
+- Added explicit approval-gated official wake-model download into the per-user data directory; models are never auto-downloaded.
+- Added single-stream wake-word-to-command capture so speech immediately following the wake phrase is not lost.
+- Added adaptive RMS voice-activity capture with ambient calibration, pre-roll and silence stop.
+- Added configurable multilingual STT auto-detection/forced-language selection.
+- Added optional TTS barge-in detection with denial-safe fallback to ordinary TTS.
+- Added bounded microphone leases and profile gates; hands-free remains disabled by default and on lite unless explicitly enabled.
+- Added voice presence/status/wake/model-download/utterance CLI commands and regression tests.
+
+## 0.10.0
+- Added bundled modern local web control center at `/dashboard`.
+- Added token-by-token Ollama chat streaming over SSE at `POST /chat/stream`.
+- Added in-process activity bus with tool/model/chat events and SSE activity feed.
+- Added live CPU/RAM graph, active-model status, approvals, calendar/todo management and security views.
+- Dashboard remains usable with API-token authentication and keeps the token in browser session storage.
+- Streaming uses the existing orchestrator tool and approval path; it does not bypass policy controls.
+- Added streaming/error redaction and interaction-layer regression tests.
+
 ## v0.9.2
 
 - Hardened shell safe-read classification against chaining, redirection, substitution and command-composition bypasses.

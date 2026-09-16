@@ -4,6 +4,7 @@ from .base import Tool
 from ..approval import ApprovalManager
 from ..workspace import Workspace
 from ..security_guardian import SecurityGuardian, inspect_process, file_signature, antivirus_posture, process_triage, network_activity_summary
+from ..security_sensors import SecuritySensorPlatform
 
 
 def _conn_name(c):
@@ -45,8 +46,9 @@ def antivirus_status():
     return antivirus_posture()
 
 
-def build_security_tools(workspace: Workspace, approval: ApprovalManager, guardian: SecurityGuardian | None=None) -> list[Tool]:
+def build_security_tools(workspace: Workspace, approval: ApprovalManager, guardian: SecurityGuardian | None=None, sensors: SecuritySensorPlatform | None=None) -> list[Tool]:
     guardian=guardian or SecurityGuardian({},approval=approval)
+    sensors=sensors or SecuritySensorPlatform({},approval=approval,guardian=guardian)
 
     def local_security_audit(): return audit_local()
     def security_posture(include_updates: bool=False): return guardian.posture(include_updates=include_updates)
@@ -71,6 +73,22 @@ def build_security_tools(workspace: Workspace, approval: ApprovalManager, guardi
 
     def security_contain_process(pid: int):
         return guardian.terminate_user_process(pid)
+
+
+    def security_sensor_status(): return sensors.status()
+    def security_event_correlations(minutes: int=10): return sensors.correlations(minutes)
+    def security_dns_summary(minutes: int=10): return sensors.dns_context(minutes)
+    def security_tls_context(limit: int=100): return sensors.tls_context(limit)
+    def security_yara_scan(path: str, rules: list[str]|None=None): return sensors.yara_scan(workspace.resolve(path), rules or [])
+    def security_reputation_file(path: str): return sensors.reputation_file(workspace.resolve(path))
+    def security_reputation_process(pid: int): return sensors.reputation_process(pid)
+    def security_binary_assess(path: str): return sensors.assess_binary(workspace.resolve(path))
+    def security_binary_trust(path: str,label: str='trusted'): return sensors.trust_binary(workspace.resolve(path),label)
+    def security_usb_check(): return sensors.check_usb()
+    def security_extensions_check(): return sensors.check_extensions()
+    def security_backup_check(name: str): return sensors.check_backup_baseline(name)
+    def security_network_isolate(): return sensors.isolate_network(False)
+    def security_network_restore(): return sensors.restore_network()
 
     def antivirus_quick_scan(path: str='.'):
         target=workspace.resolve(path); osname=platform.system()
@@ -101,4 +119,18 @@ def build_security_tools(workspace: Workspace, approval: ApprovalManager, guardi
         Tool('security_contain_process','Terminate a non-critical process owned by the current user. Always requires approval.',{'type':'object','properties':{'pid':{'type':'integer'}},'required':['pid']},security_contain_process),
         Tool('antivirus_status','Check Microsoft Defender, ClamAV or platform protection status.',{'type':'object','properties':{}},antivirus_status),
         Tool('antivirus_quick_scan','Run an installed antivirus scanner on an approved workspace path. Requires approval.',{'type':'object','properties':{'path':{'type':'string','default':'.'}}},antivirus_quick_scan),
+        Tool('security_sensor_status','Show defensive sensor availability without changing the system.',{'type':'object','properties':{}},security_sensor_status),
+        Tool('security_event_correlations','Collect recent OS security telemetry and run deterministic event-chain correlation.',{'type':'object','properties':{'minutes':{'type':'integer','default':10}}},security_event_correlations),
+        Tool('security_dns_summary','Summarize recent DNS telemetry from supported local security sensors.',{'type':'object','properties':{'minutes':{'type':'integer','default':10}}},security_dns_summary),
+        Tool('security_tls_context','Read optional local TLS/SNI metadata produced by a configured privileged collector.',{'type':'object','properties':{'limit':{'type':'integer','default':100}}},security_tls_context),
+        Tool('security_yara_scan','Scan an approved workspace path with local YARA rules. Requires approval.',{'type':'object','properties':{'path':{'type':'string'},'rules':{'type':'array','items':{'type':'string'}}},'required':['path']},security_yara_scan),
+        Tool('security_reputation_file','Look up a workspace file SHA-256 with the configured reputation provider; never uploads file bytes.',{'type':'object','properties':{'path':{'type':'string'}},'required':['path']},security_reputation_file),
+        Tool('security_reputation_process','Look up the executable hash for a running process with the configured reputation provider; never uploads file bytes.',{'type':'object','properties':{'pid':{'type':'integer'}},'required':['pid']},security_reputation_process),
+        Tool('security_binary_assess','Compare a workspace binary hash/signature to the local signed-binary trust database.',{'type':'object','properties':{'path':{'type':'string'}},'required':['path']},security_binary_assess),
+        Tool('security_binary_trust','Create/update a local binary trust record. Requires approval.',{'type':'object','properties':{'path':{'type':'string'},'label':{'type':'string','default':'trusted'}},'required':['path']},security_binary_trust),
+        Tool('security_usb_check','Compare attached USB devices with the local baseline.',{'type':'object','properties':{}},security_usb_check),
+        Tool('security_extensions_check','Compare browser extension metadata/permissions with the local baseline.',{'type':'object','properties':{}},security_extensions_check),
+        Tool('security_backup_check','Verify a configured backup integrity baseline.',{'type':'object','properties':{'name':{'type':'string'}},'required':['name']},security_backup_check),
+        Tool('security_network_isolate','Reversibly disable supported non-loopback networking. Requires explicit approval.',{'type':'object','properties':{}},security_network_isolate),
+        Tool('security_network_restore','Restore networking disabled by Living Assistant. Requires approval.',{'type':'object','properties':{}},security_network_restore),
     ]

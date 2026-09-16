@@ -2,12 +2,14 @@ from __future__ import annotations
 import os, hmac
 from urllib.parse import urlparse
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
-from fastapi.responses import HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from importlib import resources
+import json
 from .runtime import build_runtime
+from .platform_hardening import platform_status, service_status
 
-app = FastAPI(title='Living Assistant Local API', version='0.9.2')
+app = FastAPI(title='Living Assistant Local API', version='0.16.0')
 runtime = None
 
 _LOCAL_HOSTS = {'127.0.0.1', 'localhost', '::1', 'testserver'}
@@ -44,6 +46,9 @@ class AskRequest(BaseModel):
     context: str = ''
     session_id: str | None = None
 class ApprovalDecision(BaseModel): approved: bool
+class TodoRequest(BaseModel):
+    title: str
+    due_at: str | None = None
 class BrowserStartRequest(BaseModel):
     name: str; url: str; persistent: bool = False; allowed_hosts: list[str] = Field(default_factory=list)
 class BrowserInteractRequest(BaseModel):
@@ -67,6 +72,16 @@ class EvaluationSuiteRequest(BaseModel):
     execution_provider: str = 'host'
     sandbox_image: str | None = None
     require_canary: bool = False
+
+class SecurityPathRequest(BaseModel):
+    path: str
+    label: str | None = None
+    rules: list[str] = Field(default_factory=list)
+
+class BackupBaselineCreateRequest(BaseModel):
+    name: str
+    path: str
+
 class ImprovementEvaluateRequest(BaseModel):
     suite_name: str | None = None
     project_path: str | None = None
@@ -110,6 +125,13 @@ class ExperienceVerifyRequest(BaseModel):
 class ExperienceConfirmRequest(BaseModel):
     notes: str | None = None
 
+class ConnectorCallRequest(BaseModel):
+    action: str
+    params: dict = Field(default_factory=dict)
+
+class ModelRequest(BaseModel):
+    model: str = Field(min_length=1, max_length=300)
+
 
 def _rt():
     global runtime
@@ -121,10 +143,51 @@ def _auth(authorization: str | None):
     if token and (not authorization or not hmac.compare_digest(authorization, f'Bearer {token}')): raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.9.2'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.16.0'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
-    _auth(authorization); rt=_rt(); return {'profile':rt.profile,'hardware':rt.hardware.to_dict(),'resources':rt.resources.snapshot(),'personal':rt.personal.status()}
+    _auth(authorization); rt=_rt()
+    model_runtime = rt.model_manager.status(refresh=False)
+    return {
+        'profile':rt.profile,
+        'hardware':rt.hardware.to_dict(),
+        'resources':rt.resources.snapshot(),
+        'personal':rt.personal.status(),
+        'active_model':rt.model_manager.active_model,
+        'model_runtime':model_runtime,
+    }
+
+@app.get('/platform/status')
+def platform_status_endpoint(authorization: str | None=Header(default=None)):
+    _auth(authorization); return platform_status().to_dict()
+
+@app.get('/platform/service-status')
+def platform_service_status_endpoint(authorization: str | None=Header(default=None)):
+    _auth(authorization); return service_status()
+
+@app.get('/models/status')
+def model_status(refresh: bool=False, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().model_manager.status(refresh=refresh)
+
+@app.post('/models/preload')
+def model_preload(req: ModelRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().model_manager.preload(req.model)
+
+@app.post('/models/unload')
+def model_unload(req: ModelRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().model_manager.unload(req.model)
+
+@app.get('/desktop/status')
+def desktop_status(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().desktop_controller.status()
+
+@app.get('/desktop/monitors')
+def desktop_monitors(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().desktop_controller.monitors()
+
+@app.get('/desktop/windows')
+def desktop_windows(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().desktop_controller.windows()
 @app.post('/ask')
 def ask(req: AskRequest,authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt()
@@ -140,6 +203,12 @@ def processes(authorization: str | None=Header(default=None)): _auth(authorizati
 def events(limit: int=100,authorization: str | None=Header(default=None)): _auth(authorization); return _rt().memory.list_events(min(max(limit,1),500))
 @app.get('/todos')
 def todos(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().memory.list_todos(include_done=True)
+@app.post('/todos')
+def todo_add(req: TodoRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); return {'ok':True,'id':_rt().memory.add_todo(req.title,req.due_at)}
+@app.post('/todos/{todo_id}/complete')
+def todo_complete(todo_id: int,authorization: str | None=Header(default=None)):
+    _auth(authorization); return {'ok':_rt().memory.complete_todo(todo_id)}
 @app.get('/approvals')
 def approvals(status: str='pending',authorization: str | None=Header(default=None)): _auth(authorization); return _rt().approvals.list(status=None if status=='all' else status)
 @app.post('/approvals/{approval_id}')
@@ -226,6 +295,67 @@ def security_process(pid: int,authorization: str | None=Header(default=None)):
 @app.post('/security/process/{pid}/contain')
 def security_process_contain(pid: int,authorization: str | None=Header(default=None)):
     _auth(authorization); return _rt().guardian.terminate_user_process(pid)
+
+@app.get('/security/sensors/status')
+def security_sensors_status(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.status()
+@app.get('/security/sensors/events')
+def security_sensors_events(minutes: int=10,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.collect_events(minutes)
+@app.get('/security/sensors/correlations')
+def security_sensors_correlations(minutes: int=10,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.correlations(minutes)
+@app.get('/security/sensors/dns')
+def security_sensors_dns(minutes: int=10,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.dns_context(minutes)
+@app.get('/security/sensors/tls')
+def security_sensors_tls(limit: int=100,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.tls_context(limit)
+@app.post('/security/sensors/yara')
+def security_sensors_yara(req: SecurityPathRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return rt.security_sensors.yara_scan(rt.workspace.resolve(req.path),req.rules)
+@app.post('/security/sensors/reputation')
+def security_sensors_reputation(req: SecurityPathRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return rt.security_sensors.reputation_file(rt.workspace.resolve(req.path))
+@app.get('/security/sensors/reputation/process/{pid}')
+def security_sensors_reputation_process(pid: int,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.reputation_process(pid)
+@app.post('/security/sensors/binary/assess')
+def security_sensors_binary_assess(req: SecurityPathRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return rt.security_sensors.assess_binary(rt.workspace.resolve(req.path))
+@app.post('/security/sensors/binary/trust')
+def security_sensors_binary_trust(req: SecurityPathRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return rt.security_sensors.trust_binary(rt.workspace.resolve(req.path),req.label or 'trusted')
+@app.get('/security/sensors/binary/check')
+def security_sensors_binary_check(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.check_trusted_binaries()
+@app.get('/security/sensors/usb')
+def security_sensors_usb(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.check_usb()
+@app.post('/security/sensors/usb/baseline')
+def security_sensors_usb_baseline(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.capture_usb_baseline()
+@app.get('/security/sensors/extensions')
+def security_sensors_extensions(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.check_extensions()
+@app.post('/security/sensors/extensions/baseline')
+def security_sensors_extensions_baseline(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.capture_extension_baseline()
+@app.get('/security/sensors/backups')
+def security_sensors_backups(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.list_backup_baselines()
+@app.post('/security/sensors/backups')
+def security_sensors_backup_create(req: BackupBaselineCreateRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt(); return rt.security_sensors.capture_backup_baseline(req.name,rt.workspace.resolve(req.path))
+@app.get('/security/sensors/backups/{name}/check')
+def security_sensors_backup_check(name: str,authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.check_backup_baseline(name)
+@app.post('/security/sensors/network/isolate')
+def security_sensors_network_isolate(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.isolate_network(False)
+@app.post('/security/sensors/network/restore')
+def security_sensors_network_restore(authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().security_sensors.restore_network()
 @app.get('/routines')
 def routines(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().routines.list()
 @app.get('/improvements')
@@ -323,6 +453,12 @@ def session_get(session_id: str,authorization: str | None=Header(default=None)):
 def session_delete(session_id: str,authorization: str | None=Header(default=None)): _auth(authorization); return {'ok':_rt().sessions.delete(session_id)}
 @app.get('/connectors')
 def connectors(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().connectors.list()
+@app.get('/connectors/{name}/status')
+def connector_status(name: str, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().connector_manager.status(name)
+@app.post('/connectors/{name}/call')
+def connector_call(name: str, req: ConnectorCallRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().connector_manager.call(name, req.action, req.params)
 @app.get('/notifications/queued')
 def queued_notifications(authorization: str | None=Header(default=None)): _auth(authorization); return _rt().notifier.queued()
 @app.post('/notifications/flush')
@@ -367,22 +503,45 @@ def experience_reject(experience_id: str, authorization: str | None=Header(defau
     _auth(authorization); return _rt().experiences.reject(experience_id,'Rejected through local API')
 
 
+def _sse(payload: dict, event: str | None = None, event_id: int | None = None) -> str:
+    body = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+    parts=[]
+    if event_id is not None: parts.append(f'id: {event_id}')
+    if event: parts.append(f'event: {event}')
+    parts.append(f'data: {body}')
+    return '\n'.join(parts)+'\n\n'
+
+@app.get('/activity')
+def activity(limit: int=100, after_id: int=0, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().events_bus.recent(limit,after_id)
+
+@app.get('/activity/stream')
+def activity_stream(after_id: int=0, authorization: str | None=Header(default=None)):
+    _auth(authorization); bus=_rt().events_bus
+    def generate():
+        for item in bus.stream(after_id=after_id,heartbeat_seconds=12):
+            if item is None:
+                yield ': heartbeat\n\n'
+            else:
+                yield _sse(item,event='activity',event_id=int(item['id']))
+    return StreamingResponse(generate(),media_type='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
+
+@app.post('/chat/stream')
+def chat_stream(req: AskRequest,authorization: str | None=Header(default=None)):
+    _auth(authorization); rt=_rt()
+    if req.session_id: rt.sessions.ensure(req.session_id)
+    def generate():
+        for event in rt.orchestrator.run_stream(req.message,req.context,session_id=req.session_id):
+            yield _sse(event,event=str(event.get('type','message')))
+    return StreamingResponse(generate(),media_type='text/event-stream',headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
+
 @app.get('/dashboard',response_class=HTMLResponse)
 def dashboard():
-    if os.environ.get('ASSISTANT_API_TOKEN'):
-        return HTMLResponse('<h2>Living Assistant</h2><p>Dashboard is disabled while ASSISTANT_API_TOKEN is set. Use authenticated API endpoints.</p>')
-    page=r'''<!doctype html><html><head><meta charset="utf-8"><title>Living Assistant</title>
-<style>body{font-family:system-ui;margin:24px;max-width:1450px;background:#f7f7f7;color:#171717}header{display:flex;gap:12px;align-items:center;justify-content:space-between}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}section{background:white;border:1px solid #ddd;border-radius:12px;padding:14px}pre{background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto;max-height:420px}button{padding:7px 11px;border-radius:8px;border:1px solid #aaa;cursor:pointer}.approve{background:#e6ffed}.deny{background:#ffecec}.approval{border-bottom:1px solid #ddd;padding:10px 0}small{color:#666}@media(max-width:850px){.grid{grid-template-columns:1fr}}</style></head><body>
-<header><div><h1>Living Assistant Control Center</h1><small>Localhost-only personal operating + security layer</small></div><button onclick="load()">Refresh</button></header><div class="grid">
-<section><h2>Status</h2><pre id="status"></pre></section><section><h2>Approvals</h2><div id="approvals"></div></section>
-<section><h2>Personal state</h2><pre id="personal"></pre></section><section><h2>Calendar</h2><pre id="calendar"></pre></section>
-<section><h2>Morning briefing</h2><pre id="briefing"></pre></section><section><h2>Sessions</h2><pre id="sessions"></pre></section>
-<section><h2>Projects</h2><pre id="projects"></pre></section><section><h2>Processes</h2><pre id="processes"></pre></section>
-<section><h2>Recent events</h2><pre id="events"></pre></section><section><h2>Todos</h2><pre id="todos"></pre></section>
-<section><h2>Routines</h2><pre id="routines"></pre></section><section><h2>Queued notifications</h2><pre id="notifications"></pre></section>
-<section><h2>Security Guardian</h2><pre id="security"></pre></section><section><h2>Experience memory</h2><pre id="experiences"></pre></section><section><h2>Connectors</h2><pre id="connectors"></pre></section><section><h2>Improvements</h2><pre id="improvements"></pre></section><section><h2>Evaluation suites</h2><pre id="improvement-suites"></pre></section><section><h2>Evaluated improvements</h2><pre id="improvement-evaluations"></pre></section><section><h2>Sandbox</h2><pre id="sandbox"></pre></section><section><h2>Canaries</h2><pre id="canaries"></pre></section>
-</div><script>
-async function j(u,opt){let r=await fetch(u,opt);return await r.json()}async function decide(id,approved){await j('/approvals/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});load()}
-async function load(){for(let k of ['status','personal','calendar','sessions','projects','processes','events','todos','routines','connectors','improvements','improvement-suites','improvement-evaluations','canaries','experiences']){let el=document.getElementById(k);if(el)el.textContent=JSON.stringify(await j('/'+k),null,2)}document.getElementById('sandbox').textContent=JSON.stringify(await j('/sandbox/status'),null,2);document.getElementById('briefing').textContent=JSON.stringify(await j('/briefing/morning'),null,2);document.getElementById('security').textContent=JSON.stringify(await j('/security/summary'),null,2);document.getElementById('notifications').textContent=JSON.stringify(await j('/notifications/queued'),null,2);let a=await j('/approvals');let box=document.getElementById('approvals');box.innerHTML='';if(!a.length)box.textContent='No pending approvals.';for(let x of a){let d=document.createElement('div');d.className='approval';d.innerHTML='<b>'+esc(x.kind)+'</b><br>'+esc(x.action)+'<br><small>'+esc(x.reason)+'</small><br><button class="approve" onclick="decide(\''+x.id+'\',true)">Approve once</button> <button class="deny" onclick="decide(\''+x.id+'\',false)">Deny</button>';box.appendChild(d)}}function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}load();setInterval(load,8000)
-</script></body></html>'''
-    return HTMLResponse(page)
+    page=resources.files('living_assistant').joinpath('webui/index.html').read_text(encoding='utf-8')
+    return HTMLResponse(page,headers={
+        'Cache-Control':'no-store',
+        'Content-Security-Policy':"default-src 'self'; img-src 'self' data:; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'",
+        'X-Frame-Options':'DENY',
+        'X-Content-Type-Options':'nosniff',
+        'Referrer-Policy':'no-referrer',
+    })

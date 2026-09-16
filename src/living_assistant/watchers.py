@@ -3,6 +3,7 @@ from pathlib import Path
 import json, time
 from .config import data_dir
 from .storage_utils import atomic_write_json
+from .platform_hardening import iter_tree_without_link_traversal, is_link_like
 
 class WatchRegistry:
     def __init__(self, path: Path | None = None):
@@ -49,7 +50,7 @@ class WatchRegistry:
     @staticmethod
     def _scan(cfg: dict, max_files: int = 3000) -> dict[str, tuple[int, int]]:
         root = Path(cfg["path"])
-        iterator = root.rglob("*") if cfg.get("recursive", True) else root.glob("*")
+        iterator = iter_tree_without_link_traversal(root, recursive=bool(cfg.get("recursive", True)))
         exts = {x.lower() if x.startswith(".") else "." + x.lower() for x in cfg.get("extensions", [])}
         out: dict[str, tuple[int, int]] = {}
         count = 0
@@ -57,7 +58,7 @@ class WatchRegistry:
             if count >= max_files:
                 break
             try:
-                if not p.is_file():
+                if is_link_like(p) or not p.is_file():
                     continue
                 if exts and p.suffix.lower() not in exts:
                     continue
@@ -67,6 +68,26 @@ class WatchRegistry:
             except (OSError, PermissionError):
                 continue
         return out
+
+
+    def rebaseline(self) -> dict:
+        """Refresh in-memory snapshots without emitting file-change events.
+
+        Used after system resume so filesystem timestamp churn/remounted volumes do
+        not look like a ransomware burst or mass user edit.
+        """
+        refreshed = 0
+        missing = []
+        for name, cfg in self._load().items():
+            if not cfg.get("enabled", True):
+                continue
+            root = Path(cfg["path"])
+            if not root.exists():
+                missing.append({"watch": name, "path": str(root)})
+                continue
+            self.snapshots[name] = self._scan(cfg)
+            refreshed += 1
+        return {"refreshed": refreshed, "missing": missing}
 
     def poll(self, max_events_per_watch: int = 50) -> list[dict]:
         events = []

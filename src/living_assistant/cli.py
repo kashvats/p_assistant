@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import json
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -10,6 +11,7 @@ from .daemon import NervousSystem
 from .tools.security import audit_local, antivirus_status
 from .security_policy import classify_command
 from .security_guardian import startup_inventory, inspect_process, file_signature, process_triage, network_activity_summary
+from .platform_hardening import platform_status, probe_link_capability, service_status
 
 app = typer.Typer(no_args_is_help=True, help='Living Assistant local-first personal agent.')
 console = Console()
@@ -24,21 +26,24 @@ quarantine_app = typer.Typer(help='Inspect/release downloaded quarantined files.
 git_app = typer.Typer(help='Git-aware project inspection.')
 desktop_app = typer.Typer(help='Optional clipboard/screenshot desktop actions.')
 browser_app = typer.Typer(help='Optional isolated browser sessions.')
-voice_app = typer.Typer(help='Optional local push-to-talk STT/TTS.')
+voice_app = typer.Typer(help='Local push-to-talk and optional hands-free wake-word voice.')
 routine_app = typer.Typer(help='Deterministic event/interval routines.')
 improve_app = typer.Typer(help='Reviewable self-improvement/file-change proposals.')
 calendar_app = typer.Typer(help='Local personal calendar and agenda.')
 personal_app = typer.Typer(help='Quiet hours, focus mode and personal operating state.')
 briefing_app = typer.Typer(help='Morning/evening deterministic briefings.')
 session_app = typer.Typer(help='Local conversation/session history.')
-integration_app = typer.Typer(help='Connector metadata and future external integrations.')
+integration_app = typer.Typer(help='Real external app connectors with scoped capabilities and approval-gated writes.')
 experience_app = typer.Typer(help='Evidence-weighted lessons from past mistakes and successful recoveries.')
+model_app = typer.Typer(help='Inspect and manage adaptive local-model residency.')
+platform_app = typer.Typer(help='Cross-platform capability, link, and background-service diagnostics.')
 for sub, name in [
     (project_app,'project'),(group_app,'group'),(security_app,'security'),(approval_app,'approval'),
     (watch_app,'watch'),(skill_app,'skill'),(todo_app,'todo'),(quarantine_app,'quarantine'),
     (git_app,'git'),(desktop_app,'desktop'),(browser_app,'browser'),(voice_app,'voice'),
     (routine_app,'routine'),(improve_app,'improve'),(calendar_app,'calendar'),(personal_app,'personal'),
-    (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration'),(experience_app,'experience')]:
+    (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration'),(experience_app,'experience'),
+    (model_app,'model'),(platform_app,'platform')]:
     app.add_typer(sub, name=name)
 
 @app.command()
@@ -46,15 +51,24 @@ def doctor():
     cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw)
     console.print('[bold]Hardware[/bold]', hw.to_dict())
     console.print('[bold]Selected profile[/bold]', profile)
+    try: console.print('[bold]Platform hardening[/bold]', platform_status().to_dict())
+    except Exception as e: console.print('[yellow]Platform probe unavailable[/yellow]', str(e))
     models = cfg['profiles'][profile]['models']
     console.print('[bold]Configured models[/bold]', sorted(set(models.values())))
     console.print('Optional desktop install: pip install -e \".[desktop]\"', markup=False)
     console.print('Optional voice install: pip install -e \".[voice]\"', markup=False)
+    console.print('Optional wake-word install: pip install -e \".[voice,wakeword]\"', markup=False)
+    console.print('Optional OAuth/keyring connectors: pip install -e \".[connectors]\"', markup=False)
     console.print('[bold]Security onboarding[/bold] organism security initialize')
     if profile != 'lite': console.print('Optional browser install: pip install -e \".[browser]\" && playwright install chromium', markup=False)
     try:
         rt = build_runtime(interactive=False)
         console.print('[bold]Resources[/bold]', rt.resources.snapshot())
+        console.print('[bold]Model runtime[/bold]', rt.model_manager.status(refresh=False)['policy'])
+        console.print('[dim]Ollama server recommendation:[/dim]', {
+            'OLLAMA_MAX_LOADED_MODELS': rt.model_manager.max_resident_models,
+            'OLLAMA_NUM_PARALLEL': rt.model_manager.max_parallel_per_model,
+        })
         console.print('[bold]Container sandbox[/bold]', rt.evaluations.sandbox_status()['container'])
         if rt.profile == 'lite': console.print('[dim]Container evaluation is disabled on lite profile by default.[/dim]')
         available = rt.model_manager.provider.available_models()
@@ -64,6 +78,45 @@ def doctor():
         else: console.print('[green]All configured models appear installed.[/green]')
     except Exception as e:
         console.print(f'[red]Ollama check failed:[/red] {e}')
+
+
+@platform_app.command('status')
+def platform_status_cmd():
+    """Show OS capability probes relevant to cross-platform operation."""
+    console.print(platform_status().to_dict())
+
+@platform_app.command('link-probe')
+def platform_link_probe(path: str | None = typer.Option(None, '--path')):
+    """Test link creation without leaving artifacts behind."""
+    console.print(probe_link_capability(path))
+
+@platform_app.command('service-status')
+def platform_service_status():
+    """Inspect the per-user daemon service without changing it."""
+    console.print(service_status())
+
+@model_app.command('status')
+def model_status(refresh: bool = typer.Option(True, '--refresh/--no-refresh')):
+    """Show adaptive residency/concurrency policy and current resident models."""
+    rt = build_runtime(interactive=False)
+    console.print(rt.model_manager.status(refresh=refresh))
+
+@model_app.command('preload')
+def model_preload(model: str):
+    """Warm one installed model without generating a response."""
+    rt = build_runtime(interactive=False)
+    console.print(rt.model_manager.preload(model))
+
+@model_app.command('unload')
+def model_unload(model: str):
+    rt = build_runtime(interactive=False)
+    console.print(rt.model_manager.unload(model))
+
+@model_app.command('sleep')
+def model_sleep():
+    rt = build_runtime(interactive=False)
+    rt.model_manager.sleep()
+    console.print({'ok': True, 'resident_models': rt.model_manager.status(refresh=False)['resident_models']})
 
 @app.command()
 def ask(message: str, cwd: str = typer.Option('.', help='Workspace-relative working directory.'),
@@ -94,14 +147,14 @@ def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                   routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, experiences=rt.experiences).run_forever()
+                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                                 routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, experiences=rt.experiences).tick())
+                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -303,6 +356,39 @@ def desktop_clipboard_read():
     from .tools.desktop import _clipboard_read_impl
     console.print(_clipboard_read_impl())
 
+
+@desktop_app.command('status')
+def desktop_status():
+    console.print(build_runtime(interactive=False).desktop_controller.status())
+
+@desktop_app.command('monitors')
+def desktop_monitors():
+    console.print(build_runtime(interactive=False).desktop_controller.monitors())
+
+@desktop_app.command('windows')
+def desktop_windows():
+    console.print(build_runtime(interactive=False).desktop_controller.windows())
+
+@desktop_app.command('accessibility')
+def desktop_accessibility(max_nodes: int = 250):
+    console.print(build_runtime(interactive=True).desktop_controller.accessibility_tree(max_nodes))
+
+@desktop_app.command('click')
+def desktop_click(x: int, y: int, button: str = 'left'):
+    console.print(build_runtime(interactive=True).desktop_controller.click(x,y,button))
+
+@desktop_app.command('type')
+def desktop_type(text: str, interval: float = 0.01):
+    console.print(build_runtime(interactive=True).desktop_controller.type_text(text,interval))
+
+@desktop_app.command('hotkey')
+def desktop_hotkey(keys: str):
+    console.print(build_runtime(interactive=True).desktop_controller.hotkey([x.strip() for x in keys.split('+') if x.strip()]))
+
+@desktop_app.command('analyze-screen')
+def desktop_analyze_screen(prompt: str='Describe the visible UI and actionable controls.', monitor_id: int=0):
+    console.print(build_runtime(interactive=True).desktop_controller.analyze_screen(prompt,monitor_id))
+
 @security_app.command('audit')
 def security_audit(): console.print(audit_local())
 
@@ -376,6 +462,68 @@ def security_baseline_remove(name: str): console.print({'ok':build_runtime(inter
 def security_contain_process(pid: int): console.print(build_runtime(interactive=True).guardian.terminate_user_process(pid))
 
 
+@security_app.command('sensor-status')
+def security_sensor_status(): console.print(build_runtime(interactive=False).security_sensors.status())
+
+@security_app.command('events')
+def security_events(minutes: int=10): console.print(build_runtime(interactive=False).security_sensors.collect_events(minutes))
+
+@security_app.command('correlate')
+def security_correlate(minutes: int=10): console.print(build_runtime(interactive=False).security_sensors.correlations(minutes))
+
+@security_app.command('dns')
+def security_dns(minutes: int=10): console.print(build_runtime(interactive=False).security_sensors.dns_context(minutes))
+
+@security_app.command('tls-context')
+def security_tls_context(limit: int=100): console.print(build_runtime(interactive=False).security_sensors.tls_context(limit))
+
+@security_app.command('yara')
+def security_yara(path: str,rules: str=''):
+    console.print(build_runtime(interactive=True).security_sensors.yara_scan(Path(path).expanduser(),[x.strip() for x in rules.split(',') if x.strip()]))
+
+@security_app.command('reputation')
+def security_reputation(path: str): console.print(build_runtime(interactive=False).security_sensors.reputation_file(Path(path).expanduser()))
+
+@security_app.command('reputation-process')
+def security_reputation_process(pid: int): console.print(build_runtime(interactive=False).security_sensors.reputation_process(pid))
+
+@security_app.command('binary-assess')
+def security_binary_assess(path: str): console.print(build_runtime(interactive=False).security_sensors.assess_binary(Path(path).expanduser()))
+
+@security_app.command('binary-trust')
+def security_binary_trust(path: str,label: str='trusted'): console.print(build_runtime(interactive=True).security_sensors.trust_binary(Path(path).expanduser(),label))
+
+@security_app.command('binary-check')
+def security_binary_check(): console.print(build_runtime(interactive=False).security_sensors.check_trusted_binaries())
+
+@security_app.command('usb-check')
+def security_usb_check(): console.print(build_runtime(interactive=False).security_sensors.check_usb())
+
+@security_app.command('usb-capture')
+def security_usb_capture(): console.print(build_runtime(interactive=True).security_sensors.capture_usb_baseline())
+
+@security_app.command('extensions-check')
+def security_extensions_check(): console.print(build_runtime(interactive=False).security_sensors.check_extensions())
+
+@security_app.command('extensions-capture')
+def security_extensions_capture(): console.print(build_runtime(interactive=True).security_sensors.capture_extension_baseline())
+
+@security_app.command('backup-capture')
+def security_backup_capture(name: str,path: str): console.print(build_runtime(interactive=True).security_sensors.capture_backup_baseline(name,Path(path).expanduser()))
+
+@security_app.command('backup-list')
+def security_backup_list(): console.print(build_runtime(interactive=False).security_sensors.list_backup_baselines())
+
+@security_app.command('backup-check')
+def security_backup_check(name: str): console.print(build_runtime(interactive=False).security_sensors.check_backup_baseline(name))
+
+@security_app.command('network-isolate')
+def security_network_isolate(): console.print(build_runtime(interactive=True).security_sensors.isolate_network(False))
+
+@security_app.command('network-restore')
+def security_network_restore(): console.print(build_runtime(interactive=True).security_sensors.restore_network())
+
+
 
 @browser_app.command('live')
 def browser_live(name: str, url: str, persistent: bool = False, allowed_hosts: str = ''):
@@ -443,18 +591,46 @@ def browser_close(name: str, delete_profile: bool = False):
 @voice_app.command('status')
 def voice_status():
     rt = build_runtime(interactive=False)
-    console.print({'enabled': rt.voice.enabled(), 'profile': rt.profile, 'config': rt.config.get('voice', {})})
+    console.print(rt.voice.status())
 
 @voice_app.command('record')
 def voice_record(seconds: float = 6.0, destination: str = 'artifacts/voice-input.wav'):
     rt = build_runtime(interactive=True)
     console.print(rt.voice.record(destination, seconds))
 
+@voice_app.command('record-utterance')
+def voice_record_utterance(destination: str = 'artifacts/voice-input.wav', max_seconds: float = 15.0):
+    """Record until adaptive local voice activity detection sees sustained silence."""
+    rt = build_runtime(interactive=True)
+    try:
+        console.print(rt.voice.record_until_silence(destination, max_seconds=max_seconds))
+    finally:
+        rt.voice.sleep()
+
 @voice_app.command('transcribe')
 def voice_transcribe(path: str, language: str | None = None):
     rt = build_runtime(interactive=True)
     try:
         console.print(rt.voice.transcribe(path, language))
+    finally:
+        rt.voice.sleep()
+
+@voice_app.command('wake')
+def voice_wake(timeout: float = typer.Option(30.0, min=0.0, help='Seconds to wait; 0 means until interrupted.')):
+    """Wait locally for the configured wake word and report a detection."""
+    rt = build_runtime(interactive=True)
+    try:
+        console.print(rt.voice.listen_for_wake_word(timeout))
+    except KeyboardInterrupt:
+        console.print({'ok': False, 'stopped': True})
+    finally:
+        rt.voice.sleep()
+
+@voice_app.command('wake-model-download')
+def voice_wake_model_download(model_name: str | None = None):
+    rt = build_runtime(interactive=True)
+    try:
+        console.print(rt.voice.download_wake_model(model_name))
     finally:
         rt.voice.sleep()
 
@@ -473,6 +649,69 @@ def voice_ask(seconds: float = 6.0, language: str | None = None, speak: bool = F
         console.print(f"[bold green]Assistant:[/bold green] {answer}")
         if speak:
             rt.voice.speak(answer)
+    finally:
+        rt.voice.sleep(); rt.model_manager.sleep()
+
+@voice_app.command('presence')
+def voice_presence(
+    max_turns: int = typer.Option(0, min=0, help='0 keeps listening until Ctrl+C.'),
+    wake_timeout: float = typer.Option(0.0, min=0.0, help='Wake-listener timeout; 0 waits indefinitely.'),
+    follow_up_seconds: float = typer.Option(7.0, min=0.0, max=30.0, help='After an answer, listen this long for a follow-up without another wake word; 0 disables.'),
+    language: str | None = typer.Option(None, help='Force STT language; omit for automatic language detection.'),
+    speak: bool = typer.Option(True, '--speak/--no-speak'),
+):
+    """Run an opt-in local wake-word conversation loop.
+
+    The wake model remains small and local. Whisper is loaded only after wake-word
+    detection. Microphone access is approval-gated and bounded by the configured lease.
+    """
+    rt = build_runtime(interactive=True)
+    if not rt.voice.hands_free_enabled():
+        console.print('[yellow]Hands-free voice is disabled. Set voice.hands_free.enabled: true after installing the wake-word extra.[/yellow]')
+        raise typer.Exit(1)
+    turns = 0
+    pending_follow_up = False
+    console.print('[bold green]Voice presence active.[/bold green] Ctrl+C stops it.')
+    try:
+        while max_turns == 0 or turns < max_turns:
+            detected = None
+            if not pending_follow_up:
+                recording = rt.voice.listen_for_command('artifacts/voice-input.wav', wake_timeout)
+                if not recording.get('ok'):
+                    if recording.get('timeout'):
+                        continue
+                    console.print(recording)
+                    break
+                detected = recording
+                console.print(f"[cyan]Wake word:[/cyan] {recording.get('wake_word')} ({recording.get('score')})")
+            else:
+                max_capture = follow_up_seconds if follow_up_seconds > 0 else None
+                recording = rt.voice.record_until_silence('artifacts/voice-input.wav', max_seconds=max_capture)
+            pending_follow_up = False
+            if not recording.get('ok'):
+                # No follow-up speech simply returns to wake-word mode.
+                if recording.get('error') != 'No speech detected before timeout.':
+                    console.print(recording)
+                continue
+            transcript = rt.voice.transcribe('artifacts/voice-input.wav', language)
+            text = str(transcript.get('text', '')).strip() if transcript.get('ok') else ''
+            if detected is not None:
+                text = rt.voice.clean_command_text(text, detected.get('wake_word'))
+            if not text:
+                continue
+            console.print(f"[bold]You:[/bold] {text}")
+            answer = rt.orchestrator.run(text)
+            console.print(f"[bold green]Assistant:[/bold green] {answer}")
+            turns += 1
+            interrupted = False
+            if speak:
+                result = rt.voice.speak(answer, allow_barge_in=True)
+                interrupted = bool(result.get('interrupted'))
+                if interrupted:
+                    console.print('[cyan]Barge-in detected.[/cyan]')
+            pending_follow_up = bool(follow_up_seconds > 0 or interrupted)
+    except KeyboardInterrupt:
+        console.print('\n[dim]Voice presence stopped.[/dim]')
     finally:
         rt.voice.sleep(); rt.model_manager.sleep()
 
@@ -713,10 +952,66 @@ def session_delete(session_id: str):
 def integration_list():
     console.print(build_runtime(interactive=False).connectors.list())
 
+@integration_app.command('providers')
+def integration_providers():
+    from .connectors import PROVIDER_ACTIONS, DEFAULT_SCOPES
+    console.print({p:{'actions':sorted(a),'capabilities':sorted({v['cap'] for v in a.values()}),'default_scopes':DEFAULT_SCOPES.get(p,{})} for p,a in PROVIDER_ACTIONS.items()})
+
 @integration_app.command('add')
-def integration_add(name: str, kind: str, provider: str, capabilities: str, env_prefix: str | None=None):
+def integration_add(name: str, kind: str, provider: str, capabilities: str,
+                    env_prefix: str | None=None, settings_json: str = typer.Option('{}','--settings')):
     caps=[x.strip() for x in capabilities.split(',') if x.strip()]
-    console.print(build_runtime(interactive=False).connectors.add(name,kind,provider,caps,env_prefix))
+    try:
+        settings=json.loads(settings_json)
+        if not isinstance(settings,dict): raise ValueError('--settings must decode to a JSON object')
+        console.print(build_runtime(interactive=False).connectors.add(name,kind,provider,caps,env_prefix,settings=settings))
+    except Exception as e:
+        console.print({'ok':False,'error':str(e)}); raise typer.Exit(2)
+
+@integration_app.command('status')
+def integration_status(name: str):
+    console.print(build_runtime(interactive=False).connector_manager.status(name))
+
+@integration_app.command('call')
+def integration_call(name: str, action: str, params_json: str = typer.Option('{}','--params')):
+    try:
+        params=json.loads(params_json)
+        if not isinstance(params,dict): raise ValueError('--params must decode to a JSON object')
+    except Exception as e:
+        console.print({'ok':False,'error':str(e)}); raise typer.Exit(2)
+    console.print(build_runtime(interactive=True).connector_manager.call(name,action,params))
+
+@integration_app.command('auth')
+def integration_auth(name: str):
+    rt=build_runtime(interactive=True); c=rt.connectors.get(name)
+    if not c:
+        console.print({'ok':False,'error':'Unknown connector.'}); raise typer.Exit(2)
+    scopes=rt.connector_manager.oauth_scopes(c)
+    try:
+        if c['provider']=='google':
+            console.print('Opening the Google consent page in your browser. Tokens are stored only in the OS keyring.', markup=False)
+            console.print(rt.connector_manager.oauth.google_login(c,scopes)); return
+        if c['provider']=='microsoft':
+            d=rt.connector_manager.oauth.microsoft_begin_device(c,scopes)
+            console.print({'verification_uri':d.get('verification_uri'),'user_code':d.get('user_code'),'message':d.get('message')})
+            console.print(rt.connector_manager.oauth.microsoft_poll_device(c,d)); return
+        if c['provider']=='github':
+            d=rt.connector_manager.oauth.github_begin_device(c,scopes)
+            console.print({'verification_uri':d.get('verification_uri'),'user_code':d.get('user_code')})
+            console.print(rt.connector_manager.oauth.github_poll_device(c,d)); return
+        console.print({'ok':False,'error':'This provider uses a token from the environment/OS keyring and has no interactive OAuth flow.'})
+        raise typer.Exit(2)
+    except Exception as e:
+        from .security_utils import redact_secrets
+        console.print({'ok':False,'error':redact_secrets(e,1000)}); raise typer.Exit(2)
+
+@integration_app.command('clear-credentials')
+def integration_clear_credentials(name: str):
+    rt=build_runtime(interactive=True); c=rt.connectors.get(name)
+    if not c:
+        console.print({'ok':False,'error':'Unknown connector.'}); raise typer.Exit(2)
+    if input(f'Delete OS-keyring credentials for connector {name}? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
+    rt.connector_manager.credentials.delete_bundle(c); console.print({'ok':True})
 
 @integration_app.command('enable')
 def integration_enable(name: str):

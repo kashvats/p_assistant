@@ -195,3 +195,16 @@ Tool arguments/results and lessons apply common credential redaction before pers
 
 ### Authority confusion
 Retrieved experiences are labeled advisory evidence. They cannot override command policy, approvals, workspace restrictions, database policy, Security Guardian controls or promotion gates.
+
+
+## v0.15 sensor and containment boundaries
+
+- OS telemetry is observation data and may be incomplete, noisy or attacker-influenced; it is never treated as proof by itself.
+- Sysmon/auditd/macOS helper collection is bounded to reduce resource exhaustion and log-flood amplification.
+- DNS "algorithmic" scoring and ransomware burst scoring are heuristics only.
+- External reputation is explicit and hash-only; the assistant never uploads file bytes. A hash lookup still discloses the hash to the configured provider.
+- YARA rules are local and never downloaded automatically; YARA scans require approval because they read file contents.
+- Browser-extension monitoring reads extension metadata/manifests only, not history/cookies/passwords.
+- Network isolation is potentially disruptive. It requires approval unless the user separately arms an automatic policy with independent high-confidence evidence. Partial isolation state is retained for recovery.
+- macOS Endpoint Security requires Apple's entitlement and code signing; an unentitled helper is not considered an active security sensor.
+- TLS/SNI context is best-effort from a configured local collector; ECH and platform restrictions can intentionally make SNI unavailable.

@@ -1,4 +1,106 @@
-# Living Assistant v0.9.2 — Security-Hardened Experience Release
+# Living Assistant v0.16.0 — Cross-Platform Hardening
+
+
+
+## v0.16 Cross-Platform Hardening
+
+This cumulative release hardens Windows, Linux and macOS behavior around filesystem links, user services and suspend/resume. Windows now probes whether ordinary symlinks are actually available and can fall back to a directory junction or same-volume file hard link without silently changing semantics to a copy. Security/integrity walkers treat Windows reparse points as traversal boundaries.
+
+Useful diagnostics:
+
+```bash
+organism platform status
+organism platform link-probe
+organism platform service-status
+```
+
+The low-resource daemon detects long sleep/resume gaps, rebaselines filesystem watches and ephemeral listener/health state, resynchronizes model residency, and handles SIGTERM cleanly. Windows bootstrap no longer depends on `Activate.ps1`; Linux/macOS user-service installers are also hardened for quoting, shutdown and current launch/service-manager behavior. See `PLATFORM_HARDENING.md`.
+
+
+## v0.15 Security Sensor Platform
+
+This cumulative release adds an optional deterministic endpoint-sensor layer above Security Guardian: Windows Event Log/Sysmon correlation, Linux auditd ingestion, a macOS Endpoint Security native-helper interface, DNS/TLS metadata adapters, local YARA, hash reputation, signed-binary trust, USB/browser-extension baselines, ransomware-like file-burst detection, backup integrity, and reversible approval-gated network isolation. Automatic isolation remains disabled and unarmed by default.
+
+Useful commands:
+
+```bash
+organism security sensor-status
+organism security correlate --minutes 10
+organism security dns --minutes 10
+organism security yara ./file.bin
+organism security binary-check
+organism security usb-check
+organism security extensions-check
+organism security backup-check NAME
+```
+
+See `SECURITY_SENSOR_PLATFORM.md` for platform setup, privacy boundaries and limitations.
+
+## v0.14 Desktop Intelligence
+
+This cumulative release adds accessibility-first native computer use, multi-monitor awareness, approval-gated mouse/keyboard fallback, and an optional sleeping local vision model for interfaces that expose no useful semantic structure. See `DESKTOP_INTELLIGENCE.md`.
+
+## v0.13 Adaptive Multi-Model Runtime
+
+Living Assistant now adapts **model residency and generation concurrency** to the machine instead of always unloading the previous model. Constrained/lite systems and 4-GB-class GPUs remain strictly single-model. Machines with enough dedicated VRAM, Apple unified memory, or system RAM can retain 2–3 specialist models and run independent generations concurrently.
+
+The controller adds separate limits for resident models and active generations, per-model serialization by default, LRU eviction, RAM/VRAM admission gates, best-effort thermal throttling, and a bounded wait path when every safe slot is busy. Ollama remains the inference allocator; the assistant does not change Ollama server environment variables automatically.
+
+Useful commands:
+
+```bash
+organism model status
+organism model preload qwen3.5:2b
+organism model unload qwen3.5:2b
+organism model sleep
+```
+
+`organism doctor` now reports the selected residency policy and suggested `OLLAMA_MAX_LOADED_MODELS` / `OLLAMA_NUM_PARALLEL` values. The dashboard shows active/resident model counts. See `MODEL_RUNTIME.md`.
+
+
+## v0.12 Connected Assistant
+
+Living Assistant now has executable, least-privilege connectors instead of a metadata-only registry. Built-in providers cover **Google (Gmail/Calendar/Drive), Microsoft 365 (Outlook/Calendar/OneDrive), GitHub pull requests, Telegram, Discord, Notion and local Obsidian vaults**.
+
+Connector credentials are never written into the assistant JSON/SQLite stores. OAuth tokens can live in the OS keyring (`pip install -e ".[connectors]"`) and static/bot tokens can be supplied through environment variables. External read results are wrapped as untrusted observation data; send/create/review/write actions always go through the existing one-time approval system.
+
+Useful commands:
+
+```bash
+organism integration providers
+organism integration add work-gmail mail google mail.read,mail.send --env-prefix WORK_GOOGLE
+organism integration auth work-gmail
+organism integration status work-gmail
+organism integration call work-gmail gmail.list --params '{"limit":10}'
+```
+
+See `CONNECTORS.md` for provider-specific setup and capability scopes.
+
+
+## v0.11 Voice Presence
+
+Living Assistant now supports an **opt-in local hands-free voice mode**. Push-to-talk remains available and is still the fallback on lite machines. Hands-free mode uses a small wake-word detector continuously, loads Whisper only after activation, captures the following utterance with adaptive local VAD, supports multilingual auto-detection, and can stop TTS on barge-in.
+
+Install voice dependencies:
+
+```bash
+pip install -e ".[voice,wakeword]"
+```
+
+Enable `voice.hands_free.enabled: true`, then explicitly download/configure a local wake model and run:
+
+```bash
+organism voice wake-model-download hey_jarvis
+organism voice presence
+```
+
+Wake-word listening is never started merely because the daemon is running. The CLI session itself is explicit and microphone access remains approval-gated. A custom phrase such as **Hey Assistant** requires a compatible local openWakeWord model plus matching `wake_phrase_text`. See `VOICE_PRESENCE.md`.
+
+## v0.10 Interaction Layer
+
+The local control center is available at `http://127.0.0.1:8787/dashboard` after `organism serve`. It includes real-time streamed chat, live tool/activity events, CPU/RAM history, active model status, one-click approvals, calendar/todo controls, and Security Guardian visibility. When `ASSISTANT_API_TOKEN` is configured, enter it in the dashboard; the browser keeps it only in session storage.
+
+Streaming API: `POST /chat/stream` (`text/event-stream`). Activity history: `GET /activity`; live activity: `GET /activity/stream`.
 
 A local-first, hardware-adaptive personal operating assistant for Windows, Ubuntu/Linux and macOS. Its low-resource **nervous system** handles monitoring, routines, reminders, project supervision and defensive security while local SLMs stay asleep until reasoning is actually needed.
 

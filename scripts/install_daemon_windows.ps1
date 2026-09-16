@@ -5,6 +5,8 @@ if (-not (Test-Path $Exe)) { throw "Missing $Exe. Run scripts\bootstrap.ps1 firs
 $Action = New-ScheduledTaskAction -Execute $Exe -Argument "daemon" -WorkingDirectory $Root
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName "LivingAssistant" -Action $Action -Trigger $Trigger -Principal $Principal -Force | Out-Null
+$Settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName "LivingAssistant" -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 Start-ScheduledTask -TaskName "LivingAssistant"
-Write-Host "Installed and started Scheduled Task: LivingAssistant"
+Get-ScheduledTask -TaskName "LivingAssistant" | Select-Object TaskName,State
+Write-Host "Installed and started limited-privilege Scheduled Task: LivingAssistant"

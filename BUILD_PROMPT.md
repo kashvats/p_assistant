@@ -22,7 +22,7 @@ The orchestrator receives user intent/events, prefers deterministic tools, choos
 
 ### Sleeping specialist agents
 
-Provide general, coding, research, database, defensive-security and planning roles. On constrained machines, multiple roles may share one physical SLM with different prompts. Normally only one local model is resident at a time.
+Provide general, coding, research, database, defensive-security and planning roles. On constrained machines, multiple roles may share one physical SLM with different prompts. Use adaptive residency: lite/low-VRAM machines keep one model resident, while capable high-memory systems may keep 2–3 models warm under explicit RAM/VRAM/concurrency budgets and LRU eviction.
 
 ### Tool/policy boundary
 
@@ -258,3 +258,8 @@ Implement paired baseline/candidate canaries after a passing evaluation. Canary 
 ## v0.9 experience-learning requirements
 
 The assistant must separate transient tool episodes from durable lessons. Automatic recoveries begin below the normal retrieval confidence threshold. Durable lessons should support project scope, situation, action, outcome, root cause, better action, confidence, evidence counters, verification, user confirmation, contradictions, superseding and age-based decay. Persist only bounded/redacted tool summaries. Retrieve only a small number of relevant active lessons and label them advisory. Current evidence and deterministic security policy always outrank memory. Provide user controls to search, confirm, verify, reject and supersede lessons.
+
+
+## v0.15 requirements
+
+Preserve the v0.9.2+ deterministic security boundaries while adding model-free OS telemetry sensors. Never let an LLM directly arm automatic isolation, modify Sysmon/audit rules, install YARA rules, upload binaries for reputation, or bypass macOS Endpoint Security entitlement requirements. Treat event/reputation/YARA output as evidence to correlate, not unquestionable truth.

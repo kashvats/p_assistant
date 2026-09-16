@@ -26,10 +26,22 @@ class Workspace:
 
     def list(self, path: str = ".", base=None) -> list[dict]:
         p = self.resolve(path, base)
-        return [
-            {"name": x.name, "path": str(x), "is_dir": x.is_dir(), "size": x.stat().st_size if x.is_file() else None}
-            for x in sorted(p.iterdir(), key=lambda z: (not z.is_dir(), z.name.lower()))
-        ]
+        items=[]
+        for x in p.iterdir():
+            try:
+                is_dir=x.is_dir()
+                is_file=x.is_file()
+                size=x.stat().st_size if is_file else None
+                inaccessible=False
+            except (OSError, PermissionError):
+                # Broken reparse points, offline mounts and permission-restricted
+                # entries should not make an entire workspace listing fail.
+                is_dir=False; is_file=False; size=None; inaccessible=True
+            items.append({
+                "name":x.name,"path":str(x),"is_dir":is_dir,"is_file":is_file,
+                "is_symlink":x.is_symlink(),"size":size,"inaccessible":inaccessible,
+            })
+        return sorted(items,key=lambda z:(not z["is_dir"],z["name"].lower()))
 
     def read_text(self, path: str, base=None, max_chars: int = 200000) -> str:
         p = self.resolve(path, base)

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import time
+import time, signal, threading
 import psutil, httpx
 from .memory import MemoryStore
 from .tools.security import audit_local
@@ -8,19 +8,22 @@ from .watchers import WatchRegistry
 from .notifications import Notifier
 from .routines import RoutineRegistry
 from .security_utils import is_loopback_http_url
+from .platform_hardening import SleepResumeMonitor
 
 class NervousSystem:
     """Low-resource deterministic event loop. It does not keep an LLM loaded."""
     def __init__(self, config: dict, memory: MemoryStore, processes: ProcessRegistry | None = None,
                  watches: WatchRegistry | None = None, notifier: Notifier | None = None,
                  routines: RoutineRegistry | None = None, orchestrator=None, model_manager=None,
-                 briefings=None, sessions=None, guardian=None, experiences=None):
+                 briefings=None, sessions=None, guardian=None, security_sensors=None, experiences=None):
         self.config=config; self.cfg=config.get('daemon',{}); self.memory=memory
         self.processes=processes or ProcessRegistry(); self.watches=watches or WatchRegistry()
         self.notifier=notifier or Notifier(); self.routines=routines or RoutineRegistry()
-        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.experiences=experiences
+        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.security_sensors=security_sensors; self.experiences=experiences
         self.last_ports=set(); self.previous_running={}; self.health_failures={}; self.restart_exhausted_notified=set()
-        self.last_maintenance=0.0; self.last_security_scan=0.0; self.last_security_posture_scan=0.0
+        self.last_maintenance=0.0; self.last_security_scan=0.0; self.last_security_posture_scan=0.0; self.last_sensor_scan=0.0
+        resume_gap=max(float(self.cfg.get('resume_gap_seconds',60)), float(self.cfg.get('poll_seconds',15))*3.0)
+        self.power_monitor=SleepResumeMonitor(resume_gap)
 
     def _ports(self):
         audit=audit_local(); return {str(x.get('local')) for x in audit.get('listening_ports',[]) if x.get('local')}
@@ -60,7 +63,25 @@ class NervousSystem:
         return events
 
     def tick(self):
-        events=[]; vm=psutil.virtual_memory(); cpu=psutil.cpu_percent(interval=0.15)
+        events=[]
+        power=self.power_monitor.observe()
+        if power.get('resumed'):
+            # Resume is a boundary: re-baseline ephemeral state before normal scans
+            # so sleep-time changes do not create false port/file/ransomware alerts.
+            try:
+                self.last_ports=self._ports()
+            except Exception:
+                self.last_ports=set()
+            self.health_failures.clear()
+            try:
+                watch_state=self.watches.rebaseline()
+            except Exception as exc:
+                watch_state={'error':str(exc)}
+            if self.model_manager is not None:
+                try: self.model_manager.sync_running_models()
+                except Exception: pass
+            events.append({'kind':'system_resume_detected', **power, 'watch_rebaseline':watch_state})
+        vm=psutil.virtual_memory(); cpu=psutil.cpu_percent(interval=0.15)
         self.notifier.flush(max_items=int(self.cfg.get('notification_flush_per_tick',5)))
         if vm.percent>=float(self.cfg.get('high_memory_percent',88)): events.append({'kind':'high_memory','percent':vm.percent})
         if cpu>=float(self.cfg.get('high_cpu_percent',92)): events.append({'kind':'high_cpu','percent':cpu})
@@ -70,7 +91,17 @@ class NervousSystem:
                 for port in sorted(now_ports-self.last_ports): events.append({'kind':'new_listening_port','local':port})
             self.last_ports=now_ports
         events.extend(self._process_events()); events.extend(self._todo_events())
-        if self.cfg.get('watch_files',True): events.extend(self.watches.poll(max_events_per_watch=int(self.cfg.get('max_watch_events_per_tick',25))))
+        file_events=[]
+        if self.cfg.get('watch_files',True):
+            file_events=self.watches.poll(max_events_per_watch=int(self.cfg.get('max_watch_events_per_tick',25)))
+            events.extend(file_events)
+        if self.security_sensors is not None and file_events:
+            try:
+                burst=self.security_sensors.observe_file_events(file_events)
+                if burst.get('score',0)>=60:
+                    events.append({'kind':'security_ransomware_like_burst','severity':burst.get('severity','high'),'signals':burst.get('signals',[]),'score':burst.get('score',0)})
+            except Exception as exc:
+                events.append({'kind':'security_sensor_error','severity':'medium','error':str(exc)})
 
         if self.briefings is not None:
             events.extend(self.briefings.process_due())
@@ -93,6 +124,14 @@ class NervousSystem:
                 except Exception as exc: events.append({'kind':'security_guardian_error','error':str(exc)})
                 self.last_security_posture_scan=now_ts
 
+        sensor_cfg=self.config.get('security_sensors',{})
+        if self.security_sensors is not None and bool(sensor_cfg.get('enabled',True)):
+            interval=max(60,int(sensor_cfg.get('scan_interval_seconds',300)))
+            if now_ts-self.last_sensor_scan>=interval:
+                try: events.extend(self.security_sensors.periodic_scan())
+                except Exception as exc: events.append({'kind':'security_sensor_error','severity':'medium','error':str(exc)})
+                self.last_sensor_scan=now_ts
+
         routine_cfg=self.config.get('routines',{})
         if bool(routine_cfg.get('enabled',True)):
             events.extend(self.routines.process(list(events),self.memory,self.notifier,orchestrator=self.orchestrator,
@@ -101,7 +140,7 @@ class NervousSystem:
         todo_notified=set()
         for e in events:
             self.memory.add_event(e['kind'],e)
-            if e['kind'] in {'project_process_crashed','project_process_restarted','project_restart_exhausted','project_health_failed','todo_due','new_listening_port','security_baseline_missing','security_new_persistence','security_new_listener','security_integrity_change','security_suspicious_process','security_posture_weakened','security_guardian_error'}:
+            if e['kind'] in {'project_process_crashed','project_process_restarted','project_restart_exhausted','project_health_failed','todo_due','new_listening_port','security_baseline_missing','security_new_persistence','security_new_listener','security_integrity_change','security_suspicious_process','security_posture_weakened','security_guardian_error','security_sensor_error','security_correlated_chain','security_new_usb','security_new_browser_extension','security_extension_permissions','security_backup_integrity','security_ransomware_like_burst','security_trusted_binary_changed'}:
                 should_notify=True
                 if str(e.get('kind','')).startswith('security_'):
                     ranks={'low':1,'medium':2,'high':3,'critical':4}
@@ -142,11 +181,44 @@ class NervousSystem:
         if kind=='security_suspicious_process': return f"Security: suspicious process signals for {e.get('name')} (PID {e.get('pid')})"
         if kind=='security_posture_weakened': return f"Security posture: {e.get('title') or 'protection weakened'}"
         if kind=='security_guardian_error': return f"Security guardian error: {e.get('error')}"
+        if kind=='security_sensor_error': return f"Security sensor error: {e.get('error')}"
+        if kind=='security_correlated_chain': return f"Security: correlated suspicious activity ({', '.join(e.get('signals') or [])})"
+        if kind=='security_new_usb': return 'Security: new USB device detected'
+        if kind=='security_new_browser_extension': return 'Security: new browser extension detected'
+        if kind=='security_extension_permissions': return 'Security: browser extension gained permissions'
+        if kind=='security_backup_integrity': return f"Security: backup integrity changed for {e.get('baseline')}"
+        if kind=='security_ransomware_like_burst': return 'Security: ransomware-like mass file-change behavior detected'
+        if kind=='security_trusted_binary_changed': return f"Security: trusted binary changed: {e.get('path')}"
+        if kind=='system_resume_detected': return f"System resumed after ~{e.get('wall_gap_seconds',0)}s; runtime state revalidated"
         return kind or 'Event'
 
     def run_forever(self):
         poll=max(5,int(self.cfg.get('poll_seconds',15)))
+        stop=threading.Event()
+        previous={}
+        def request_stop(signum=None, frame=None):
+            stop.set()
+        # SIGTERM matters for systemd/launchd. Signal registration can fail when
+        # embedded in a non-main thread, so degrade gracefully there.
+        for sig in [getattr(signal,'SIGINT',None), getattr(signal,'SIGTERM',None)]:
+            if sig is None: continue
+            try:
+                previous[sig]=signal.getsignal(sig)
+                signal.signal(sig, request_stop)
+            except (ValueError, OSError):
+                pass
         print(f'Nervous system active (poll={poll}s). No model is kept loaded. Ctrl+C to stop.')
-        while True:
-            for e in self.tick(): print('EVENT',e)
-            time.sleep(poll)
+        try:
+            while not stop.is_set():
+                for e in self.tick(): print('EVENT',e)
+                stop.wait(poll)
+        except KeyboardInterrupt:
+            stop.set()
+        finally:
+            try:
+                if self.model_manager is not None: self.model_manager.sleep()
+            except Exception:
+                pass
+            for sig, handler in previous.items():
+                try: signal.signal(sig, handler)
+                except Exception: pass

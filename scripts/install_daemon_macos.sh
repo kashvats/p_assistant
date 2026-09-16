@@ -2,21 +2,28 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EXE="$ROOT/.venv/bin/organism"
-if [ ! -x "$EXE" ]; then echo "Missing $EXE. Create the venv/install package first."; exit 1; fi
+PY="$ROOT/.venv/bin/python"
+if [ ! -x "$EXE" ] || [ ! -x "$PY" ]; then echo "Missing venv. Create/install the package first."; exit 1; fi
 PLIST="$HOME/Library/LaunchAgents/com.livingassistant.daemon.plist"
-mkdir -p "$HOME/Library/LaunchAgents"
-cat > "$PLIST" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>Label</key><string>com.livingassistant.daemon</string>
-<key>ProgramArguments</key><array><string>$EXE</string><string>daemon</string></array>
-<key>WorkingDirectory</key><string>$ROOT</string>
-<key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
-<key>StandardOutPath</key><string>$HOME/Library/Logs/living-assistant.log</string>
-<key>StandardErrorPath</key><string>$HOME/Library/Logs/living-assistant.err.log</string>
-</dict></plist>
-EOF
-launchctl unload "$PLIST" 2>/dev/null || true
-launchctl load "$PLIST"
-echo "Installed $PLIST"
+LOGDIR="$HOME/Library/Logs"
+mkdir -p "$HOME/Library/LaunchAgents" "$LOGDIR"
+ROOT="$ROOT" EXE="$EXE" PLIST="$PLIST" LOGDIR="$LOGDIR" "$PY" - <<'PY'
+import os, plistlib
+payload={
+    'Label':'com.livingassistant.daemon',
+    'ProgramArguments':[os.environ['EXE'],'daemon'],
+    'WorkingDirectory':os.environ['ROOT'],
+    'RunAtLoad':True,
+    'KeepAlive':{'SuccessfulExit':False},
+    'ProcessType':'Background',
+    'StandardOutPath':os.path.join(os.environ['LOGDIR'],'living-assistant.log'),
+    'StandardErrorPath':os.path.join(os.environ['LOGDIR'],'living-assistant.err.log'),
+}
+with open(os.environ['PLIST'],'wb') as f: plistlib.dump(payload,f,sort_keys=False)
+PY
+plutil -lint "$PLIST" >/dev/null
+DOMAIN="gui/$(id -u)"
+launchctl bootout "$DOMAIN" "$PLIST" 2>/dev/null || true
+launchctl bootstrap "$DOMAIN" "$PLIST"
+launchctl kickstart -k "$DOMAIN/com.livingassistant.daemon"
+echo "Installed and started LaunchAgent: com.livingassistant.daemon"
