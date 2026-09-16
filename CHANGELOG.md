@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.17.0
+
+- Added versioned per-user runtime installs with one venv per release and stable launch shims.
+- Added atomic install state tracking with current/previous versions and install history.
+- Added pre-update local data backups with consistent SQLite snapshots and sensitive-cache exclusions.
+- Added code rollback without implicit data downgrade, plus explicit backup restoration when requested.
+- Added persistent-data schema marker/migration framework and newer-schema refusal.
+- Added wheel identity and optional SHA-256 verification before installation.
+- Added post-install runtime verification and stable-service restart through upgrade-safe daemon shims.
+- Added uninstall flow that preserves user data by default and requires explicit double confirmation to purge it.
+- Added per-user service removal for systemd, launchd and Windows Scheduled Tasks.
+- Added Linux/macOS/Windows release installer/update/uninstall wrappers.
+- Added Debian package builder, macOS pkg builder recipe, and Windows WiX staging recipe without embedding signing credentials.
+- Added release-packaging and migration regression coverage.
+
 ## 0.16.0
 
 - Added runtime cross-platform capability probes and `organism platform` diagnostics.

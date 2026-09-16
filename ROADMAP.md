@@ -10,12 +10,9 @@
 - v0.14 — accessibility-first Desktop Intelligence, multi-monitor support and local vision fallback.
 - v0.15 — endpoint security sensor platform, integrity monitoring and controlled isolation.
 - v0.16 — cross-platform filesystem/service/suspend hardening and non-admin Windows link resilience.
+- v0.17 — versioned production install/update/rollback/uninstall and migration framework.
 
 ## Next
-
-### v0.17 — Production packaging
-- Windows, Ubuntu and macOS installers.
-- Upgrade/rollback/uninstall and migration verification.
 
 ### v1.0
 - Final security audit, fresh-install tests, real-hardware validation and soak testing.

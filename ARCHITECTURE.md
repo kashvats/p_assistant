@@ -186,3 +186,8 @@ The macOS Endpoint Security integration is split deliberately: an entitled/code-
 `platform_hardening.py` centralizes capability probes, semantic-preserving link creation and suspend/resume detection. On Windows, ordinary symlink creation is attempted first; directory junctions and file hard links are fallbacks when privilege/Developer Mode prevents a symlink. Copying is never implicit because it changes link semantics.
 
 Security walkers use a no-link-traversal iterator that treats POSIX symlinks and Windows reparse points as boundaries. The daemon treats a long tick gap as a resume boundary, then refreshes ephemeral state before normal file/network/security processing to reduce false alerts. Per-user service installers remain unprivileged by default: Scheduled Task on Windows, systemd user service on Linux and LaunchAgent on macOS.
+
+
+## v0.17 release lifecycle
+
+Runtime environments are versioned and disposable. Persistent data is outside the runtime. Updates install and self-check a new environment, snapshot user state, run idempotent migrations, switch stable shims, and best-effort restart the existing per-user daemon service. Rollback switches code versions without silently downgrading user data.

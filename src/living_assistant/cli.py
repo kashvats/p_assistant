@@ -12,6 +12,7 @@ from .tools.security import audit_local, antivirus_status
 from .security_policy import classify_command
 from .security_guardian import startup_inventory, inspect_process, file_signature, process_triage, network_activity_summary
 from .platform_hardening import platform_status, probe_link_capability, service_status
+from .release_manager import ReleaseManager
 
 app = typer.Typer(no_args_is_help=True, help='Living Assistant local-first personal agent.')
 console = Console()
@@ -37,13 +38,14 @@ integration_app = typer.Typer(help='Real external app connectors with scoped cap
 experience_app = typer.Typer(help='Evidence-weighted lessons from past mistakes and successful recoveries.')
 model_app = typer.Typer(help='Inspect and manage adaptive local-model residency.')
 platform_app = typer.Typer(help='Cross-platform capability, link, and background-service diagnostics.')
+release_app = typer.Typer(help='Versioned install, backup, rollback, and runtime lifecycle.')
 for sub, name in [
     (project_app,'project'),(group_app,'group'),(security_app,'security'),(approval_app,'approval'),
     (watch_app,'watch'),(skill_app,'skill'),(todo_app,'todo'),(quarantine_app,'quarantine'),
     (git_app,'git'),(desktop_app,'desktop'),(browser_app,'browser'),(voice_app,'voice'),
     (routine_app,'routine'),(improve_app,'improve'),(calendar_app,'calendar'),(personal_app,'personal'),
     (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration'),(experience_app,'experience'),
-    (model_app,'model'),(platform_app,'platform')]:
+    (model_app,'model'),(platform_app,'platform'),(release_app,'release')]:
     app.add_typer(sub, name=name)
 
 @app.command()
@@ -94,6 +96,28 @@ def platform_link_probe(path: str | None = typer.Option(None, '--path')):
 def platform_service_status():
     """Inspect the per-user daemon service without changing it."""
     console.print(service_status())
+
+
+@release_app.command('status')
+def release_status():
+    console.print(ReleaseManager().status())
+
+@release_app.command('verify')
+def release_verify():
+    result=ReleaseManager().verify(); console.print(result)
+    if not result.get('ok'): raise typer.Exit(1)
+
+@release_app.command('backup')
+def release_backup(label: str | None = typer.Option(None, '--label')):
+    console.print(ReleaseManager().create_backup(label))
+
+@release_app.command('rollback')
+def release_rollback(version: str | None = typer.Option(None, '--version'), restore_backup: str | None = typer.Option(None, '--restore-backup')):
+    console.print(ReleaseManager().rollback(version, restore_backup=restore_backup))
+
+@release_app.command('remove-version')
+def release_remove_version(version: str):
+    console.print(ReleaseManager().remove_version(version))
 
 @model_app.command('status')
 def model_status(refresh: bool = typer.Option(True, '--refresh/--no-refresh')):

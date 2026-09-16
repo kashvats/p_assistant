@@ -1,4 +1,4 @@
-# Living Assistant v0.16.0 — Cross-Platform Hardening
+# Living Assistant v0.17.0 — Production Packaging
 
 
 

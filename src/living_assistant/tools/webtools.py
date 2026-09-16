@@ -1,4 +1,5 @@
 from __future__ import annotations
+from .. import __version__
 from pathlib import Path
 from urllib.parse import urljoin
 import os
@@ -61,7 +62,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
 
     def web_fetch(url: str):
         try:
-            with httpx.Client(timeout=20.0, headers={'User-Agent':'LivingAssistant/0.16.0'}, trust_env=False) as c:
+            with httpx.Client(timeout=20.0, headers={'User-Agent':f'LivingAssistant/{__version__}'}, trust_env=False) as c:
                 r, _current = _open_stream(c, url, 'Fetch')
                 try:
                     r.raise_for_status(); ctype = r.headers.get('content-type',''); buf = bytearray()
@@ -83,7 +84,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
 
     def _stream_download(url: str, dest: Path) -> tuple[int,str,str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
-        with httpx.Client(timeout=30.0, headers={'User-Agent':'LivingAssistant/0.16.0'}, trust_env=False) as c:
+        with httpx.Client(timeout=30.0, headers={'User-Agent':f'LivingAssistant/{__version__}'}, trust_env=False) as c:
             r, _current = _open_stream(c, url, 'Download')
             try:
                 r.raise_for_status(); ctype = r.headers.get('content-type','').split(';')[0].strip().lower(); total = 0
