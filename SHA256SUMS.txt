@@ -1,1 +1,1 @@
-3dca52250d24dfb973c589a6a7812ce48105c8fd12e63d94cc18f10bb24eacc0  dist/living_assistant-0.9.2-py3-none-any.whl
+855a29804584b24da4cba7c0b960fc533d96215fe662b19dc8e52dd13504d5aa  dist/living_assistant-0.16.0-py3-none-any.whl

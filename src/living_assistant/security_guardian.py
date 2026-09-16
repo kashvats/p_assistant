@@ -20,6 +20,7 @@ import psutil
 
 from .config import data_dir
 from .sqlite_utils import ThreadLocalSQLite
+from .platform_hardening import iter_tree_without_link_traversal, is_link_like, link_target_description
 from .sessions import SessionStore
 
 SCHEMA = """
@@ -573,14 +574,14 @@ class SecurityGuardian:
     def _snapshot_path(self,path: Path,recursive: bool,extensions: list[str],max_files: int,max_file_mb: int) -> dict:
         if not path.exists(): raise FileNotFoundError(path)
         extset={x.lower() if x.startswith('.') else '.'+x.lower() for x in extensions if x}
-        candidates=[path] if path.is_file() else (path.rglob('*') if recursive else path.glob('*'))
+        candidates=[path] if path.is_file() else iter_tree_without_link_traversal(path, recursive=recursive)
         items={}; skipped=0
         for p in candidates:
             if len(items)>=max_files: break
             try:
                 rel=str(p.relative_to(path.parent if path.is_file() else path))
-                if p.is_symlink():
-                    target=os.readlink(p)
+                if is_link_like(p):
+                    target=link_target_description(p)
                     items[rel]={'symlink':target,'sha256':hashlib.sha256(target.encode('utf-8',errors='replace')).hexdigest(),'bytes':0,'mtime_ns':p.lstat().st_mtime_ns}
                     continue
                 if not p.is_file(): continue

@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 import os
 
 from living_assistant.security_guardian import SecurityGuardian, inspect_process
@@ -123,7 +124,9 @@ def test_capturing_baseline_resolves_setup_finding(tmp_path, monkeypatch):
 def test_integrity_baseline_does_not_hash_symlink_target(tmp_path):
     root=tmp_path/'protected'; root.mkdir()
     outside=tmp_path/'outside-secret.txt'; outside.write_text('secret-one')
-    link=root/'link.txt'; link.symlink_to(outside)
+    link=root/'link.txt'
+    try: link.symlink_to(outside)
+    except (OSError,NotImplementedError): pytest.skip('This security test requires real symlink semantics on the host.')
     g=guardian(tmp_path)
     g.add_integrity_baseline('links',root,True,[])
     outside.write_text('secret-two')

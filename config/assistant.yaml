@@ -2,9 +2,34 @@ profile: auto
 workspace_roots:
   - ./workspace
 
+ui:
+  activity_history: 500
+
 ollama:
   base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
   keep_alive_seconds: 45
+
+model_runtime:
+  # auto keeps one model on constrained machines and permits 2-3 resident
+  # models only when hardware crosses conservative memory thresholds.
+  mode: auto
+  max_resident_models: 0
+  max_concurrent_generations: 0
+  max_parallel_per_model: 1
+  resident_keep_alive_seconds: 300
+  admission_timeout_seconds: 120
+  reserve_ram_gb_by_profile: {lite: 1.0, balanced: 3.0, power: 6.0}
+  reserve_vram_gb: 1.0
+  dedicated_vram_gb_for_two: 16
+  dedicated_vram_gb_for_three: 24
+  apple_unified_memory_gb_for_two: 32
+  apple_unified_memory_gb_for_three: 64
+  cpu_ram_gb_for_two: 48
+  cpu_ram_gb_for_three: 96
+  force_max_resident: false
+  thermal_guard_enabled: true
+  max_gpu_temperature_c: 83
+  max_cpu_temperature_c: 90
 
 profiles:
   lite:
@@ -27,13 +52,13 @@ profiles:
     max_handoffs: 2
     max_tool_steps: 10
     models:
-      orchestrator: qwen2.5:1.5b
-      general: qwen2.5:1.5b
-      coder: qwen2.5:1.5b
-      researcher: qwen2.5:1.5b
-      security: qwen2.5:1.5b
-      database: qwen2.5:1.5b
-      planner: qwen2.5:1.5b
+      orchestrator: qwen3.5:4b
+      general: qwen3.5:4b
+      coder: qwen3.5:4b
+      researcher: qwen3.5:2b
+      security: qwen3.5:2b
+      database: qwen3.5:2b
+      planner: qwen3.5:2b
 
   power:
     min_ram_gb: 48
@@ -59,6 +84,8 @@ policy:
 
 daemon:
   poll_seconds: 15
+  # A long tick gap is treated as resume-like and ephemeral state is revalidated.
+  resume_gap_seconds: 60
   high_memory_percent: 88
   high_cpu_percent: 92
   alert_on_new_listening_port: true
@@ -66,11 +93,20 @@ daemon:
   max_watch_events_per_tick: 25
 
 
+platform_hardening:
+  # Copy fallback changes link semantics and is therefore never implicit.
+  allow_copy_link_fallback: false
+
 desktop:
   enabled: true
   screenshot_enabled: true
   clipboard_enabled: true
   tray_enabled: true
+  computer_use_enabled: true
+  vision_enabled: false
+  vision_model: null
+  allow_remote_vision: false
+  input_pause_seconds: 0.08
 
 browser:
   enabled: true
@@ -91,7 +127,37 @@ voice:
   stt_model_lite: tiny
   stt_device: cpu
   stt_compute_type: int8
+  language: auto
   tts_rate: 180
+  tts_volume: 1.0
+  tts_max_chars: 12000
+  max_microphone_lease_seconds: 300
+  vad:
+    block_ms: 80
+    calibration_seconds: 0.4
+    pre_roll_seconds: 0.24
+    min_seconds: 0.35
+    silence_seconds: 0.9
+    max_seconds: 15
+    min_rms: 250
+    noise_multiplier: 3.0
+  hands_free:
+    enabled: false
+    lite_enabled: false
+    wake_model: ""
+    wake_model_name: hey_jarvis
+    wake_phrase_text: "hey jarvis"
+    wake_audio_tail_seconds: 0.32
+    wake_threshold: 0.5
+    wake_chunk_ms: 80
+    wake_timeout_seconds: 0
+    max_listener_lease_seconds: 300
+    inference_framework: onnx
+    vad_threshold: 0.0
+    noise_suppression: false
+    barge_in_enabled: true
+    barge_in_rms: 1600
+    barge_in_blocks: 3
 
 routines:
   enabled: true
@@ -159,6 +225,7 @@ sessions:
 
 connectors:
   enabled: true
+  use_keyring: true
 
 security_guardian:
   enabled: true
@@ -179,3 +246,31 @@ experience:
   auto_promote_repeats: 2
   episode_retention_days: 30
   max_context_lessons: 5
+
+security_sensors:
+  enabled: true
+  scan_interval_seconds: 300
+  event_lookback_minutes: 10
+  max_events_per_scan: 250
+  # Local YARA rules are never downloaded automatically.
+  yara_rules: []
+  yara_max_files: 500
+  yara_timeout_seconds: 30
+  # Optional NDJSON from a local DNS telemetry collector on platforms where the OS does not expose query events.
+  dns_context_jsonl: ""
+  # Optional NDJSON produced by a separately privileged local TLS collector.
+  # Each line may include: time,pid,process,remote_ip,remote_port,server_name,tls_version,ja3,source.
+  tls_context_jsonl: ""
+  # macOS Endpoint Security requires Apple's entitlement and a signed native helper.
+  macos_endpoint_security_jsonl: ""
+  reputation_malicious_threshold: 5
+  backup_max_files: 5000
+  backup_max_file_mb: 128
+  ransomware:
+    window_seconds: 20
+    file_threshold: 80
+    directory_threshold: 5
+  network_isolation:
+    auto_enabled: false
+    auto_armed: false
+    auto_required_signals: [mass_file_change, known_malicious_hash]

@@ -25,10 +25,14 @@ from .groups import ProjectGroupRegistry, ProjectGroupController
 from .personal_state import PersonalState
 from .calendar_store import CalendarStore
 from .sessions import SessionStore
-from .connectors import ConnectorRegistry
+from .connectors import ConnectorRegistry, ConnectorManager
+from .connector_credentials import CredentialStore
 from .briefing import BriefingEngine
 from .security_guardian import SecurityGuardian
+from .security_sensors import SecuritySensorPlatform
 from .experience import ExperienceEngine
+from .event_bus import EventBus
+from .desktop_intelligence import DesktopController
 from .tools.filesystem import build_filesystem_tools
 from .tools.shell import build_shell_tools, ProcessRegistry
 from .tools.projects import build_project_tools, ProjectRegistry
@@ -48,6 +52,7 @@ from .tools.personalstate import build_personal_state_tools
 from .tools.briefingtools import build_briefing_tools
 from .tools.sessiontools import build_session_tools
 from .tools.experiencetools import build_experience_tools
+from .tools.connectortools import build_connector_tools
 
 @dataclass
 class Runtime:
@@ -77,11 +82,15 @@ class Runtime:
     calendar: CalendarStore
     sessions: SessionStore
     connectors: ConnectorRegistry
+    connector_manager: ConnectorManager
     briefings: BriefingEngine
     guardian: SecurityGuardian
+    security_sensors: SecuritySensorPlatform
     experiences: ExperienceEngine
+    events_bus: EventBus
     orchestrator: Orchestrator
     model_manager: ModelManager
+    desktop_controller: DesktopController
 
 
 def build_runtime(interactive: bool = True) -> Runtime:
@@ -105,7 +114,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     notifier=Notifier(quiet_provider=personal.is_quiet)
     approvals=ApprovalStore(); approval=ApprovalManager(interactive=interactive,store=approvals,notifier=notifier)
     memory=MemoryStore(); processes=ProcessRegistry(); watches=WatchRegistry(); skills=SkillRegistry()
-    resources=ResourceManager(profile,cfg); quarantine=QuarantineVault(); routines=RoutineRegistry()
+    resources=ResourceManager(profile,cfg,hardware=hw); quarantine=QuarantineVault(); routines=RoutineRegistry()
     improvement_store=ImprovementStore(); improvements=ImprovementEngine(ws,approval,improvement_store)
     evaluation_store=EvaluationStore(); evaluations=EvaluationEngine(ws,approval,improvements,evaluation_store,cfg,profile=profile)
     canary_store=CanaryStore(); canaries=CanaryEngine(ws,approval,improvements,evaluations,canary_store,cfg,profile=profile); evaluations.canary_store=canary_store
@@ -115,12 +124,17 @@ def build_runtime(interactive: bool = True) -> Runtime:
     session_cfg=cfg.get('sessions',{})
     sessions=SessionStore(retention_days=int(session_cfg.get('retention_days',30)), redact_secrets=bool(session_cfg.get('redact_secrets',True)))
     connectors=ConnectorRegistry()
+    connector_cfg=cfg.get('connectors',{})
+    connector_manager=ConnectorManager(connectors, approval, credentials=CredentialStore(use_keyring=bool(connector_cfg.get('use_keyring',True))), max_external_chars=int(cfg.get('policy',{}).get('max_web_text_chars',120000)))
     briefings=BriefingEngine(cfg,personal,memory,calendar,projects,processes,approvals,notifier)
     guardian=SecurityGuardian(cfg,approval=approval)
+    security_sensors=SecuritySensorPlatform(cfg,approval=approval,guardian=guardian)
     experiences=ExperienceEngine(config=cfg)
+    events_bus=EventBus(max_events=int(cfg.get('ui',{}).get('activity_history',500)))
 
     ocfg=cfg.get('ollama',{})
-    provider=OllamaProvider(base_url=ocfg['base_url'], allow_remote=bool(ocfg.get('allow_remote',False)), allow_insecure_remote=bool(ocfg.get('allow_insecure_remote',False))); mm=ModelManager(provider)
+    provider=OllamaProvider(base_url=ocfg['base_url'], allow_remote=bool(ocfg.get('allow_remote',False)), allow_insecure_remote=bool(ocfg.get('allow_insecure_remote',False))); mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
+    desktop_controller=DesktopController(ws, approval, cfg, provider=provider, model_manager=mm)
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
     browser_cfg=cfg.get('browser',{})
     browser_enabled=bool(browser_cfg.get('enabled',True)) and (profile!='lite' or bool(browser_cfg.get('lite_enabled',False)))
@@ -141,18 +155,19 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_briefing_tools(briefings)
     tools += build_session_tools(sessions)
     tools += build_experience_tools(experiences)
+    if bool(cfg.get('connectors',{}).get('enabled',True)): tools += build_connector_tools(connector_manager)
     tools += build_routine_tools(routines)
     tools += build_improvement_tools(improvements, evaluations, canaries)
     tools += build_voice_tools(voice)
-    tools += build_security_tools(ws,approval,guardian)
-    if bool(cfg.get('desktop',{}).get('enabled',True)): tools += build_desktop_tools(ws,approval)
+    tools += build_security_tools(ws,approval,guardian,security_sensors)
+    if bool(cfg.get('desktop',{}).get('enabled',True)): tools += build_desktop_tools(ws,approval,desktop_controller)
 
     specialists=SpecialistRouter(mm,pcfg['models'],keep_alive=keep_alive,max_handoffs=int(pcfg['max_handoffs']),
                                  context_tokens=context_tokens,resource_manager=resources)
     orchestrator=Orchestrator(mm,pcfg['models']['orchestrator'],tools,specialists,
                               keep_alive=keep_alive,max_steps=int(pcfg['max_tool_steps']),context_tokens=context_tokens,
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
-                              max_session_messages=int(session_cfg.get('max_context_messages',12)), experiences=experiences)
+                              max_session_messages=int(session_cfg.get('max_context_messages',12)), experiences=experiences, event_bus=events_bus)
     return Runtime(cfg,profile,hw,ws,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,canaries,browser,
-                   personal,calendar,sessions,connectors,briefings,guardian,experiences,orchestrator,mm)
+                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,events_bus,orchestrator,mm,desktop_controller)
