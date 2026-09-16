@@ -9,7 +9,7 @@ import json
 from .runtime import build_runtime
 from .platform_hardening import platform_status, service_status
 
-app = FastAPI(title='Living Assistant Local API', version='0.16.0')
+app = FastAPI(title='Living Assistant Local API', version='0.17.0')
 runtime = None
 
 _LOCAL_HOSTS = {'127.0.0.1', 'localhost', '::1', 'testserver'}
@@ -143,7 +143,7 @@ def _auth(authorization: str | None):
     if token and (not authorization or not hmac.compare_digest(authorization, f'Bearer {token}')): raise HTTPException(status_code=401,detail='Invalid token')
 
 @app.get('/health')
-def health(): return {'ok':True,'service':'living-assistant','version':'0.16.0'}
+def health(): return {'ok':True,'service':'living-assistant','version':'0.17.0'}
 @app.get('/status')
 def status(authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt()

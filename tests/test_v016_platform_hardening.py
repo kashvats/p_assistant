@@ -154,12 +154,13 @@ def test_api_exposes_platform_status(monkeypatch):
     assert r.json()['os']=='TestOS'
 
 
-def test_api_health_reports_v016():
+def test_api_health_reports_current_package_version():
     from fastapi.testclient import TestClient
     from living_assistant.api import app
+    from living_assistant import __version__
     r=TestClient(app).get('/health')
     assert r.status_code==200
-    assert r.json()['version']=='0.16.0'
+    assert r.json()['version']==__version__
 
 
 def test_daemon_resume_revalidates_ephemeral_state(tmp_path,monkeypatch):

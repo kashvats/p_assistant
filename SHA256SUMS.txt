@@ -1,1 +1,2 @@
-855a29804584b24da4cba7c0b960fc533d96215fe662b19dc8e52dd13504d5aa  dist/living_assistant-0.16.0-py3-none-any.whl
+054edf0906b4cf933a06ffa3161ec5f11a6193ec5edf1981de6e288f4b948165  dist/living_assistant-0.17.0-py3-none-any.whl
+aac793b1f7d3c220ecfd74e1ddb026d86be7dd7b417d3d7a57c39194653afc59  dist/living-assistant-release_0.17.0_all.deb

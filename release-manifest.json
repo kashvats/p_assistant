@@ -1,0 +1,12 @@
+{
+  "product": "Living Assistant",
+  "version": "0.17.0",
+  "installer_state_schema": 1,
+  "data_schema": 1,
+  "python": ">=3.11",
+  "supported_platforms": ["Windows", "Linux", "macOS"],
+  "install_model": "per-user-versioned-runtime",
+  "persistent_data_separate_from_runtime": true,
+  "rollback_supported": true,
+  "data_purge_default": false
+}

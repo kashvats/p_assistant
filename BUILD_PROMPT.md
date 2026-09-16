@@ -263,3 +263,8 @@ The assistant must separate transient tool episodes from durable lessons. Automa
 ## v0.15 requirements
 
 Preserve the v0.9.2+ deterministic security boundaries while adding model-free OS telemetry sensors. Never let an LLM directly arm automatic isolation, modify Sysmon/audit rules, install YARA rules, upload binaries for reputation, or bypass macOS Endpoint Security entitlement requirements. Treat event/reputation/YARA output as evidence to correlate, not unquestionable truth.
+
+
+## Production release lifecycle requirement
+
+Preserve the v0.17 invariant: never overwrite the active runtime in place; never purge user data during uninstall without explicit confirmation; verify wheel identity/checksum when supplied; run migrations only after a backup; and keep platform signing credentials outside the repository.
