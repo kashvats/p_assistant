@@ -3,8 +3,8 @@ from pathlib import Path
 from .base import Tool
 from ..task_graph import TaskGraphManager
 
-def build_planning_tools(db_path: Path) -> List[Tool]:
-    graph = TaskGraphManager(db_path)
+def build_planning_tools(db_path: Path | TaskGraphManager) -> List[Tool]:
+    graph = db_path if isinstance(db_path, TaskGraphManager) else TaskGraphManager(db_path)
 
     def add_plan_task(task_id: str, description: str, dependencies: List[str] = None) -> dict:
         """Add a new task node to the long-term planning DAG."""
@@ -38,9 +38,50 @@ def build_planning_tools(db_path: Path) -> List[Tool]:
         return {"ok": True, "message": "DAG cleared."}
 
     return [
-        Tool(add_plan_task, "plan_add_task", "Add a new task node to the long-term planning DAG. Use dependencies to link tasks sequentially."),
-        Tool(complete_plan_task, "plan_complete_task", "Mark a long-term planning task as completed and unlock dependent tasks."),
-        Tool(fail_plan_task, "plan_fail_task", "Mark a long-term planning task as failed."),
-        Tool(get_ready_tasks, "plan_get_ready", "Get all pending tasks that have their dependencies met."),
-        Tool(clear_plan, "plan_clear", "Clear the entire planning DAG.")
+        Tool(
+            "plan_add_task",
+            "Add a new task node to the long-term planning DAG. Use dependencies to link tasks sequentially.",
+            {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string"},
+                    "description": {"type": "string"},
+                    "dependencies": {"type": "array", "items": {"type": "string"}, "default": []},
+                },
+                "required": ["task_id", "description"],
+            },
+            add_plan_task,
+        ),
+        Tool(
+            "plan_complete_task",
+            "Mark a long-term planning task as completed and unlock dependent tasks.",
+            {
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}, "result": {"type": "string"}},
+                "required": ["task_id", "result"],
+            },
+            complete_plan_task,
+        ),
+        Tool(
+            "plan_fail_task",
+            "Mark a long-term planning task as failed.",
+            {
+                "type": "object",
+                "properties": {"task_id": {"type": "string"}, "error_message": {"type": "string"}},
+                "required": ["task_id", "error_message"],
+            },
+            fail_plan_task,
+        ),
+        Tool(
+            "plan_get_ready",
+            "Get all pending tasks that have their dependencies met.",
+            {"type": "object", "properties": {}},
+            get_ready_tasks,
+        ),
+        Tool(
+            "plan_clear",
+            "Clear the entire planning DAG.",
+            {"type": "object", "properties": {}},
+            clear_plan,
+        ),
     ]

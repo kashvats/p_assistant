@@ -50,7 +50,7 @@ organism = "living_assistant.cli:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 [tool.setuptools.package-data]
-living_assistant = ["default_config.yaml"]
+living_assistant = ["default_config.yaml", "default_skills.json", "webui/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

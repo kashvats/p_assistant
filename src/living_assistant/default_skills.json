@@ -1,0 +1,23 @@
+{
+  "debug-systematically": {
+    "description": "Trace software failures from concrete evidence before changing code.",
+    "triggers": ["debug", "traceback", "stack trace", "failing test", "exception", "error"],
+    "instructions": "Start from the exact error and failing path. Inspect the existing definition and all relevant callers before editing. Prefer the smallest change that preserves existing APIs. Run the narrow failing test first, then related regression tests. Do not invent missing code or claim a fix without verification.",
+    "source": "builtin",
+    "created_at": 0.0
+  },
+  "code-change-discipline": {
+    "description": "Make repository changes conservatively and verify their blast radius.",
+    "triggers": ["fix code", "modify code", "patch", "refactor", "codebase", "repository"],
+    "instructions": "Search for an existing implementation before adding a new one. Preserve public function and class contracts unless the task explicitly requires a change. Inspect imports and callers, make focused edits, compile or lint the touched code when available, and run relevant tests after each meaningful change.",
+    "source": "builtin",
+    "created_at": 0.0
+  },
+  "research-with-evidence": {
+    "description": "Separate verified evidence from assumptions during research and investigation.",
+    "triggers": ["research", "investigate", "compare", "latest", "evidence"],
+    "instructions": "Prefer direct, current, authoritative evidence. Distinguish observed facts from inference. When sources disagree, preserve the disagreement instead of silently choosing one. State what remains unknown and avoid fabricating unavailable details.",
+    "source": "builtin",
+    "created_at": 0.0
+  }
+}

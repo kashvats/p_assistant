@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+from importlib import resources
 import json, time, re
 from .config import data_dir
 from .storage_utils import atomic_write_json
@@ -17,7 +18,17 @@ class SkillRegistry:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir() / "skills.json")
         if not self.path.exists():
-            atomic_write_json(self.path, {})
+            defaults = {}
+            try:
+                raw = resources.files("living_assistant").joinpath("default_skills.json").read_text(encoding="utf-8")
+                loaded = json.loads(raw)
+                if isinstance(loaded, dict):
+                    defaults = loaded
+            except Exception:
+                # A damaged optional defaults resource must not prevent the assistant
+                # from starting; the user registry remains a valid empty mapping.
+                defaults = {}
+            atomic_write_json(self.path, defaults)
 
     def _load(self) -> dict:
         try:
@@ -54,5 +65,7 @@ class SkillRegistry:
             score = sum(1 for t in item.get("triggers", []) if t and t in low)
             if score:
                 hits.append((score, name, item))
-        hits.sort(key=lambda x: (-x[0], x[1]))
+        # User-created skills take precedence over built-ins when trigger scores tie.
+        # This keeps shipped defaults helpful without overriding explicit user intent.
+        hits.sort(key=lambda x: (-x[0], x[2].get("source") == "builtin", x[1]))
         return [{"name": n, **item} for _, n, item in hits[:limit]]

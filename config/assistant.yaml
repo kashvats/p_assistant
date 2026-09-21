@@ -238,7 +238,7 @@ briefings:
 sessions:
   enabled: true
   retention_days: 30
-  max_context_messages: 12
+  max_context_messages: 24
   redact_secrets: true
 
 databases:

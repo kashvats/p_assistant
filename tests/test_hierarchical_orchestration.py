@@ -100,3 +100,51 @@ def test_aggregator_and_verifier():
     v_result = verifier.verify("fix bug", [], result.model_dump())
     assert isinstance(v_result, VerificationResult)
     assert v_result.passed is True
+
+
+def test_aggregator_supports_legacy_model_manager_without_lease():
+    from living_assistant.aggregator import Aggregator, AggregatedResult
+    import json
+
+    class Provider:
+        def chat(self, model, messages, tools=None, keep_alive=45, options=None, format=None):
+            return {'message': {'content': json.dumps({
+                'root_cause':'Combined conclusion','evidence':['e1'], 'confidence':.8,
+                'disagreements':[], 'missing_data':[], 'recommended_actions':['a1']
+            })}}
+    class LegacyMM:
+        def __init__(self): self.provider=Provider(); self.activated=[]
+        def activate(self, model): self.activated.append(model)
+
+    mm=LegacyMM()
+    result=Aggregator(mm,'legacy').aggregate('objective', {'coding': {
+        'summary':'s','findings':['f'],'evidence':['e'],'confidence':.7,
+        'uncertainties':[],'recommended_actions':['a'],'proposed_mutations':[]
+    }})
+    assert isinstance(result, AggregatedResult)
+    assert result.root_cause == 'Combined conclusion'
+    assert mm.activated == ['legacy']
+
+
+def test_aggregator_invalid_json_falls_back_to_structured_specialist_synthesis():
+    from living_assistant.aggregator import Aggregator, AggregatedResult
+
+    class Provider:
+        def chat(self, *a, **k): return {'message': {'content': 'not-json'}}
+    class MM:
+        def __init__(self): self.provider=Provider()
+        def lease(self, model):
+            from contextlib import nullcontext
+            return nullcontext()
+
+    specialist=SpecialistResponse(
+        specialist='coding', summary='Null check is missing', findings=['line 42 dereferences None'],
+        evidence=['trace shows AttributeError'], confidence=.9, uncertainties=['input contract unknown'],
+        recommended_actions=['add validated guard'], proposed_mutations=[]
+    )
+    result=Aggregator(MM(),'dummy').aggregate('fix bug', {'coding':specialist})
+    assert isinstance(result, AggregatedResult)
+    assert 'Null check is missing' in result.root_cause
+    assert 'trace shows AttributeError' in result.evidence
+    assert 'add validated guard' in result.recommended_actions
+    assert result.confidence == pytest.approx(.9)

@@ -50,7 +50,12 @@ class Aggregator:
 
         lease = getattr(self.mm, 'lease', None)
         try:
-            with (lease(self.model) if callable(lease) else self.mm.activate(self.model) or True):
+            if callable(lease):
+                model_context = lease(self.model)
+            else:
+                self.mm.activate(self.model)
+                model_context = nullcontext()
+            with model_context:
                 data = self.mm.provider.chat(
                     self.model,
                     messages,
@@ -62,6 +67,62 @@ class Aggregator:
                 parsed = json.loads(answer)
                 return AggregatedResult(**parsed)
             except Exception:
-                return {"error": "JSON Parse failed", "raw": answer}
+                # Fail closed to a structured synthesis of the specialist evidence
+                # rather than returning raw model output or discarding all findings.
+                evidence=[]
+                actions=[]
+                missing=[]
+                summaries=[]
+                confidences=[]
+                for result in specialist_results.values():
+                    item=result.model_dump() if isinstance(result, SpecialistResponse) else (result if isinstance(result, dict) else {})
+                    summary=str(item.get('summary') or '').strip()
+                    if summary and summary not in summaries: summaries.append(summary)
+                    for value in list(item.get('evidence') or []) + list(item.get('findings') or []):
+                        value=str(value).strip()
+                        if value and value not in evidence: evidence.append(value)
+                    for value in item.get('recommended_actions') or []:
+                        value=str(value).strip()
+                        if value and value not in actions: actions.append(value)
+                    for value in item.get('uncertainties') or []:
+                        value=str(value).strip()
+                        if value and value not in missing: missing.append(value)
+                    try: confidences.append(float(item.get('confidence')))
+                    except (TypeError, ValueError): pass
+                return AggregatedResult(
+                    root_cause='; '.join(summaries[:4]) or 'No reliable synthesized conclusion was returned by the aggregator model.',
+                    evidence=evidence[:20],
+                    confidence=max(0.0,min(1.0,sum(confidences)/len(confidences))) if confidences else 0.0,
+                    disagreements=[],
+                    missing_data=missing[:20] or ['Aggregator model returned invalid structured output; verify specialist findings before acting.'],
+                    recommended_actions=actions[:20],
+                )
         except Exception as exc:
-            return {"error": str(exc)}
+            evidence=[]
+            actions=[]
+            missing=[f'Aggregator model unavailable: {type(exc).__name__}']
+            summaries=[]
+            confidences=[]
+            for result in specialist_results.values():
+                item=result.model_dump() if isinstance(result, SpecialistResponse) else (result if isinstance(result, dict) else {})
+                summary=str(item.get('summary') or '').strip()
+                if summary and summary not in summaries: summaries.append(summary)
+                for value in list(item.get('evidence') or []) + list(item.get('findings') or []):
+                    value=str(value).strip()
+                    if value and value not in evidence: evidence.append(value)
+                for value in item.get('recommended_actions') or []:
+                    value=str(value).strip()
+                    if value and value not in actions: actions.append(value)
+                for value in item.get('uncertainties') or []:
+                    value=str(value).strip()
+                    if value and value not in missing: missing.append(value)
+                try: confidences.append(float(item.get('confidence')))
+                except (TypeError, ValueError): pass
+            return AggregatedResult(
+                root_cause='; '.join(summaries[:4]) or 'Aggregator model unavailable; no synthesized conclusion could be established.',
+                evidence=evidence[:20],
+                confidence=max(0.0,min(1.0,sum(confidences)/len(confidences))) if confidences else 0.0,
+                disagreements=[],
+                missing_data=missing[:20],
+                recommended_actions=actions[:20],
+            )

@@ -141,3 +141,76 @@ def test_failure_patterns_cluster_repeated_recent_errors(tmp_path):
     assert patterns and patterns[0]['tool_name']=='run_command'
     assert patterns[0]['count']==3
     assert '<n>' in patterns[0]['signature']
+
+
+def test_maintenance_demotes_and_expires_stale_lessons(tmp_path):
+    e=engine(tmp_path,confidence_half_life_days=7,confirmed_half_life_days=365,expire_confidence=.20)
+    stale=e.record('procedure','Old procedure','Use old command',verified=True)
+    confirmed=e.record('procedure','Confirmed procedure','Use confirmed command',verified=True,user_confirmed=True)
+    recent=e.record('procedure','Recent procedure','Use current command',verified=True)
+
+    now=dt.datetime.now().astimezone()
+    very_old=(now-dt.timedelta(days=90)).isoformat(timespec='seconds')
+    e.conn.execute(
+        'UPDATE experience_lessons SET last_verified_at=?,last_seen_at=? WHERE id IN (?,?)',
+        (very_old,very_old,stale['id'],confirmed['id']),
+    )
+    e.conn.commit()
+
+    result=e.maintenance(now=now)
+    assert result['lessons_expired']==1
+    assert e.get(stale['id'])['status']=='expired'
+    assert e.get(confirmed['id'])['status']=='active'
+    assert e.get(recent['id'])['status']=='active'
+    assert stale['id'] not in [x['id'] for x in e.search('Old procedure',include_candidates=True)]
+
+
+def test_maintenance_demotes_active_lesson_before_expiry(tmp_path):
+    e=engine(tmp_path,confidence_half_life_days=30,expire_confidence=.20,min_inject_confidence=.55)
+    lesson=e.record('procedure','Aging procedure','Use command',verified=True)
+    now=dt.datetime.now().astimezone()
+    aged=(now-dt.timedelta(days=12)).isoformat(timespec='seconds')
+    e.conn.execute('UPDATE experience_lessons SET last_verified_at=?,last_seen_at=? WHERE id=?',(aged,aged,lesson['id']))
+    e.conn.commit()
+
+    before=e.get(lesson['id'])
+    assert .20 < before['effective_confidence'] < .55
+    result=e.maintenance(now=now)
+    assert result['lessons_demoted']==1 and result['lessons_expired']==0
+    assert e.get(lesson['id'])['status']=='candidate'
+
+
+def test_daemon_runs_experience_confidence_maintenance(tmp_path):
+    from living_assistant.daemon import NervousSystem
+    from living_assistant.memory import MemoryStore
+
+    class Proc:
+        def list(self): return []
+    class Watch:
+        def poll(self, **kwargs): return []
+    class Notify:
+        def flush(self, **kwargs): return []
+        def send(self, *a, **k): return {'ok':True}
+        def is_quiet(self): return False
+    class Routine:
+        def process(self, *a, **k): return []
+    class Sessions:
+        def prune(self): return 0
+    class Experiences:
+        def __init__(self): self.calls=0
+        def maintenance(self):
+            self.calls += 1
+            return {'episodes_pruned':0,'lessons_demoted':1,'lessons_expired':2}
+
+    memory=MemoryStore(tmp_path/'m.sqlite3')
+    experiences=Experiences()
+    ns=NervousSystem(
+        {'daemon':{'alert_on_new_listening_port':False,'watch_files':False},
+         'routines':{'enabled':False},'security_guardian':{'enabled':False},'security_sensors':{'enabled':False}},
+        memory,processes=Proc(),watches=Watch(),notifier=Notify(),routines=Routine(),
+        sessions=Sessions(),experiences=experiences,
+    )
+    ns.tick()
+    assert experiences.calls == 1
+    events=memory.list_events(kind='experience_confidence_maintenance')
+    assert events and events[0]['payload']['lessons_expired']==2

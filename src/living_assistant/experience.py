@@ -125,6 +125,13 @@ class ExperienceEngine:
         self.min_inject_confidence = float(self.cfg.get('min_inject_confidence', 0.55))
         self.auto_promote_repeats = max(2, int(self.cfg.get('auto_promote_repeats', 2)))
         self.episode_retention_days = max(1, int(self.cfg.get('episode_retention_days', 30)))
+        # Non-confirmed lessons that decay to this confidence are retired during
+        # maintenance. Keep the threshold above the automatic 0.15 confidence floor
+        # so stale lessons can actually leave the active/candidate retrieval set.
+        self.expire_confidence = min(
+            self.min_inject_confidence,
+            max(0.16, float(self.cfg.get('expire_confidence', 0.20))),
+        )
         self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
@@ -387,9 +394,50 @@ class ExperienceEngine:
         return [dict(r) for r in rows]
 
     def maintenance(self, now: dt.datetime | None = None) -> dict:
-        now=now or dt.datetime.now().astimezone(); cutoff=(now-dt.timedelta(days=self.episode_retention_days)).isoformat(timespec='seconds')
-        cur=self.conn.execute('DELETE FROM experience_episodes WHERE created_at<?',(cutoff,)); self.conn.commit()
-        return {'episodes_pruned':cur.rowcount}
+        """Prune transient traces and retire lessons whose confidence has aged out.
+
+        Confidence is intentionally calculated from the stored evidence confidence and
+        verification/observation timestamps instead of repeatedly overwriting the base
+        value. Persisting the decayed value while retaining the old timestamp would
+        apply decay twice on every maintenance pass. The maintenance tick therefore
+        persists only lifecycle transitions; ``effective_confidence`` remains the
+        time-decayed value used by retrieval. User-confirmed lessons are never expired
+        automatically.
+        """
+        now=now or dt.datetime.now().astimezone()
+        cutoff=(now-dt.timedelta(days=self.episode_retention_days)).isoformat(timespec='seconds')
+        cur=self.conn.execute('DELETE FROM experience_episodes WHERE created_at<?',(cutoff,))
+
+        demoted=0
+        expired=0
+        rows=self.conn.execute(
+            "SELECT * FROM experience_lessons WHERE status IN ('active','candidate')"
+        ).fetchall()
+        for row in rows:
+            item=dict(row)
+            if bool(item.get('user_confirmed')):
+                continue
+            effective=self.effective_confidence(item, now=now)
+            status=str(item.get('status') or '')
+            if effective <= self.expire_confidence:
+                self.conn.execute(
+                    "UPDATE experience_lessons SET status='expired' WHERE id=? AND status IN ('active','candidate')",
+                    (item['id'],),
+                )
+                expired += 1
+            elif status == 'active' and effective < self.min_inject_confidence:
+                self.conn.execute(
+                    "UPDATE experience_lessons SET status='candidate' WHERE id=? AND status='active'",
+                    (item['id'],),
+                )
+                demoted += 1
+
+        self.conn.commit()
+        return {
+            'episodes_pruned': int(cur.rowcount or 0),
+            'lessons_demoted': demoted,
+            'lessons_expired': expired,
+        }
 
     def stats(self) -> dict:
         counts={r['status']:r['n'] for r in self.conn.execute('SELECT status,COUNT(*) n FROM experience_lessons GROUP BY status').fetchall()}
