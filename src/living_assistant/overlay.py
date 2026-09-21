@@ -2,21 +2,15 @@ from __future__ import annotations
 
 import ctypes
 import json
-# import os
 import threading
 import time
 import tkinter as tk
-# from tkinter import font as tkfont
-# from urllib.parse import urljoin
 import urllib.request
-import urllib.error
 
 try:
     from .api_auth import ensure_api_token
-    from .config import data_dir
 except ImportError:
     from living_assistant.api_auth import ensure_api_token
-#     from living_assistant.config import data_dir
 
 
 def _get_active_window_title() -> str:
@@ -94,7 +88,12 @@ class FloatingOverlay:
         self._draw_eye()
 
     def _build_ui(self):
-        import customtkinter as ctk
+        try:
+            import customtkinter as ctk
+        except ImportError as exc:
+            raise RuntimeError(
+                'Overlay support is optional. Install with: pip install -e ".[desktop]"'
+            ) from exc
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         
@@ -449,7 +448,7 @@ class FloatingOverlay:
         self._append_message("Assistant", answer, "assistant")
 
     def _on_query_error(self, error: str):
-        self.lbl_dot.configure(fg="#ff5555")
+        self.lbl_dot.configure(text_color="#ff5555")
         self._append_message("System", f"Communication error: {error}", "system")
 
     def run(self):

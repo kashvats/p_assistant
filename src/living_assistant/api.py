@@ -133,6 +133,10 @@ class ConnectorCallRequest(BaseModel):
 class ModelRequest(BaseModel):
     model: str = Field(min_length=1, max_length=300)
 
+class DesktopAnalyzeRequest(BaseModel):
+    prompt: str = Field(default="Describe the visible UI and actionable controls.", max_length=4000)
+    monitor_id: int = Field(default=0, ge=0, le=64)
+
 
 def _rt() -> Runtime:
     return get_runtime()
@@ -191,6 +195,11 @@ def desktop_monitors(authorization: str | None=Header(default=None)):
 @app.get('/desktop/windows')
 def desktop_windows(authorization: str | None=Header(default=None)):
     _auth(authorization); return _rt().desktop_controller.windows()
+
+@app.post('/desktop/analyze-screen')
+def desktop_analyze_screen(req: DesktopAnalyzeRequest, authorization: str | None=Header(default=None)):
+    _auth(authorization); return _rt().desktop_controller.analyze_screen(req.prompt, req.monitor_id)
+
 @app.post('/ask')
 def ask(req: AskRequest,authorization: str | None=Header(default=None)):
     _auth(authorization); rt=_rt()
