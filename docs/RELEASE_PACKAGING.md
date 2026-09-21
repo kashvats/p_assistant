@@ -1,4 +1,4 @@
-# Living Assistant v0.17 Production Packaging
+# Living Assistant v0.17.2 Production Packaging
 
 v0.17 introduces a versioned, per-user runtime lifecycle. Application binaries and Python environments are disposable; user data is kept separately.
 
@@ -40,7 +40,7 @@ By default release wrappers install common optional groups. Override with `LIVIN
 The generic installer is also available:
 
 ```bash
-python scripts/install.py install dist/living_assistant-0.17.0-py3-none-any.whl --sha256 <expected-sha256>
+python scripts/install.py install dist/living_assistant-0.17.2-py3-none-any.whl --sha256 <expected-sha256>
 python scripts/install.py status
 python scripts/install.py verify
 ```
@@ -59,7 +59,7 @@ organism release rollback
 A normal rollback changes code only and keeps current user data. Restoring an older data backup is explicit because automatic restoration could erase data created after the update:
 
 ```bash
-organism release rollback --restore-backup /path/to/data-before-0.17.0.zip
+organism release rollback --restore-backup /path/to/data-before-0.17.2.zip
 ```
 
 ## Uninstall

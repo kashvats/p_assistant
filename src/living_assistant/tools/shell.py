@@ -1,5 +1,5 @@
 from __future__ import annotations
-import subprocess, os, time, uuid, json, platform, threading
+import subprocess, os, time, uuid, json, platform, threading, tempfile
 import psutil
 from pathlib import Path
 from .base import Tool
@@ -183,14 +183,43 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
             req = approval.request(command, decision.reason, decision.risk.value)
             if not req.get("allowed"):
                 return {"ok": False, "approval_required": True, **req, "risk": decision.risk.value}
-        try:
-            p = subprocess.run(
-                command, cwd=str(cwdp), shell=True, text=True, capture_output=True,
-                timeout=min(timeout_seconds or timeout, 600), env=os.environ.copy()
-            )
-            return {"ok": p.returncode == 0, "returncode": p.returncode, "stdout": redact_secrets(p.stdout[-20000:]), "stderr": redact_secrets(p.stderr[-20000:])}
-        except subprocess.TimeoutExpired as e:
-            return {"ok": False, "timeout": True, "stdout": redact_secrets((e.stdout or "")[-10000:]), "stderr": redact_secrets((e.stderr or "")[-10000:])}
+        stdout_limit = 20000
+        stderr_limit = 20000
+        with tempfile.TemporaryFile(mode='w+b') as stdout_file, tempfile.TemporaryFile(mode='w+b') as stderr_file:
+            timed_out = False
+            returncode = None
+            try:
+                p = subprocess.run(
+                    command, cwd=str(cwdp), shell=True, stdout=stdout_file, stderr=stderr_file,
+                    timeout=min(timeout_seconds or timeout, 600), env=os.environ.copy()
+                )
+                returncode = p.returncode
+            except subprocess.TimeoutExpired:
+                timed_out = True
+
+            def read_tail(handle, limit: int) -> tuple[str, bool]:
+                handle.flush()
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                start = max(0, size - limit)
+                handle.seek(start, os.SEEK_SET)
+                data = handle.read(limit).decode('utf-8', errors='replace')
+                return data, size > limit
+
+            stdout, stdout_truncated = read_tail(stdout_file, stdout_limit)
+            stderr, stderr_truncated = read_tail(stderr_file, stderr_limit)
+            result = {
+                "ok": bool(not timed_out and returncode == 0),
+                "returncode": returncode,
+                "stdout": redact_secrets(stdout),
+                "stderr": redact_secrets(stderr),
+                "output_truncated": bool(stdout_truncated or stderr_truncated),
+                "stdout_truncated": stdout_truncated,
+                "stderr_truncated": stderr_truncated,
+            }
+            if timed_out:
+                result["timeout"] = True
+            return result
 
     def start_process(command: str, cwd: str = ".", name: str | None = None, project: str | None = None,
                       auto_restart: bool = False, max_restarts: int = 3, health_url: str | None = None):

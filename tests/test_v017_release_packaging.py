@@ -22,7 +22,7 @@ def _fake_installed_version(mgr: ReleaseManager, version: str):
     state=mgr.state(); state['installations'][version]={'version':version,'path':str(env.parent)}; mgr._write_state(state)
 
 
-def _minimal_wheel(path: Path, name='living-assistant', version='0.17.0'):
+def _minimal_wheel(path: Path, name='living-assistant', version='0.17.1'):
     dist=f"{name.replace('-','_')}-{version}.dist-info"
     with zipfile.ZipFile(path,'w') as z:
         z.writestr(f'{dist}/METADATA',f'Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n')
@@ -83,24 +83,24 @@ def test_rollback_swaps_stable_shim(tmp_path,monkeypatch):
     import living_assistant.release_manager as rm
     monkeypatch.setattr(rm,'restart_user_service_if_installed',lambda:{'ok':True,'supported':False})
     mgr=ReleaseManager(tmp_path/'runtime',tmp_path/'data')
-    _fake_installed_version(mgr,'0.16.0'); _fake_installed_version(mgr,'0.17.0')
-    state=mgr.state(); state['current_version']='0.17.0'; state['previous_version']='0.16.0'; mgr._write_state(state)
-    mgr._write_shims('0.17.0')
+    _fake_installed_version(mgr,'0.16.0'); _fake_installed_version(mgr,'0.17.1')
+    state=mgr.state(); state['current_version']='0.17.1'; state['previous_version']='0.16.0'; mgr._write_state(state)
+    mgr._write_shims('0.17.1')
     result=mgr.rollback()
     assert result['to']=='0.16.0'
     shim=(mgr.layout.bin/('organism.cmd' if os.name=='nt' else 'organism')).read_text()
     assert '0.16.0' in shim
-    assert mgr.state()['previous_version']=='0.17.0'
+    assert mgr.state()['previous_version']=='0.17.1'
 
 
 def test_remove_active_version_is_refused(tmp_path):
-    mgr=ReleaseManager(tmp_path/'runtime',tmp_path/'data'); _fake_installed_version(mgr,'0.17.0')
-    state=mgr.state(); state['current_version']='0.17.0'; mgr._write_state(state)
-    with pytest.raises(RuntimeError,match='active version'): mgr.remove_version('0.17.0')
+    mgr=ReleaseManager(tmp_path/'runtime',tmp_path/'data'); _fake_installed_version(mgr,'0.17.1')
+    state=mgr.state(); state['current_version']='0.17.1'; mgr._write_state(state)
+    with pytest.raises(RuntimeError,match='active version'): mgr.remove_version('0.17.1')
 
 
 def test_uninstall_purge_requires_confirmation_before_removing_runtime(tmp_path):
-    mgr=ReleaseManager(tmp_path/'runtime',tmp_path/'data'); _fake_installed_version(mgr,'0.17.0')
+    mgr=ReleaseManager(tmp_path/'runtime',tmp_path/'data'); _fake_installed_version(mgr,'0.17.1')
     marker=mgr.layout.versions/'keep.txt'; marker.write_text('keep')
     with pytest.raises(RuntimeError,match='explicit confirmation'):
         mgr.uninstall_runtime(purge_data=True,confirm_purge=False)
@@ -124,16 +124,17 @@ def test_api_health_reports_v017():
     from living_assistant.api import app
     r=TestClient(app).get('/health')
     assert r.status_code==200
-    assert r.json()['version']=='0.17.0'
+    from living_assistant import __version__
+    assert r.json()['version']==__version__
 
 def test_release_verify_checks_active_runtime(tmp_path,monkeypatch):
     import living_assistant.release_manager as rm
     mgr=ReleaseManager(tmp_path/'runtime',tmp_path/'data')
-    _fake_installed_version(mgr,'0.17.0')
-    state=mgr.state(); state['current_version']='0.17.0'; mgr._write_state(state); mgr._write_shims('0.17.0')
+    _fake_installed_version(mgr,'0.17.1')
+    state=mgr.state(); state['current_version']='0.17.1'; mgr._write_state(state); mgr._write_shims('0.17.1')
     # Avoid executing the fake python file; emulate the installed package self-check.
     class P:
-        returncode=0; stdout='0.17.0\n'; stderr=''
+        returncode=0; stdout='0.17.1\n'; stderr=''
     monkeypatch.setattr(rm.subprocess,'run',lambda *a,**k:P())
     out=mgr.verify()
     assert out['ok'] is True

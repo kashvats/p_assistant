@@ -2,7 +2,12 @@ from __future__ import annotations
 from .. import __version__
 from pathlib import Path
 from urllib.parse import urljoin
+from collections import deque
+import datetime as dt
 import os
+import sqlite3
+import threading
+import time
 import httpx
 from .base import Tool
 from ..workspace import Workspace
@@ -10,6 +15,8 @@ from ..security_policy import sanitize_external_observation
 from ..security_utils import url_network_scope, safe_display_url, redact_secrets
 from ..quarantine import QuarantineVault, is_risky_download, download_risk_reasons
 from ..approval import ApprovalManager
+from ..browser import BrowserController
+from ..config import data_dir
 
 IMAGE_TYPES = {'image/jpeg','.jpg','image/png','.png','image/webp','.webp','image/gif','.gif','image/svg+xml','.svg'}
 MAX_REDIRECTS = 5
@@ -22,12 +29,85 @@ class _NetworkGate(Exception):
 
 
 def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManager | None = None,
-                    quarantine: QuarantineVault | None = None) -> list[Tool]:
+                    quarantine: QuarantineVault | None = None, browser: BrowserController | None = None) -> list[Tool]:
     policy = config.get('policy', {})
     dcfg = config.get('downloads', {})
+    scfg = config.get('web_search', {})
     max_mb = int(policy.get('max_download_mb', 25)); max_bytes = max_mb * 1024 * 1024
     max_text = int(policy.get('max_web_text_chars', 120000))
     quarantine = quarantine or QuarantineVault()
+
+    try:
+        max_calls_per_minute = max(0, int(scfg.get('max_calls_per_minute', 20)))
+        max_calls_per_day = max(0, int(scfg.get('max_calls_per_day', 0)))
+    except (TypeError, ValueError):
+        max_calls_per_minute = 20
+        max_calls_per_day = 0
+    search_calls = deque()
+    search_budget_lock = threading.Lock()
+    search_budget_db = data_dir() / 'assistant.sqlite3' if max_calls_per_day else None
+    if search_budget_db is not None:
+        with sqlite3.connect(search_budget_db, timeout=5.0) as conn:
+            conn.execute('PRAGMA busy_timeout=5000')
+            conn.execute(
+                'CREATE TABLE IF NOT EXISTS search_budget ('
+                'day TEXT PRIMARY KEY, calls INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)'
+            )
+            conn.commit()
+
+    def _consume_search_budget() -> dict | None:
+        now = time.monotonic()
+        with search_budget_lock:
+            if max_calls_per_minute:
+                cutoff = now - 60.0
+                while search_calls and search_calls[0] <= cutoff:
+                    search_calls.popleft()
+                if len(search_calls) >= max_calls_per_minute:
+                    retry_after = max(1, int(60.0 - (now - search_calls[0])))
+                    return {
+                        'ok': False,
+                        'rate_limited': True,
+                        'retry_after_seconds': retry_after,
+                        'error': f'Search budget exceeded: maximum {max_calls_per_minute} call(s) per minute.',
+                    }
+
+            if max_calls_per_day and search_budget_db is not None:
+                day = dt.datetime.now(dt.timezone.utc).date().isoformat()
+                updated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds')
+                try:
+                    with sqlite3.connect(search_budget_db, timeout=5.0, isolation_level=None) as conn:
+                        conn.execute('PRAGMA busy_timeout=5000')
+                        conn.execute('BEGIN IMMEDIATE')
+                        row = conn.execute('SELECT calls FROM search_budget WHERE day=?', (day,)).fetchone()
+                        calls = int(row[0]) if row else 0
+                        if calls >= max_calls_per_day:
+                            conn.rollback()
+                            return {
+                                'ok': False,
+                                'rate_limited': True,
+                                'error': f'Search budget exceeded: maximum {max_calls_per_day} call(s) per UTC day.',
+                            }
+                        if row:
+                            conn.execute(
+                                'UPDATE search_budget SET calls=?, updated_at=? WHERE day=?',
+                                (calls + 1, updated_at, day),
+                            )
+                        else:
+                            conn.execute(
+                                'INSERT INTO search_budget(day,calls,updated_at) VALUES(?,?,?)',
+                                (day, 1, updated_at),
+                            )
+                        conn.commit()
+                except sqlite3.Error as exc:
+                    return {
+                        'ok': False,
+                        'rate_limited': True,
+                        'error': f'Search budget store unavailable: {redact_secrets(exc, 500)}',
+                    }
+
+            if max_calls_per_minute:
+                search_calls.append(now)
+        return None
 
     def _authorize_target(url: str, purpose: str) -> None:
         scope, reason = url_network_scope(url, resolve=True)
@@ -138,20 +218,174 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         return {'ok':True,'path':str(target),'sha256':item.get('sha256')}
 
     def image_search(query: str, num: int = 5):
+        query = (query or '').strip()
+        if not query:
+            return {'ok': False, 'error': 'Image search query must not be empty.'}
+        provider = str(scfg.get('provider', 'auto')).strip().lower()
+        if provider not in {'auto', 'serper', 'browser', 'disabled'}:
+            return {'ok': False, 'error': f'Unsupported web search provider: {provider!r}.'}
+        if provider == 'disabled':
+            return {'ok': False, 'disabled': True, 'error': 'Web search is disabled by configuration.'}
+        try:
+            requested = int(num)
+            configured_max = int(scfg.get('max_results', 8))
+        except (TypeError, ValueError):
+            return {'ok': False, 'error': 'Search result limits must be integers.'}
+        limit = max(1, min(requested, max(1, min(configured_max, 10))))
+
         key = os.environ.get('SERPER_API_KEY')
-        if not key: return {'ok':False,'error':'SERPER_API_KEY is not configured. Direct image download still works.'}
-        with httpx.Client(timeout=20.0, trust_env=False) as c:
-            r = c.post('https://google.serper.dev/images', headers={'X-API-KEY':key,'Content-Type':'application/json'},
-                       json={'q':query,'num':max(1,min(num,10))}); r.raise_for_status()
-            return {'ok':True,'results':[{'title':x.get('title'),'imageUrl':x.get('imageUrl'),'link':x.get('link'),'source':x.get('source')} for x in r.json().get('images',[])[:max(1,min(num,10))]]}
+        if provider == 'serper' and not key:
+            return {'ok': False, 'provider': 'serper', 'error': 'SERPER_API_KEY is not configured.'}
+        if provider == 'browser' and (browser is None or not callable(getattr(browser, 'search_images', None))):
+            return {'ok': False, 'provider': 'browser', 'error': 'Browser image search provider is unavailable.'}
+        if provider == 'auto' and not key and (browser is None or not callable(getattr(browser, 'search_images', None))):
+            return {'ok': False, 'provider': 'browser', 'error': 'Browser image search provider is unavailable. Install/configure the browser extra or set SERPER_API_KEY.'}
+        budget_error = _consume_search_budget()
+        if budget_error:
+            return budget_error
+
+        serper_error = None
+        if provider in {'auto', 'serper'} and key:
+            try:
+                timeout = max(1.0, float(scfg.get('serper_timeout_seconds', 15)))
+                with httpx.Client(timeout=timeout, trust_env=False) as c:
+                    r = c.post(
+                        'https://google.serper.dev/images',
+                        headers={'X-API-KEY': key, 'Content-Type': 'application/json'},
+                        json={'q': query, 'num': limit},
+                    )
+                    r.raise_for_status()
+                    results = []
+                    for item in r.json().get('images', [])[:limit]:
+                        results.append({
+                            'title': sanitize_external_observation(str(item.get('title') or ''), 4000),
+                            'imageUrl': str(item.get('imageUrl') or ''),
+                            'link': str(item.get('link') or ''),
+                            'source': sanitize_external_observation(str(item.get('source') or ''), 2000),
+                        })
+                    return {'ok': True, 'provider': 'serper', 'results': results}
+            except Exception as exc:
+                serper_error = redact_secrets(exc, 1000)
+                if provider == 'serper':
+                    return {'ok': False, 'provider': 'serper', 'error': f'Serper image search failed: {serper_error}'}
+
+        if browser is None or not callable(getattr(browser, 'search_images', None)):
+            message = 'Browser image search provider is unavailable.'
+            if provider == 'auto' and not key:
+                message += ' Install/configure the browser extra or set SERPER_API_KEY.'
+            if serper_error:
+                message += f' Serper fallback reason: {serper_error}'
+            return {'ok': False, 'provider': 'browser', 'error': message}
+
+        try:
+            result = browser.search_images(query, limit)
+        except Exception as exc:
+            return {'ok': False, 'provider': 'browser', 'error': f'Browser image search failed: {redact_secrets(exc, 1000)}'}
+        if not isinstance(result, dict):
+            return {'ok': False, 'provider': 'browser', 'error': 'Browser image search provider returned an invalid response.'}
+        if not result.get('ok'):
+            output = dict(result)
+            output['ok'] = False
+            output.setdefault('provider', 'browser')
+            if output.get('error'):
+                output['error'] = redact_secrets(output['error'], 1000)
+            return output
+
+        cleaned = []
+        for item in (result.get('results') or [])[:limit]:
+            if not isinstance(item, dict):
+                continue
+            cleaned.append({
+                'title': sanitize_external_observation(str(item.get('title') or ''), 4000),
+                'imageUrl': str(item.get('imageUrl') or ''),
+                'link': str(item.get('link') or ''),
+                'source': sanitize_external_observation(str(item.get('source') or ''), 2000),
+            })
+        return {'ok': True, 'provider': str(result.get('provider') or 'browser'), 'results': cleaned}
 
     def web_search(query: str, num: int = 5):
+        query = (query or '').strip()
+        if not query:
+            return {'ok': False, 'error': 'Search query must not be empty.'}
+        provider = str(scfg.get('provider', 'auto')).strip().lower()
+        if provider not in {'auto', 'serper', 'browser', 'disabled'}:
+            return {'ok': False, 'error': f'Unsupported web search provider: {provider!r}.'}
+        if provider == 'disabled':
+            return {'ok': False, 'disabled': True, 'error': 'Web search is disabled by configuration.'}
+        try:
+            requested = int(num)
+            configured_max = int(scfg.get('max_results', 8))
+        except (TypeError, ValueError):
+            return {'ok': False, 'error': 'Search result limits must be integers.'}
+        limit = max(1, min(requested, max(1, min(configured_max, 10))))
+
         key = os.environ.get('SERPER_API_KEY')
-        if not key: return {'ok':False,'error':'SERPER_API_KEY is not configured.'}
-        with httpx.Client(timeout=20.0, trust_env=False) as c:
-            r = c.post('https://google.serper.dev/search', headers={'X-API-KEY':key,'Content-Type':'application/json'},
-                       json={'q':query,'num':max(1,min(num,10))}); r.raise_for_status()
-            return {'ok':True,'results':[{'title':x.get('title'),'link':x.get('link'),'snippet':x.get('snippet')} for x in r.json().get('organic',[])[:max(1,min(num,10))]]}
+        if provider == 'serper' and not key:
+            return {'ok': False, 'provider': 'serper', 'error': 'SERPER_API_KEY is not configured.'}
+        if provider == 'browser' and (browser is None or not callable(getattr(browser, 'search_web', None))):
+            return {'ok': False, 'provider': 'browser', 'error': 'Browser search provider is unavailable.'}
+        if provider == 'auto' and not key and (browser is None or not callable(getattr(browser, 'search_web', None))):
+            return {'ok': False, 'provider': 'browser', 'error': 'Browser search provider is unavailable. Install/configure the browser extra or set SERPER_API_KEY.'}
+        budget_error = _consume_search_budget()
+        if budget_error:
+            return budget_error
+
+        serper_error = None
+        if provider in {'auto', 'serper'} and key:
+            try:
+                timeout = max(1.0, float(scfg.get('serper_timeout_seconds', 15)))
+                with httpx.Client(timeout=timeout, trust_env=False) as c:
+                    r = c.post(
+                        'https://google.serper.dev/search',
+                        headers={'X-API-KEY': key, 'Content-Type': 'application/json'},
+                        json={'q': query, 'num': limit},
+                    )
+                    r.raise_for_status()
+                    results = []
+                    for item in r.json().get('organic', [])[:limit]:
+                        results.append({
+                            'title': sanitize_external_observation(str(item.get('title') or ''), 4000),
+                            'link': str(item.get('link') or ''),
+                            'snippet': sanitize_external_observation(str(item.get('snippet') or ''), 8000),
+                        })
+                    return {'ok': True, 'provider': 'serper', 'results': results}
+            except Exception as exc:
+                serper_error = redact_secrets(exc, 1000)
+                if provider == 'serper':
+                    return {'ok': False, 'provider': 'serper', 'error': f'Serper search failed: {serper_error}'}
+
+        if browser is None or not callable(getattr(browser, 'search_web', None)):
+            message = 'Browser search provider is unavailable.'
+            if provider == 'auto' and not key:
+                message += ' Install/configure the browser extra or set SERPER_API_KEY.'
+            if serper_error:
+                message += f' Serper fallback reason: {serper_error}'
+            return {'ok': False, 'provider': 'browser', 'error': message}
+
+        try:
+            result = browser.search_web(query, limit)
+        except Exception as exc:
+            return {'ok': False, 'provider': 'browser', 'error': f'Browser search failed: {redact_secrets(exc, 1000)}'}
+        if not isinstance(result, dict):
+            return {'ok': False, 'provider': 'browser', 'error': 'Browser search provider returned an invalid response.'}
+        if not result.get('ok'):
+            output = dict(result)
+            output['ok'] = False
+            output.setdefault('provider', 'browser')
+            if output.get('error'):
+                output['error'] = redact_secrets(output['error'], 1000)
+            return output
+
+        cleaned = []
+        for item in (result.get('results') or [])[:limit]:
+            if not isinstance(item, dict):
+                continue
+            cleaned.append({
+                'title': sanitize_external_observation(str(item.get('title') or ''), 4000),
+                'link': str(item.get('link') or ''),
+                'snippet': sanitize_external_observation(str(item.get('snippet') or ''), 8000),
+            })
+        return {'ok': True, 'provider': str(result.get('provider') or 'browser'), 'results': cleaned}
 
     return [
         Tool('web_fetch','Fetch a web page as untrusted observation text with size/time limits. Private/local targets require explicit approval, including redirects.',{'type':'object','properties':{'url':{'type':'string'}},'required':['url']},web_fetch),

@@ -1,12 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlparse
-import re, shutil
+from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlparse
+import json, re, shutil
 from .workspace import Workspace
 from .approval import ApprovalManager
 from .security_policy import sanitize_external_observation
-from .security_utils import url_network_scope, safe_display_url, is_sensitive_path
+from .security_utils import url_network_scope, safe_display_url, is_sensitive_path, resolve_url_target, redact_secrets
 from .config import data_dir
 
 BLOCKED_HOSTS = {'169.254.169.254', 'metadata.google.internal', '100.100.100.200'}
@@ -33,6 +33,7 @@ class BrowserController:
     workspace: Workspace
     approval: ApprovalManager
     headless: bool = False
+    max_sessions: int = 5
     _sessions: dict = field(default_factory=dict, init=False, repr=False)
 
     def _playwright(self):
@@ -45,7 +46,7 @@ class BrowserController:
     def _authorize_url(self, url: str, purpose: str) -> dict:
         if not safe_browser_url(url):
             return {'ok': False, 'blocked': True, 'error': 'Only credential-free http/https URLs are allowed.'}
-        scope, reason = url_network_scope(url, resolve=True)
+        scope, reason, ips = resolve_url_target(url)
         if scope == 'invalid':
             return {'ok': False, 'blocked': True, 'error': reason or 'URL could not be validated.'}
         host = (urlparse(url).hostname or '').lower()
@@ -57,11 +58,38 @@ class BrowserController:
             )
             if not req.get('allowed'):
                 return {'ok': False, 'approval_required': True, **req}
-            return {'ok': True, 'scope': 'private', 'private_hosts': {host}}
-        return {'ok': True, 'scope': 'public', 'private_hosts': set()}
+            return {'ok': True, 'scope': 'private', 'private_hosts': {host}, 'pinned_hosts': {host: ips[0]} if ips else {}}
+        return {'ok': True, 'scope': 'public', 'private_hosts': set(), 'pinned_hosts': {host: ips[0]} if ips else {}}
+
+    def _authorize_extra_host(self, host: str, purpose: str, allow_private: bool = False) -> dict:
+        scope, reason, ips = resolve_url_target(f"https://{host}")
+        if scope == 'invalid':
+            return {'ok': False, 'blocked': True, 'error': 'Host could not be validated.'}
+        if scope == 'private' and not allow_private:
+            return {'ok': False, 'blocked': True, 'error': 'Search dependency resolved to a private/local address.'}
+        if scope == 'private':
+            req = self.approval.request(
+                f'{purpose} private/local dependency {host}',
+                f'{reason or "Dependency is not public."}',
+                'PRIVATE_NETWORK_ACCESS'
+            )
+            if not req.get('allowed'):
+                return {'ok': False, 'approval_required': True, **req}
+            return {'ok': True, 'scope': 'private', 'private_hosts': {host}, 'pinned_hosts': {host: ips[0]} if ips else {}}
+        return {'ok': True, 'scope': 'public', 'private_hosts': set(), 'pinned_hosts': {host: ips[0]} if ips else {}}
+
+    def _resolver_args(self, pinned_hosts: dict[str, str]) -> list[str]:
+        if not pinned_hosts:
+            return []
+        rules = []
+        for host, ip in pinned_hosts.items():
+            rules.append(f'MAP {host} {ip}')
+        if not rules:
+            return []
+        return [f'--host-resolver-rules={",".join(rules)}']
 
     @staticmethod
-    def _install_route_guard(context, private_hosts: set[str]):
+    def _install_route_guard(context, private_hosts: set[str], allowed_hosts: set[str] = None):
         def guard(route):
             request_url = route.request.url
             try:
@@ -71,6 +99,11 @@ class BrowserController:
                 if parsed.scheme not in {'http','https'}:
                     return route.abort()
                 host = (parsed.hostname or '').lower()
+                if allowed_hosts:
+                    if host not in allowed_hosts:
+                        return route.abort()
+                    return route.continue_()
+                
                 scope, _reason = url_network_scope(request_url, resolve=True)
                 if scope == 'invalid':
                     return route.abort()
@@ -80,6 +113,165 @@ class BrowserController:
             except Exception:
                 return route.abort()
         context.route('**/*', guard)
+
+    def search_web(self, query: str, num: int = 5) -> dict:
+        """Search the public web through an isolated Playwright browser session.
+
+        This is the zero-key fallback used by the web-search tool. The search
+        engine is intentionally scoped to a fixed public host and all result
+        text remains untrusted until the caller applies the model-facing
+        observation boundary.
+        """
+        query = (query or '').strip()
+        if not query:
+            return {'ok': False, 'error': 'Search query must not be empty.'}
+        try:
+            limit = max(1, min(int(num), 10))
+        except (TypeError, ValueError):
+            return {'ok': False, 'error': 'Search result count must be an integer.'}
+
+        search_url = f'https://html.duckduckgo.com/html/?{urlencode({"q": query})}'
+        auth = self._authorize_url(search_url, 'Search')
+        if not auth.get('ok'):
+            return auth
+
+        sync_playwright = self._playwright()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=self._resolver_args(auth.get('pinned_hosts', {})),
+                )
+                context = browser.new_context(accept_downloads=False)
+                search_host = (urlparse(search_url).hostname or '').lower()
+                self._install_route_guard(context, set(), {search_host})
+                page = context.new_page()
+                try:
+                    page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
+                    if (urlparse(page.url).hostname or '').lower() != search_host:
+                        return {
+                            'ok': False,
+                            'blocked_navigation': True,
+                            'error': 'Search provider redirected outside its approved host scope.',
+                        }
+
+                    results = []
+                    rows = page.locator('.result')
+                    for index in range(rows.count()):
+                        row = rows.nth(index)
+                        anchor = row.locator('.result__a').first
+                        if anchor.count() == 0:
+                            continue
+                        title = anchor.inner_text(timeout=5000).strip()
+                        href = (anchor.get_attribute('href') or '').strip()
+                        if not href:
+                            continue
+                        href = urljoin(search_url, href)
+                        parsed = urlparse(href)
+                        if (parsed.hostname or '').lower().endswith('duckduckgo.com'):
+                            target = parse_qs(parsed.query).get('uddg', [None])[0]
+                            if target:
+                                href = unquote(target)
+                        if not safe_browser_url(href):
+                            continue
+
+                        snippet_locator = row.locator('.result__snippet').first
+                        snippet = snippet_locator.inner_text(timeout=5000).strip() if snippet_locator.count() else ''
+                        results.append({'title': title, 'link': href, 'snippet': snippet})
+                        if len(results) >= limit:
+                            break
+
+                    if not results:
+                        return {
+                            'ok': False,
+                            'provider': 'browser-duckduckgo',
+                            'error': 'Browser search returned no parseable results; the provider may be rate-limiting requests or its page structure may have changed.',
+                        }
+                    return {'ok': True, 'provider': 'browser-duckduckgo', 'results': results}
+                finally:
+                    browser.close()
+        except Exception as exc:
+            return {
+                'ok': False,
+                'provider': 'browser-duckduckgo',
+                'error': f'Browser search failed: {redact_secrets(exc, 1000)}',
+            }
+
+    def search_images(self, query: str, num: int = 5) -> dict:
+        """Search public image results through an isolated Playwright session."""
+        query = (query or '').strip()
+        if not query:
+            return {'ok': False, 'error': 'Image search query must not be empty.'}
+        try:
+            limit = max(1, min(int(num), 10))
+        except (TypeError, ValueError):
+            return {'ok': False, 'error': 'Search result count must be an integer.'}
+
+        search_url = f'https://www.bing.com/images/search?{urlencode({"q": query})}'
+        auth = self._authorize_url(search_url, 'Image search')
+        if not auth.get('ok'):
+            return auth
+
+        sync_playwright = self._playwright()
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=self._resolver_args(auth.get('pinned_hosts', {})),
+                )
+                context = browser.new_context(accept_downloads=False)
+                search_host = (urlparse(search_url).hostname or '').lower()
+                self._install_route_guard(context, set(), {search_host})
+                page = context.new_page()
+                try:
+                    page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
+                    if (urlparse(page.url).hostname or '').lower() != search_host:
+                        return {
+                            'ok': False,
+                            'blocked_navigation': True,
+                            'error': 'Image search provider redirected outside its approved host scope.',
+                        }
+
+                    results = []
+                    rows = page.locator('a.iusc')
+                    for index in range(rows.count()):
+                        raw = rows.nth(index).get_attribute('m') or ''
+                        if not raw:
+                            continue
+                        try:
+                            metadata = json.loads(raw)
+                        except (TypeError, ValueError, json.JSONDecodeError):
+                            continue
+                        image_url = str(metadata.get('murl') or '').strip()
+                        page_url = str(metadata.get('purl') or '').strip()
+                        if not safe_browser_url(image_url) or not safe_browser_url(page_url):
+                            continue
+                        title = str(metadata.get('t') or metadata.get('desc') or '').strip()
+                        source = (urlparse(page_url).hostname or '').lower()
+                        results.append({
+                            'title': title,
+                            'imageUrl': image_url,
+                            'link': page_url,
+                            'source': source,
+                        })
+                        if len(results) >= limit:
+                            break
+
+                    if not results:
+                        return {
+                            'ok': False,
+                            'provider': 'browser-bing-images',
+                            'error': 'Browser image search returned no parseable results; the provider may be rate-limiting requests or its page structure may have changed.',
+                        }
+                    return {'ok': True, 'provider': 'browser-bing-images', 'results': results}
+                finally:
+                    browser.close()
+        except Exception as exc:
+            return {
+                'ok': False,
+                'provider': 'browser-bing-images',
+                'error': f'Browser image search failed: {redact_secrets(exc, 1000)}',
+            }
 
     def _screenshot_target(self, path: str) -> tuple[Path | None, dict | None]:
         target = self.workspace.resolve(path)
@@ -100,7 +292,7 @@ class BrowserController:
             return auth
         sync_playwright = self._playwright()
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=self.headless)
+            browser = p.chromium.launch(headless=self.headless, args=self._resolver_args(auth.get('pinned_hosts', {})))
             context = browser.new_context(accept_downloads=False)
             self._install_route_guard(context, set(auth.get('private_hosts') or set()))
             page = context.new_page()
@@ -133,7 +325,7 @@ class BrowserController:
             return {'ok': False, 'approval_required': True, **req}
         sync_playwright = self._playwright()
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=self.headless)
+            browser = p.chromium.launch(headless=self.headless, args=self._resolver_args(auth.get('pinned_hosts', {})))
             context = browser.new_context(accept_downloads=False)
             self._install_route_guard(context, set(auth.get('private_hosts') or set()))
             page = context.new_page()
@@ -153,6 +345,8 @@ class BrowserController:
                 browser.close()
 
     def start_session(self, name: str, url: str, persistent: bool = False, allowed_hosts: list[str] | None = None) -> dict:
+        if len(self._sessions) >= getattr(self, 'max_sessions', 5):
+            return {'ok': False, 'error': f'Browser session limit ({getattr(self, "max_sessions", 5)}) reached. Stop an existing session.'}
         auth = self._authorize_url(url, 'Open')
         if not auth.get('ok'):
             return auth
@@ -193,13 +387,14 @@ class BrowserController:
         sync_playwright = self._playwright(); pw = sync_playwright().start()
         browser = None
         try:
+            resolver_args = self._resolver_args(auth.get('pinned_hosts', {}))
             if persistent:
                 profile_dir = data_dir() / 'browser_profiles' / key
                 profile_dir.mkdir(parents=True, exist_ok=True)
-                context = pw.chromium.launch_persistent_context(str(profile_dir), headless=self.headless, accept_downloads=False)
+                context = pw.chromium.launch_persistent_context(str(profile_dir), headless=self.headless, accept_downloads=False, args=resolver_args)
             else:
                 profile_dir = None
-                browser = pw.chromium.launch(headless=self.headless)
+                browser = pw.chromium.launch(headless=self.headless, args=resolver_args)
                 context = browser.new_context(accept_downloads=False)
             self._install_route_guard(context, private_hosts)
             page = context.pages[0] if context.pages else context.new_page()

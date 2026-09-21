@@ -145,7 +145,8 @@ def test_connector_api_routes_use_same_manager(monkeypatch):
         def call(self,name,action,params): return {'ok':True,'name':name,'action':action,'params':params}
     fake=SimpleNamespace(connectors=SimpleNamespace(list=lambda:{'x':{}}), connector_manager=M())
     monkeypatch.setattr(api,'runtime',fake); monkeypatch.delenv('ASSISTANT_API_TOKEN',raising=False)
-    client=TestClient(api.app)
+    monkeypatch.setenv('ASSISTANT_API_TOKEN','test-token')
+    client=TestClient(api.app,headers={'Authorization':'Bearer test-token'})
     assert client.get('/connectors/x/status').json()['name']=='x'
     body=client.post('/connectors/x/call',json={'action':'pr.list','params':{'repo':'a/b'}}).json()
     assert body['action']=='pr.list' and body['params']['repo']=='a/b'

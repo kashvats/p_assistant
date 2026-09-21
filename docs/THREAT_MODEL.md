@@ -1,4 +1,4 @@
-# Threat Model — v0.9.2
+# Threat Model — through v0.17.2
 
 ## Protected assets
 
@@ -15,6 +15,37 @@
 
 The v0.6 model still applies: prompt injection, destructive shell actions, path escape, accidental DB writes, secret exfiltration, malicious downloads, security-control disabling, unauthorized API access and resource exhaustion.
 
+
+
+## v0.17.1 browser, search, API and release-supply-chain additions
+
+### Search-provider privacy and prompt injection
+
+Search text may be sent either to Serper or to a public search engine through the local Playwright browser, depending on `web_search.provider`. Search result titles/snippets/source labels are untrusted external observations and cannot be treated as instructions. `auto` mode does not require Serper: it prefers Serper only when explicitly configured and falls back to the browser.
+
+Residual risk: browser search depends on third-party HTML/DOM structure and may be rate-limited or changed. Serper queries disclose the query to that provider; browser search discloses it directly to the selected search engine.
+
+### Named browser-session egress
+
+Named sessions can carry authenticated cookies and therefore have stricter egress requirements than one-shot public snapshots. Their `allowed_hosts` list is enforced by Playwright request routing before HTTP(S) requests are sent. Private/local hosts still require separate approval.
+
+Residual risk: sites commonly depend on third-party CDNs or identity providers. Those hosts must be explicitly added to the session allowlist, trading convenience for predictable egress. Browser/Chromium vulnerabilities remain outside the application's own policy layer.
+
+### Local control API authentication
+
+The normal `organism serve` path generates or reuses a per-user bearer token when no explicit `ASSISTANT_API_TOKEN` is provided. Host/Origin checks and localhost-only binding remain in place.
+
+Residual risk: processes running as the same OS user may be able to read the token file or interact with localhost. This is not an OS-level privilege boundary. Launching the ASGI application outside the supported CLI path should explicitly configure `ASSISTANT_API_TOKEN`.
+
+### Release integrity
+
+Normal release install wrappers on Linux, macOS and Windows now require a matching `SHA256SUMS.txt` entry and pass the expected digest into the versioned installer before installation. The Debian release payload carries the wheel checksum used by its default install path.
+
+Residual risk: SHA-256 detects corruption/substitution only when the checksum manifest itself is trusted. Distribution-grade provenance should add signed manifests/packages and reproducible dependency locking/SBOM verification.
+
+### Resource lifecycle
+
+Browser sessions have a configurable live-session cap. Runtime shutdown closes sessions and SQLite connections and sleeps model resources. SQLite stores retain per-thread connection isolation while supporting deterministic cross-thread shutdown cleanup.
 
 ## v0.9.2 hardening additions
 
@@ -208,3 +239,12 @@ Retrieved experiences are labeled advisory evidence. They cannot override comman
 - Network isolation is potentially disruptive. It requires approval unless the user separately arms an automatic policy with independent high-confidence evidence. Partial isolation state is retained for recovery.
 - macOS Endpoint Security requires Apple's entitlement and code signing; an unentitled helper is not considered an active security sensor.
 - TLS/SNI context is best-effort from a configured local collector; ECH and platform restrictions can intentionally make SNI unavailable.
+
+## v0.17.2 deep-audit additions
+
+- **Parent-repository escape:** an approved subdirectory inside a larger Git repository must not inherit authority over the parent repository. Git operations reject repositories whose resolved root is outside the approved workspace.
+- **Sensitive alternate read paths:** credential-like files must remain protected even when reached through Git diff or self-improvement workflows.
+- **Fail-open local API:** absence of an environment variable must not disable authentication; a persistent per-user bearer token is created/reused by the API authority itself.
+- **Surviving shell descendants:** command timeout must terminate the process group/tree, not just the shell wrapper.
+- **DNS rebinding:** network authorization and connection must use the same validated address. Direct fetch/download connect to the authorized IP; strict Chromium contexts pin the exact validated DNS answer and do not re-resolve inside the route guard.
+- **Publisher identity:** checksums provide integrity, not independent publisher authenticity. Release signing must use an externally controlled trusted identity and is intentionally not fabricated inside the source bundle.

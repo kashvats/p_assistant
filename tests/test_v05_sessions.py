@@ -25,3 +25,30 @@ def test_session_redacts_common_secrets(tmp_path):
     s.add_message(sid,'user','password=hunter2 Authorization: Bearer abc.def token=xyz')
     text=s.recent_messages(sid,1)[0]['content']
     assert 'hunter2' not in text and 'abc.def' not in text and 'token=[REDACTED]' in text
+
+
+def test_session_search_rebuilds_fts_for_existing_database(tmp_path):
+    import sqlite3
+
+    path = tmp_path / 'legacy.sqlite3'
+    conn = sqlite3.connect(path)
+    conn.executescript('''
+      CREATE TABLE sessions(id TEXT PRIMARY KEY,title TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+      CREATE TABLE session_messages(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+      );
+      INSERT INTO sessions VALUES('legacy','Legacy','2026-01-01T00:00:00','2026-01-01T00:00:00');
+      INSERT INTO session_messages(session_id,role,content,created_at)
+      VALUES('legacy','user','historical searchable phrase','2026-01-01T00:00:00');
+    ''')
+    conn.commit(); conn.close()
+
+    store = SessionStore(path)
+    rows = store.search('historical searchable phrase')
+    assert rows and rows[0]['session_id'] == 'legacy'
+    assert store.conn.execute("SELECT 1 FROM living_assistant_migrations WHERE name='sessions_fts_v1'").fetchone()

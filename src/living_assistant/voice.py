@@ -112,8 +112,6 @@ class VoiceEngine:
         seconds: float = 6.0,
         sample_rate: int = 16000,
     ) -> dict:
-        if not self.enabled():
-            return {"ok": False, "error": "Voice is disabled for this hardware/config profile."}
         seconds = max(0.5, min(float(seconds), 60.0))
         sample_rate = max(8000, min(int(sample_rate), 48000))
         target = self.workspace.resolve(destination)
@@ -249,8 +247,6 @@ class VoiceEngine:
         return self._stt_model
 
     def transcribe(self, path: str, language: str | None = None) -> dict:
-        if not self.enabled():
-            return {"ok": False, "error": "Voice is disabled for this hardware/config profile."}
         source = self.workspace.resolve(path)
         if not source.exists():
             return {"ok": False, "error": f"Audio file not found: {source}"}

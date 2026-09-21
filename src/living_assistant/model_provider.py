@@ -182,36 +182,53 @@ class ModelManager:
                 self._model_slots[model] = sem
             return sem
 
-    def _touch_locked(self, model: str):
+    def _touch_locked(self, model: str, priority: int | None = None):
         now = datetime.now(timezone.utc).isoformat()
         item = self._resident.pop(model, {})
+        if priority is not None:
+            # Priority is sticky upward for the lifetime of a resident model. A
+            # lower-priority background use of the same model must not demote a
+            # foreground model that the Orchestrator is relying on.
+            item["priority"] = max(int(item.get("priority", 0) or 0), int(priority))
+        else:
+            item.setdefault("priority", 50)
         item.update({"model": model, "last_used": now})
         self._resident[model] = item
         self.active_model = model
 
-    def _evict_one_locked(self, exclude: set[str] | None = None) -> str | None:
+    def _evict_one_locked(self, exclude: set[str] | None = None, incoming_priority: int = 50) -> str | None:
         exclude = exclude or set()
-        for candidate in list(self._resident.keys()):
+        candidates = []
+        for lru_index, candidate in enumerate(self._resident.keys()):
             if candidate in exclude or self._in_use.get(candidate, 0) > 0:
                 continue
-            self.provider.unload(candidate)
-            self._resident.pop(candidate, None)
-            self._publish("model.evicted", model=candidate, reason="lru")
-            if self.active_model == candidate:
-                self.active_model = next(reversed(self._resident), None) if self._resident else None
-            return candidate
-        return None
+            priority = int(self._resident[candidate].get("priority", 50) or 50)
+            # A background/lower-priority request is never allowed to evict a
+            # higher-priority idle foreground model. Among eligible models, evict
+            # the lowest priority first and preserve LRU ordering as the tie-breaker.
+            if priority > int(incoming_priority):
+                continue
+            candidates.append((priority, lru_index, candidate))
+        if not candidates:
+            return None
+        priority, _index, candidate = min(candidates)
+        self.provider.unload(candidate)
+        self._resident.pop(candidate, None)
+        self._publish("model.evicted", model=candidate, reason="priority_lru", priority=priority, incoming_priority=int(incoming_priority))
+        if self.active_model == candidate:
+            self.active_model = next(reversed(self._resident), None) if self._resident else None
+        return candidate
 
-    def _prepare_locked(self, model: str):
+    def _prepare_locked(self, model: str, priority: int = 50):
         if model in self._resident:
-            self._touch_locked(model)
+            self._touch_locked(model, priority)
             return
 
         deadline = time.monotonic() + self.admission_timeout_seconds
         while True:
             # Respect the residency count first.
             if len(self._resident) >= self.max_resident_models:
-                if self._evict_one_locked(exclude={model}) is None:
+                if self._evict_one_locked(exclude={model}, incoming_priority=priority) is None:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         raise ModelError("Timed out waiting for an idle model slot.")
@@ -232,7 +249,7 @@ class ModelManager:
                     # the pre-v0.13 two-argument admission hook.
                     ok, reason = self.resources.can_admit_model(size, resident_count=len(self._resident))
                 if not ok and self._resident:
-                    if self._evict_one_locked(exclude={model}) is not None:
+                    if self._evict_one_locked(exclude={model}, incoming_priority=priority) is not None:
                         continue
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
@@ -245,16 +262,16 @@ class ModelManager:
                     basic_ok, basic_reason = self.resources.can_start_model()
                     if not basic_ok:
                         raise ModelError(basic_reason)
-            self._touch_locked(model)
+            self._touch_locked(model, priority)
             if size is not None:
                 self._resident[model]["estimated_size_bytes"] = int(size)
             self._publish("model.resident", model=model, resident_count=len(self._resident), max_resident=self.max_resident_models)
             return
 
-    def activate(self, model: str):
+    def activate(self, model: str, priority: int = 50):
         """Backwards-compatible activation without starting a generation lease."""
         with self._condition:
-            self._prepare_locked(model)
+            self._prepare_locked(model, priority=priority)
 
     def effective_keep_alive(self, requested: int | str | None = None) -> int | str:
         if self.max_resident_models > 1:
@@ -287,7 +304,7 @@ class ModelManager:
                 self._condition.wait(timeout=min(remaining, 0.25))
 
     @contextmanager
-    def lease(self, model: str, timeout: float | None = None):
+    def lease(self, model: str, timeout: float | None = None, priority: int = 50):
         timeout = self.admission_timeout_seconds if timeout is None else max(0.1, float(timeout))
         model_slot = self._model_sem(model)
         started = time.monotonic()
@@ -301,9 +318,9 @@ class ModelManager:
         try:
             self._wait_for_thermal_slot(deadline)
             with self._condition:
-                self._prepare_locked(model)
+                self._prepare_locked(model, priority=priority)
                 self._in_use[model] = self._in_use.get(model, 0) + 1
-                self._touch_locked(model)
+                self._touch_locked(model, priority)
                 self._publish("model.generation_started", model=model, in_use=self._in_use[model])
             yield self.effective_keep_alive()
         finally:
@@ -321,7 +338,7 @@ class ModelManager:
 
     def preload(self, model: str) -> dict:
         """Preload a model and retain it according to the residency policy."""
-        with self.lease(model) as keep_alive:
+        with self.lease(model, priority=10) as keep_alive:
             data = self.provider.preload(model, keep_alive=keep_alive)
         return {"ok": True, "model": model, "provider": data, "runtime": self.status(refresh=False)}
 

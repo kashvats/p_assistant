@@ -21,7 +21,7 @@ def build(tmp_path, monkeypatch=None):
     improvements = ImprovementEngine(ws, manager, ImprovementStore(tmp_path / 'improvements.sqlite3'))
     store = EvaluationStore(tmp_path / 'evaluations.sqlite3')
     cfg = {'self_improvement': {'evaluation': {
-        'enabled': True, 'benchmark_repetitions': 2, 'max_benchmark_repetitions': 4,
+        'enabled': True, 'execution_provider': 'host', 'benchmark_repetitions': 2, 'max_benchmark_repetitions': 4,
         'max_latency_regression_pct': 15, 'max_memory_regression_pct': 15,
         'command_timeout_seconds': 10, 'max_commands': 8, 'copy_max_files': 100, 'copy_max_mb': 10,
     }}}

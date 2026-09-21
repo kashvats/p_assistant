@@ -1,4 +1,4 @@
-# Living Assistant Architecture — through v0.16
+# Living Assistant Architecture — through v0.17.2
 
 ```text
                          User / Voice / API / Tray
@@ -188,6 +188,28 @@ The macOS Endpoint Security integration is split deliberately: an entitled/code-
 Security walkers use a no-link-traversal iterator that treats POSIX symlinks and Windows reparse points as boundaries. The daemon treats a long tick gap as a resume boundary, then refreshes ephemeral state before normal file/network/security processing to reduce false alerts. Per-user service installers remain unprivileged by default: Scheduled Task on Windows, systemd user service on Linux and LaunchAgent on macOS.
 
 
+
+## v0.17.1 search and browser hardening
+
+Web discovery and page automation are separate capabilities but now share one fallback path. `web_search.provider: auto` prefers Serper only when `SERPER_API_KEY` exists; otherwise it invokes the Playwright browser search adapter. A failed Serper request also falls back to the browser. Named browser sessions install a strict pre-request host guard, so their `allowed_hosts` list is an actual network allowlist rather than only a post-navigation check. Search result text is wrapped as untrusted external observation data before it reaches the model.
+
+```text
+web_search(query)
+      |
+      +-- provider=serper ------> Serper API
+      |
+      +-- provider=browser -----> Playwright search adapter
+      |
+      `-- provider=auto
+              |
+              +-- SERPER_API_KEY present -> Serper -> browser fallback on failure
+              `-- no key -----------------> browser directly
+```
+
 ## v0.17 release lifecycle
 
 Runtime environments are versioned and disposable. Persistent data is outside the runtime. Updates install and self-check a new environment, snapshot user state, run idempotent migrations, switch stable shims, and best-effort restart the existing per-user daemon service. Rollback switches code versions without silently downgrading user data.
+
+## v0.17.2 containment and DNS pinning
+
+The security boundary now treats Git repositories, API authentication, shell process trees, sensitive self-improvement targets, database aliases, desktop titles and browser DNS resolution as explicit capabilities. Browser authorization returns the validated DNS answer set and Chromium is launched with host-resolver rules derived from that exact set. Strict request routing then limits traffic to the approved host set without re-running DNS classification, closing the validation/connect DNS-rebinding window for these scoped browser contexts.

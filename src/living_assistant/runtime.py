@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from typing import Any
 from pathlib import Path
 from dotenv import load_dotenv
 from .config import load_config, project_root
@@ -88,10 +89,24 @@ class Runtime:
     security_sensors: SecuritySensorPlatform
     experiences: ExperienceEngine
     events_bus: EventBus
+    def dispatch(self, event_type: str, data: dict[str, Any] = None) -> Any:
+        return self.orchestrator.dispatch(event_type, data)
     orchestrator: Orchestrator
     model_manager: ModelManager
     desktop_controller: DesktopController
 
+
+import threading
+
+_runtime_lock = threading.Lock()
+_global_runtime = None
+
+def get_runtime(interactive: bool = False) -> Runtime:
+    global _global_runtime
+    with _runtime_lock:
+        if _global_runtime is None:
+            _global_runtime = build_runtime(interactive=interactive)
+        return _global_runtime
 
 def build_runtime(interactive: bool = True) -> Runtime:
     load_dotenv()
@@ -130,7 +145,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     guardian=SecurityGuardian(cfg,approval=approval)
     security_sensors=SecuritySensorPlatform(cfg,approval=approval,guardian=guardian)
     experiences=ExperienceEngine(config=cfg)
-    events_bus=EventBus(max_events=int(cfg.get('ui',{}).get('activity_history',500)))
+    events_bus=EventBus(max_events=int(cfg.get('ui',{}).get('activity_history',500)), path=approvals.path)
 
     ocfg=cfg.get('ollama',{})
     provider=OllamaProvider(base_url=ocfg['base_url'], allow_remote=bool(ocfg.get('allow_remote',False)), allow_insecure_remote=bool(ocfg.get('allow_insecure_remote',False))); mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
@@ -146,7 +161,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_project_tools(ws,projects)
     tools += build_group_tools(group_controller)
     tools += build_git_tools(ws,approval)
-    tools += build_web_tools(ws,cfg,approval,quarantine)
+    tools += build_web_tools(ws,cfg,approval,quarantine,browser=browser)
     tools += build_browser_tools(browser,enabled=browser_enabled)
     tools += build_database_tools(cfg)
     tools += build_personal_tools(memory,notifier)
@@ -162,8 +177,11 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_security_tools(ws,approval,guardian,security_sensors)
     if bool(cfg.get('desktop',{}).get('enabled',True)): tools += build_desktop_tools(ws,approval,desktop_controller)
 
-    specialists=SpecialistRouter(mm,pcfg['models'],keep_alive=keep_alive,max_handoffs=int(pcfg['max_handoffs']),
-                                 context_tokens=context_tokens,resource_manager=resources)
+    specialists=SpecialistRouter(
+        mm, pcfg['models'], keep_alive=keep_alive, max_handoffs=int(pcfg['max_handoffs']),
+        context_tokens=context_tokens, resource_manager=resources,
+        timeout_seconds=float(cfg.get('policy',{}).get('specialist_timeout_seconds',60)),
+    )
     orchestrator=Orchestrator(mm,pcfg['models']['orchestrator'],tools,specialists,
                               keep_alive=keep_alive,max_steps=int(pcfg['max_tool_steps']),context_tokens=context_tokens,
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),

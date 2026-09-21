@@ -1,6 +1,6 @@
 {
   "product": "Living Assistant",
-  "version": "0.17.0",
+  "version": "0.17.2",
   "installer_state_schema": 1,
   "data_schema": 1,
   "python": ">=3.11",

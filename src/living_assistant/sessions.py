@@ -22,6 +22,23 @@ CREATE TABLE IF NOT EXISTS session_messages(
   FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS session_messages_session ON session_messages(session_id,id);
+CREATE VIRTUAL TABLE IF NOT EXISTS session_messages_fts USING fts5(
+  content, content='session_messages', content_rowid='id'
+);
+CREATE TRIGGER IF NOT EXISTS session_messages_ai AFTER INSERT ON session_messages BEGIN
+  INSERT INTO session_messages_fts(rowid, content) VALUES (new.id, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS session_messages_ad AFTER DELETE ON session_messages BEGIN
+  INSERT INTO session_messages_fts(session_messages_fts, rowid, content) VALUES('delete', old.id, old.content);
+END;
+CREATE TRIGGER IF NOT EXISTS session_messages_au AFTER UPDATE ON session_messages BEGIN
+  INSERT INTO session_messages_fts(session_messages_fts, rowid, content) VALUES('delete', old.id, old.content);
+  INSERT INTO session_messages_fts(rowid, content) VALUES (new.id, new.content);
+END;
+CREATE TABLE IF NOT EXISTS living_assistant_migrations(
+  name TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
 """
 
 class SessionStore:
@@ -32,7 +49,18 @@ class SessionStore:
         self.conn=ThreadLocalSQLite(self.path)
         self.conn.row_factory=sqlite3.Row
         self.conn.execute('PRAGMA foreign_keys=ON')
-        self.conn.executescript(SCHEMA); self.conn.commit()
+        self.conn.executescript(SCHEMA)
+        # FTS triggers only index rows written after they exist. Rebuild exactly once
+        # for databases created by older releases so historical messages are searchable
+        # without paying an O(n) rebuild on every process start.
+        migration = 'sessions_fts_v1'
+        if not self.conn.execute('SELECT 1 FROM living_assistant_migrations WHERE name=?', (migration,)).fetchone():
+            self.conn.execute("INSERT INTO session_messages_fts(session_messages_fts) VALUES('rebuild')")
+            self.conn.execute(
+                'INSERT INTO living_assistant_migrations(name,applied_at) VALUES(?,?)',
+                (migration, dt.datetime.now().isoformat(timespec='seconds')),
+            )
+        self.conn.commit()
 
     def create(self,title: str | None=None, session_id: str | None=None) -> dict:
         sid=session_id or uuid.uuid4().hex[:12]
@@ -68,7 +96,22 @@ class SessionStore:
         return [dict(r) for r in rows]
 
     def search(self,query: str,limit: int=50) -> list[dict]:
-        rows=self.conn.execute('''SELECT m.id,m.session_id,m.role,m.content,m.created_at,s.title FROM session_messages m JOIN sessions s ON s.id=m.session_id WHERE m.content LIKE ? ORDER BY m.id DESC LIMIT ?''',(f'%{query}%',max(1,min(int(limit),200)))).fetchall()
+        query=(query or '').strip()
+        if not query:
+            return []
+        bounded_limit=max(1,min(int(limit),200))
+        # Quote the entire user string as an FTS phrase. Doubling quotes prevents
+        # user input from becoming FTS query syntax while still using the index.
+        fts_query='"'+query.replace('"','""')+'"'
+        rows=self.conn.execute(
+            '''SELECT m.id,m.session_id,m.role,m.content,m.created_at,s.title
+               FROM session_messages_fts f
+               JOIN session_messages m ON m.id=f.rowid
+               JOIN sessions s ON s.id=m.session_id
+               WHERE session_messages_fts MATCH ?
+               ORDER BY m.id DESC LIMIT ?''',
+            (fts_query,bounded_limit),
+        ).fetchall()
         return [dict(r) for r in rows]
 
     def delete(self,session_id: str) -> bool:

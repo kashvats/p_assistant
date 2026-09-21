@@ -116,6 +116,7 @@ def test_thread_local_sqlite_store_survives_concurrent_writes(tmp_path):
     assert len(set(ids)) == 120
     rows = store.conn.execute("SELECT COUNT(*) FROM memories WHERE kind='test'").fetchone()[0]
     assert rows == 120
+    assert store.conn.close_all() >= 1
 
 
 def test_remote_ollama_is_opt_in_and_insecure_remote_is_separate_opt_in():

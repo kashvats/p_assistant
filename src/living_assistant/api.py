@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from importlib import resources
 import json
-from .runtime import build_runtime
+from .api_auth import get_api_token
+from .runtime import get_runtime, Runtime
 from .platform_hardening import platform_status, service_status
 
 app = FastAPI(title='Living Assistant Local API', version='0.17.0')
@@ -133,14 +134,16 @@ class ModelRequest(BaseModel):
     model: str = Field(min_length=1, max_length=300)
 
 
-def _rt():
-    global runtime
-    if runtime is None: runtime = build_runtime(interactive=False)
-    return runtime
+def _rt() -> Runtime:
+    return get_runtime()
 
 def _auth(authorization: str | None):
-    token=os.environ.get('ASSISTANT_API_TOKEN','')
-    if token and (not authorization or not hmac.compare_digest(authorization, f'Bearer {token}')): raise HTTPException(status_code=401,detail='Invalid token')
+    token = get_api_token()
+    if not authorization:
+        raise HTTPException(status_code=401, detail='Missing or invalid token')
+    # Use byte comparison to prevent timing attacks and safely handle non-ASCII headers
+    if not hmac.compare_digest(authorization.encode('utf-8'), f'Bearer {token}'.encode('utf-8')):
+        raise HTTPException(status_code=401, detail='Invalid token')
 
 @app.get('/health')
 def health(): return {'ok':True,'service':'living-assistant','version':'0.17.0'}

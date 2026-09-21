@@ -125,7 +125,8 @@ def test_chat_stream_api_emits_sse(monkeypatch):
     fake = SimpleNamespace(sessions=Sessions(), orchestrator=Orch())
     monkeypatch.setattr(api, 'runtime', fake)
     monkeypatch.delenv('ASSISTANT_API_TOKEN', raising=False)
-    client = TestClient(api.app)
+    monkeypatch.setenv('ASSISTANT_API_TOKEN', 'test-token')
+    client = TestClient(api.app, headers={'Authorization':'Bearer test-token'})
     with client.stream('POST', '/chat/stream', json={'message': 'hello', 'session_id': 's1'}) as r:
         body = ''.join(r.iter_text())
     assert r.status_code == 200
@@ -146,3 +147,17 @@ def test_activity_endpoint_is_authenticated_like_other_local_data(monkeypatch):
     ok = client.get('/activity', headers={'Authorization': 'Bearer secret'})
     assert ok.status_code == 200
     assert ok.json()[0]['type'] == 'test.event'
+
+
+def test_event_bus_persists_recent_activity_across_restart(tmp_path):
+    path = tmp_path / 'activity.sqlite3'
+    first = EventBus(max_events=50, path=path)
+    a = first.publish('chat.started', session_id='abc')
+    b = first.publish('tool.completed', tool='pwd')
+
+    restarted = EventBus(max_events=50, path=path)
+    rows = restarted.recent(10)
+    assert [row['type'] for row in rows] == ['chat.started', 'tool.completed']
+    assert rows[0]['id'] == a['id'] and rows[1]['id'] == b['id']
+    c = restarted.publish('chat.completed', session_id='abc')
+    assert c['id'] > b['id']
