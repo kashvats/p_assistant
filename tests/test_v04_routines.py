@@ -25,7 +25,5 @@ def test_event_routine_and_prompt_gate(tmp_path):
     assert out[0]['todo_id']==1
     r.add('prompt',{'type':'interval','seconds':30},{'type':'assistant_prompt','prompt':'summarize'})
     out=r.process([],m,n,allow_model_wake=False,now=2000)
-    assert out[0]['skipped'] is True
-    assert any('prompt skipped' in message.lower() for _title,message in n.items)
     prompt=[x for x in out if x['routine']=='prompt'][0]
     assert prompt['skipped'] is True

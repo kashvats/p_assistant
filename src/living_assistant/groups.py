@@ -35,16 +35,10 @@ class ProjectGroupRegistry:
         data[name] = {
             'projects': clean, 'stop_reverse': bool(stop_reverse), 'dependencies': deps,
             'parallel_start': bool(parallel_start), 'max_parallel': max(1,min(int(max_parallel),16)),
-            'desired_state': 'stopped', 'updated_at': time.time(),
+            'updated_at': time.time(),
         }
         self._save(data)
         return {'name': name, **data[name]}
-
-    def set_desired_state(self, name: str, state: str) -> bool:
-        if state not in {'running','stopped'}: raise ValueError('Group state must be running or stopped.')
-        data=self._load()
-        if name not in data: return False
-        data[name]['desired_state']=state; data[name]['updated_at']=time.time(); self._save(data); return True
 
     def list(self) -> dict: return self._load()
     def get(self, name: str) -> dict | None:
@@ -93,7 +87,6 @@ class ProjectGroupController:
         action = 'Start project group %s: %s' % (group_name, '; '.join(x['project'] + '=' + x['command'] for x in planned['plan']))
         req = self.approvals.request(action, 'Starting multiple registered project services.', 'EXECUTE')
         if not req.get('allowed'): return {'ok': False, 'approval_required': True, **req}
-        if hasattr(self.groups,'set_desired_state'): self.groups.set_desired_state(group_name,'running')
         results = []
         def launch(entry):
             p = self.projects.get(entry['project'])
@@ -118,23 +111,6 @@ class ProjectGroupController:
                 break
         return {'ok': all(x.get('ok') for x in results), 'group': group_name, 'results': results}
 
-    def health(self, group_name: str) -> dict:
-        group=self.groups.get(group_name)
-        if not group: return {'ok':False,'error':'Unknown group.'}
-        desired=group.get('desired_state','stopped')
-        if desired!='running':
-            return {'ok':True,'group':group_name,'monitored':False,'healthy':True,'desired_state':desired,'projects':[]}
-        active=self.processes.list(); projects=[]
-        for project in group['projects']:
-            items=[item for item in active if item.get('project')==project and item.get('desired_state')=='running']
-            running=any(bool(item.get('running')) for item in items)
-            projects.append({'project':project,'running':running,'process_ids':[item.get('id') for item in items]})
-        healthy=all(item['running'] for item in projects) if projects else True
-        return {'ok':True,'group':group_name,'monitored':True,'healthy':healthy,'desired_state':'running','projects':projects}
-
-    def health_all(self) -> list[dict]:
-        return [self.health(name) for name in self.groups.list()]
-
     def stop(self, group_name: str) -> dict:
         group = self.groups.get(group_name)
         if not group: return {'ok': False, 'error': 'Unknown group.'}
@@ -146,5 +122,4 @@ class ProjectGroupController:
             for item in active:
                 if item.get('project') == project and item.get('running'):
                     results.append({'project': project, 'process_id': item['id'], **self.processes.stop(item['id'])})
-        if hasattr(self.groups,'set_desired_state'): self.groups.set_desired_state(group_name,'stopped')
         return {'ok': all(x.get('ok') for x in results) if results else True, 'group': group_name, 'results': results}

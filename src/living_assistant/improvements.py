@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-import sqlite3, hashlib, difflib, json, datetime as dt, uuid, ast
+import sqlite3, hashlib, difflib, json, datetime as dt, uuid
 from .config import data_dir
 from .sqlite_utils import ThreadLocalSQLite
 from .workspace import Workspace
@@ -123,57 +123,6 @@ class ImprovementEngine:
         self.workspace = workspace
         self.approval = approval
         self.store = store
-
-    def context(self, target_path: str, max_files: int = 8, max_chars_per_file: int = 4000) -> dict:
-        target=self.workspace.resolve(target_path)
-        if is_protected_core_path(target) or is_sensitive_path(target):
-            return {'ok':False,'blocked':True,'error':'Cross-file self-improvement context is unavailable for protected or sensitive targets.'}
-        if not target.exists() or not target.is_file():
-            return {'ok':False,'error':'Target file does not exist.'}
-        max_files=max(1,min(int(max_files),20)); max_chars_per_file=max(500,min(int(max_chars_per_file),12000))
-        target_text=target.read_text(encoding='utf-8',errors='replace')
-        imports=[]; symbols=[]
-        if target.suffix.lower()=='.py':
-            try:
-                tree=ast.parse(target_text)
-                for node in tree.body:
-                    if isinstance(node,ast.Import): imports.extend(alias.name for alias in node.names)
-                    elif isinstance(node,ast.ImportFrom) and node.module: imports.append(node.module)
-                    elif isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)): symbols.append(node.name)
-            except SyntaxError:
-                pass
-        roots=[root for root in self.workspace.roots if target == root or root in target.parents]
-        root=max(roots,key=lambda x:len(x.parts)) if roots else self.workspace.roots[0]
-        module_name=target.stem
-        needles={module_name,*symbols}
-        related=[]
-        candidates=0
-        for path in root.rglob('*'):
-            if len(related)>=max_files or candidates>=1500: break
-            if not path.is_file() or path==target or is_sensitive_path(path): continue
-            if path.stat().st_size>750_000: continue
-            if target.suffix and path.suffix.lower()!=target.suffix.lower(): continue
-            candidates+=1
-            try: text=path.read_text(encoding='utf-8',errors='ignore')
-            except Exception: continue
-            score=0; reasons=[]
-            if path.parent==target.parent:
-                score+=1; reasons.append('same_directory')
-            hits=[needle for needle in needles if needle and needle in text]
-            if hits:
-                score+=3+min(len(hits),3); reasons.append('references_target_symbols')
-            import_hits=[name for name in imports if name and (name in text or path.stem==name.rsplit('.',1)[-1])]
-            if import_hits:
-                score+=2; reasons.append('related_import')
-            if score<=0: continue
-            related.append({'path':str(path),'score':score,'reasons':reasons,'content':text[:max_chars_per_file]})
-        related.sort(key=lambda x:(-x['score'],x['path']))
-        return {
-            'ok':True,'target':str(target),'target_content':target_text[:max_chars_per_file],
-            'imports':sorted(set(imports))[:50],'symbols':symbols[:100],
-            'related_files':related[:max_files],
-            'bounded':True,
-        }
 
     def propose(self, target_path: str, new_content: str, title: str, rationale: str, tests: list[str] | None = None) -> dict:
         if len(new_content) > MAX_PROPOSAL_CHARS:

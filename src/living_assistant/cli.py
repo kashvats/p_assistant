@@ -172,14 +172,14 @@ def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                   routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences, group_controller=rt.group_controller).run_forever()
+                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                                 routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences, group_controller=rt.group_controller).tick())
+                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
