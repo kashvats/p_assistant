@@ -1,13 +1,35 @@
+onboarding:
+  completed: false
+
 profile: auto
 workspace_roots:
   - ./workspace
 
+notifications:
+  approval_sound: true
+
 ui:
   activity_history: 500
+
+model_usage:
+  # Store counters/timing only; prompts and responses are never persisted here.
+  retention_days: 365
 
 ollama:
   base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
   keep_alive_seconds: 45
+
+airllm:
+  # Optional low-VRAM layer-streaming provider. Prefix configured model names
+  # with "airllm:" (for example airllm:Qwen/Qwen3-32B) to route them here.
+  enabled: false
+  compression: null  # null | 4bit | 8bit
+  layer_shards_saving_path: ${AIRLLM_SHARDS_PATH:}
+  hf_token_env: HF_TOKEN
+  prefetching: true
+  delete_original: false
+  max_input_tokens: 8192
+  max_new_tokens: 512
 
 model_runtime:
   # auto keeps one model on constrained machines and permits 2-3 resident
@@ -114,6 +136,17 @@ browser:
   lite_enabled: false
   headless: false
 
+# Search is independent from page browsing. SearXNG is preferred in auto mode
+# when a self-hosted endpoint is configured.
+web_search:
+  provider: auto  # auto | searxng | serper | browser | disabled
+  searxng_url: ${SEARXNG_BASE_URL:}
+  searxng_timeout_seconds: 10
+  max_results: 8
+  max_calls_per_minute: 20
+  max_calls_per_day: 1000
+  serper_timeout_seconds: 15
+
 downloads:
   quarantine_risky_files: true
   quarantine_all_non_images: false
@@ -183,6 +216,13 @@ self_improvement:
     copy_max_files: 8000
     copy_max_mb: 500
 
+  repair:
+    enabled: true
+    max_cycles: 3
+    max_cycles_limit: 5
+    max_context_chars: 24000
+    authorization_ttl_seconds: 7200
+
   sandbox:
     runtime: auto
     lite_enabled: false
@@ -225,9 +265,46 @@ sessions:
   max_context_messages: 24
   redact_secrets: true
 
+run_history:
+  retention_days: 365
+
+knowledge_gaps:
+  lookback_days: 90
+  max_episodes: 2000
+  similarity_threshold: 0.5
+
 connectors:
   enabled: true
   use_keyring: true
+  refresh_interval_seconds: 60
+  refresh_window_seconds: 300
+
+peers:
+  enabled: false
+  advertise: false
+  accept_delegation: false
+  advertise_url: ""
+  name: ""
+  trusted_peer_ids: []
+  token_env: ASSISTANT_PEER_TOKEN
+  verify_tls: true
+  allowed_roles: [general, coder, researcher, planner]
+  peer_ttl_seconds: 180
+  request_timeout_seconds: 90
+  max_task_chars: 12000
+  max_context_chars: 20000
+
+mobile_bridge:
+  enabled: false
+  connector: ""
+  allowed_chat_ids: []
+  allowed_user_ids: []
+  private_only: true
+  poll_interval_seconds: 3
+  max_messages_per_poll: 10
+  max_messages_per_minute: 10
+  max_message_chars: 8000
+  max_response_chars: 3900
 
 security_guardian:
   enabled: true
@@ -276,3 +353,17 @@ security_sensors:
     auto_enabled: false
     auto_armed: false
     auto_required_signals: [mass_file_change, known_malicious_hash]
+
+
+code_index:
+  dimensions: 512
+  max_files: 2000
+  max_file_bytes: 512000
+  max_chunk_chars: 3500
+  max_chunks: 12000
+
+
+workspace_snapshots:
+  max_files: 50000
+  max_total_bytes: 2000000000
+  retention_per_root: 30

@@ -41,8 +41,15 @@ db = [
   "pymysql>=1.1,<2",
   "pymongo>=4.8,<5",
 ]
+airllm = [
+  "airllm>=4,<5",
+]
+peers = [
+  "zeroconf>=0.136,<1",
+]
 dev = [
   "pytest>=8,<10",
+  "ruff>=0.8,<1",
 ]
 
 [project.scripts]
@@ -51,7 +58,7 @@ organism = "living_assistant.cli:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 [tool.setuptools.package-data]
-living_assistant = ["default_config.yaml", "default_skills.json", "webui/*.html"]
+living_assistant = ["default_config.yaml", "default_skills.json", "webui/*.html", "webui/src/*.js", "webui/src/*.css", "webui/dist/*.css", "webui/vendor/*.js", "webui/vendor/*.css", "webui/vendor/*.md", "webui/*.json", "webui/*.js", "webui/*.txt", "webui/*.cjs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

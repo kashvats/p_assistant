@@ -64,3 +64,19 @@ def test_group_dependency_cycle_is_rejected_by_plan(tmp_path):
     result=ctl.plan('stack')
     assert result['ok'] is False
     assert 'cycle' in result['error'].lower()
+
+def test_group_health_tracks_expected_running_members(tmp_path):
+    groups=ProjectGroupRegistry(tmp_path/'groups.json')
+    groups.add('stack',['db','api'])
+    class HealthProcesses(Processes):
+        def list(self):
+            return [
+                {'id':'db1','project':'db','desired_state':'running','running':True},
+                {'id':'api1','project':'api','desired_state':'running','running':False},
+            ]
+    ctl=ProjectGroupController(groups,Projects(),HealthProcesses(),Approval())
+    assert ctl.health('stack')['monitored'] is False
+    groups.set_desired_state('stack','running')
+    status=ctl.health('stack')
+    assert status['monitored'] is True and status['healthy'] is False
+    assert {p['project']:p['running'] for p in status['projects']}=={'db':True,'api':False}

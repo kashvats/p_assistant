@@ -1,10 +1,10 @@
 from __future__ import annotations
 import psutil, platform, shutil, subprocess, socket
 from .base import Tool
-from ..approval import ApprovalManager
-from ..workspace import Workspace
-from ..security_guardian import SecurityGuardian, inspect_process, file_signature, antivirus_posture, process_triage, network_activity_summary
-from ..security_sensors import SecuritySensorPlatform
+from living_assistant.core.approval import ApprovalManager
+from living_assistant.core.workspace import Workspace
+from living_assistant.security.security_guardian import SecurityGuardian, inspect_process, file_signature, antivirus_posture, process_triage, network_activity_summary
+from living_assistant.security.security_sensors import SecuritySensorPlatform
 
 
 def _conn_name(c):

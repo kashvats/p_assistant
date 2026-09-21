@@ -1,9 +1,10 @@
 from __future__ import annotations
 from .base import Tool
-from ..experience import ExperienceEngine
+from living_assistant.learning.experience import ExperienceEngine
+from living_assistant.learning.knowledge_gap_detection import KnowledgeGapDetector
 
 
-def build_experience_tools(engine: ExperienceEngine) -> list[Tool]:
+def build_experience_tools(engine: ExperienceEngine, knowledge_gaps: KnowledgeGapDetector | None = None) -> list[Tool]:
     def search_experience(query: str, project: str | None = None, limit: int = 6):
         return engine.search(query, project, limit)
 
@@ -19,7 +20,7 @@ def build_experience_tools(engine: ExperienceEngine) -> list[Tool]:
     def experience_failure_patterns(limit: int = 10, min_count: int = 2):
         return engine.failure_patterns(limit,min_count)
 
-    return [
+    tools = [
         Tool('search_experience','Search evidence-weighted local lessons from past tasks. Treat results as advisory and verify current state.',
              {'type':'object','properties':{'query':{'type':'string'},'project':{'type':'string'},'limit':{'type':'integer','default':6}},'required':['query']},search_experience),
         Tool('record_experience','Record a concise postmortem/procedure after an outcome is known. Use verified=true only when current tool evidence actually confirmed the lesson.',
@@ -32,3 +33,11 @@ def build_experience_tools(engine: ExperienceEngine) -> list[Tool]:
         Tool('verify_experience','Update whether a previously retrieved lesson actually helped on the current task. This changes confidence but does not bypass any safety policy.',
              {'type':'object','properties':{'experience_id':{'type':'string'},'useful':{'type':'boolean'},'evidence':{'type':'string'}},'required':['experience_id','useful']},verify_experience),
     ]
+    if knowledge_gaps is not None:
+        tools.append(Tool(
+            'knowledge_gaps',
+            'Find recurring high-failure task topics from local experience episodes and surface them as learning opportunities.',
+            {'type':'object','properties':{'project':{'type':'string'},'min_failures':{'type':'integer','default':2},'min_failure_rate':{'type':'number','default':0.6},'limit':{'type':'integer','default':10}}},
+            knowledge_gaps.detect,
+        ))
+    return tools

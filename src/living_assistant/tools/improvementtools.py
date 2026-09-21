@@ -1,18 +1,25 @@
 from __future__ import annotations
 from .base import Tool
-from ..improvements import ImprovementEngine
-from ..evaluation import EvaluationEngine
-from ..canary import CanaryEngine
+from living_assistant.learning.improvements import ImprovementEngine
+from living_assistant.learning.evaluation import EvaluationEngine
+from living_assistant.learning.canary import CanaryEngine
+from living_assistant.learning.repair_loop import AutonomousRepairLoop
 
 
-def build_improvement_tools(engine: ImprovementEngine, evaluations: EvaluationEngine | None = None, canaries: CanaryEngine | None = None) -> list[Tool]:
+def build_improvement_tools(engine: ImprovementEngine, evaluations: EvaluationEngine | None = None, canaries: CanaryEngine | None = None, repairs: AutonomousRepairLoop | None = None) -> list[Tool]:
     def propose_improvement(target_path: str, new_content: str, title: str, rationale: str, tests: list[str] | None = None):
         return engine.propose(target_path, new_content, title, rationale, tests)
 
     tools = [
         Tool(
+            'improvement_context',
+            'Inspect bounded cross-file context (imports, nearby modules, callers/references) before drafting an improvement. Sensitive/protected files are excluded.',
+            {'type':'object','properties':{'target_path':{'type':'string'},'max_files':{'type':'integer','default':8}},'required':['target_path']},
+            engine.context,
+        ),
+        Tool(
             'propose_improvement',
-            'Create a reviewable exact-file improvement proposal. This does not modify the target file.',
+            'Create a reviewable AST-safe improvement proposal (Python symbol deletion is blocked). Before generating new_content, inspect improvement_context for imports/callers so the patch is cross-file aware. This does not modify the target file.',
             {'type':'object','properties':{'target_path':{'type':'string'},'new_content':{'type':'string'},'title':{'type':'string'},'rationale':{'type':'string'},'tests':{'type':'array','items':{'type':'string'}}},'required':['target_path','new_content','title','rationale']},
             propose_improvement,
         ),
@@ -68,6 +75,15 @@ def build_improvement_tools(engine: ImprovementEngine, evaluations: EvaluationEn
                 evaluations.promote,
             ),
         ])
+    if repairs is not None:
+        tools.append(
+            Tool(
+                'repair_failed_improvement',
+                'Run a bounded, approval-gated autonomous repair loop for a failed improvement evaluation. Creates and evaluates new pending candidates only; never auto-applies or auto-promotes.',
+                {'type':'object','properties':{'failed_evaluation_id':{'type':'string'},'max_cycles':{'type':'integer','minimum':1,'maximum':5}},'required':['failed_evaluation_id']},
+                repairs.run,
+            )
+        )
     if canaries is not None:
         tools.extend([
             Tool(

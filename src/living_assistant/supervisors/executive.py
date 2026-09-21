@@ -1,8 +1,8 @@
 from __future__ import annotations
 import json
 from contextlib import nullcontext
-from ..model_provider import ModelManager
-from ..models import ExecutivePlan
+from living_assistant.core.model_provider import ModelManager
+from living_assistant.core.models import ExecutivePlan
 # from ..security_utils import redact_secrets
 
 EXECUTIVE_PROMPT = """

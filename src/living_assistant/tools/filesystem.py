@@ -2,10 +2,14 @@ from __future__ import annotations
 from pathlib import Path
 import difflib
 import re
+from typing import TYPE_CHECKING
 from .base import Tool
-from ..workspace import Workspace
-from ..approval import ApprovalManager
-from ..security_utils import is_sensitive_path
+from living_assistant.core.workspace import Workspace
+from living_assistant.core.approval import ApprovalManager
+from living_assistant.security.security_utils import is_sensitive_path
+
+if TYPE_CHECKING:
+    from living_assistant.system.workspace_snapshots import WorkspaceSnapshotManager
 
 
 def _preview(path: Path, old: str, new: str, max_chars: int = 20000) -> str:
@@ -32,7 +36,8 @@ def _approval_for_sensitive(approval: ApprovalManager | None, path: Path, action
 
 
 def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | None = None,
-                           require_write_approval: bool = False) -> list[Tool]:
+                           require_write_approval: bool = False,
+                           snapshot_manager: "WorkspaceSnapshotManager | None" = None) -> list[Tool]:
     def list_files(path: str = '.'):
         return workspace.list(path)
 
@@ -67,9 +72,16 @@ def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | Non
             req = approval.request(f'Write file {p}', f'Workspace file change. Diff:\n{diff[:5000]}', 'WRITE_WORKSPACE')
             if not req.get('allowed'):
                 return {'ok': False, 'approval_required': True, **req, 'diff': diff}
+        snapshot_id = None
+        if snapshot_manager is not None:
+            try:
+                snapshot_id = snapshot_manager.create_for_path(p, 'AI workspace file write')['snapshot_id']
+            except Exception as exc:
+                return {'ok': False, 'blocked': True, 'error': f'Pre-change workspace snapshot failed: {exc}'}
         result = workspace.write_text(path, content)
         return {'ok': True, 'path': result, 'bytes': len(content.encode('utf-8')),
-                'diff': '[REDACTED: sensitive file diff]' if sensitive else diff, 'sensitive': sensitive}
+                'diff': '[REDACTED: sensitive file diff]' if sensitive else diff, 'sensitive': sensitive,
+                'snapshot_id': snapshot_id}
 
     def search_files(query: str, path: str = '.', limit: int = 50, regex: bool = False,
                      extensions: list[str] | None = None):

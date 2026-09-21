@@ -2,9 +2,9 @@ from __future__ import annotations
 from urllib.parse import urlparse, unquote
 import os, re, sqlite3
 from .base import Tool
-from ..security_policy import is_read_only_sql
-from ..security_utils import redact_secrets
-from ..approval import ApprovalManager
+from living_assistant.security.security_policy import is_read_only_sql
+from living_assistant.security.security_utils import redact_secrets
+from living_assistant.core.approval import ApprovalManager
 
 
 def _dsn(alias: str) -> str:

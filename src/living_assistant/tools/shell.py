@@ -2,13 +2,18 @@ from __future__ import annotations
 import subprocess, os, time, uuid, json, platform, threading, tempfile
 import psutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 from .base import Tool
-from ..security_policy import classify_command
-from ..approval import ApprovalManager
-from ..workspace import Workspace
-from ..config import data_dir
-from ..storage_utils import atomic_write_json
-from ..security_utils import is_loopback_http_url, redact_secrets
+from living_assistant.security.security_policy import classify_command
+from living_assistant.security.safe_commands import explain_command
+from living_assistant.core.approval import ApprovalManager
+from living_assistant.core.workspace import Workspace
+from living_assistant.core.config import data_dir
+from living_assistant.core.storage_utils import atomic_write_json
+from living_assistant.security.security_utils import is_loopback_http_url, redact_secrets
+
+if TYPE_CHECKING:
+    from living_assistant.system.workspace_snapshots import WorkspaceSnapshotManager
 
 class ProcessRegistry:
     def __init__(self, meta_path: Path | None = None):
@@ -175,19 +180,67 @@ class ProcessRegistry:
             return {"ok": False, "error": str(e)}
 
 
-def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: dict, registry: ProcessRegistry) -> list[Tool]:
+def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: dict, registry: ProcessRegistry, event_bus=None, snapshot_manager: "WorkspaceSnapshotManager | None" = None) -> list[Tool]:
     timeout = int(config.get("policy", {}).get("command_timeout_seconds", 120))
     require = bool(config.get("policy", {}).get("require_execute_approval", True))
+
+    def publish_preview(command: str, cwd: str, explanation: dict) -> None:
+        if event_bus is None:
+            return
+        try:
+            event_bus.publish(
+                'shell.command_preview',
+                command=redact_secrets(command, 500),
+                cwd=str(cwd),
+                explanation=explanation.get('summary'),
+                risk=explanation.get('risk'),
+                risk_level=explanation.get('risk_level'),
+                requires_approval=bool(explanation.get('requires_approval')),
+            )
+        except Exception:
+            # Human-facing telemetry must never change command policy/execution.
+            pass
+
+    def approval_reason(decision, explanation: dict) -> str:
+        return (
+            f"{decision.reason} "
+            f"Explanation: {explanation['summary']} "
+            f"Risk level: {str(explanation['risk_level']).upper()} ({explanation['risk']})."
+        )
+
+    def snapshot_before_mutation(path: str | Path, reason: str) -> tuple[str | None, dict | None]:
+        if snapshot_manager is None:
+            return None, None
+        try:
+            result = snapshot_manager.create_for_path(path, reason)
+            return result.get('snapshot_id'), None
+        except Exception as exc:
+            return None, {'ok': False, 'blocked': True, 'error': f'Pre-change workspace snapshot failed: {exc}'}
 
     def run_command(command: str, cwd: str = ".", timeout_seconds: int | None = None):
         cwdp = workspace.resolve(cwd)
         decision = classify_command(command, require)
+        explanation = explain_command(command, decision).to_dict()
+        publish_preview(command, str(cwdp), explanation)
         if not decision.allowed:
-            return {"ok": False, "blocked": True, "reason": decision.reason, "risk": decision.risk.value}
+            return {
+                "ok": False, "blocked": True, "reason": decision.reason,
+                "risk": decision.risk.value, "explanation": explanation,
+            }
         if decision.requires_approval:
-            req = approval.request(command, decision.reason, decision.risk.value)
+            req = approval.request(
+                command, approval_reason(decision, explanation), decision.risk.value
+            )
             if not req.get("allowed"):
-                return {"ok": False, "approval_required": True, **req, "risk": decision.risk.value}
+                return {
+                    "ok": False, "approval_required": True, **req,
+                    "risk": decision.risk.value, "explanation": explanation,
+                }
+        snapshot_id = None
+        if decision.risk.value != 'READ':
+            snapshot_id, snapshot_error = snapshot_before_mutation(cwdp, 'AI shell command execution')
+            if snapshot_error:
+                return {**snapshot_error, 'risk': decision.risk.value, 'explanation': explanation}
         stdout_limit = 20000
         stderr_limit = 20000
         with tempfile.TemporaryFile(mode='w+b') as stdout_file, tempfile.TemporaryFile(mode='w+b') as stderr_file:
@@ -221,6 +274,9 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
                 "output_truncated": bool(stdout_truncated or stderr_truncated),
                 "stdout_truncated": stdout_truncated,
                 "stderr_truncated": stderr_truncated,
+                "risk": decision.risk.value,
+                "explanation": explanation,
+                "snapshot_id": snapshot_id,
             }
             if timed_out:
                 result["timeout"] = True
@@ -232,12 +288,31 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
         if health_url and not is_loopback_http_url(health_url):
             return {"ok": False, "blocked": True, "error": "Managed-process health checks are restricted to loopback http/https URLs."}
         decision = classify_command(command, True)
+        explanation = explain_command(command, decision).to_dict()
+        publish_preview(command, str(cwdp), explanation)
         if not decision.allowed:
-            return {"ok": False, "blocked": True, "reason": decision.reason}
-        req = approval.request(command, "Starting a long-running local project/process.", "EXECUTE")
+            return {
+                "ok": False, "blocked": True, "reason": decision.reason,
+                "risk": decision.risk.value, "explanation": explanation,
+            }
+        req = approval.request(
+            command,
+            "Starting a long-running local project/process. " + approval_reason(decision, explanation),
+            decision.risk.value,
+        )
         if not req.get("allowed"):
-            return {"ok": False, "approval_required": True, **req}
-        return registry.start(command, str(cwdp), name, project, auto_restart, max_restarts, health_url)
+            return {
+                "ok": False, "approval_required": True, **req,
+                "risk": decision.risk.value, "explanation": explanation,
+            }
+        snapshot_id, snapshot_error = snapshot_before_mutation(cwdp, 'AI managed process start')
+        if snapshot_error:
+            return {**snapshot_error, 'risk': decision.risk.value, 'explanation': explanation}
+        result = registry.start(command, str(cwdp), name, project, auto_restart, max_restarts, health_url)
+        result.setdefault("snapshot_id", snapshot_id)
+        result.setdefault("risk", decision.risk.value)
+        result.setdefault("explanation", explanation)
+        return result
 
     def list_processes(): return registry.list()
     def stop_process(process_id: str): return registry.stop(process_id)
@@ -246,13 +321,35 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
     def restart_process(process_id: str):
         item = registry.get(process_id)
         if not item: return {"ok": False, "error": "Unknown process id"}
-        req = approval.request(item["command"], "Restarting a previously managed process.", "EXECUTE")
+        decision = classify_command(item["command"], True)
+        explanation = explain_command(item["command"], decision).to_dict()
+        publish_preview(item["command"], item.get("cwd") or ".", explanation)
+        if not decision.allowed:
+            return {
+                "ok": False, "blocked": True, "reason": decision.reason,
+                "risk": decision.risk.value, "explanation": explanation,
+            }
+        req = approval.request(
+            item["command"],
+            "Restarting a previously managed process. " + approval_reason(decision, explanation),
+            decision.risk.value,
+        )
         if not req.get("allowed"):
-            return {"ok": False, "approval_required": True, **req}
-        return registry.restart(process_id, automatic=False)
+            return {
+                "ok": False, "approval_required": True, **req,
+                "risk": decision.risk.value, "explanation": explanation,
+            }
+        snapshot_id, snapshot_error = snapshot_before_mutation(item.get('cwd') or '.', 'AI managed process restart')
+        if snapshot_error:
+            return {**snapshot_error, 'risk': decision.risk.value, 'explanation': explanation}
+        result = registry.restart(process_id, automatic=False)
+        result.setdefault("snapshot_id", snapshot_id)
+        result.setdefault("risk", decision.risk.value)
+        result.setdefault("explanation", explanation)
+        return result
 
     return [
-        Tool("run_command", "Run a bounded shell command inside the approved workspace. Policy may block or require approval.",
+        Tool("run_command", "Explain and risk-classify a bounded shell command before running it inside the approved workspace. Policy may block or require approval.",
              {"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string","default":"."},"timeout_seconds":{"type":"integer"}},"required":["command"]}, run_command),
         Tool("start_process", "Start and supervise a long-running local process. When starting a registered project, copy its auto_restart/max_restarts/health_url settings.",
              {"type":"object","properties":{"command":{"type":"string"},"cwd":{"type":"string","default":"."},"name":{"type":"string"},"project":{"type":"string"},"auto_restart":{"type":"boolean","default":False},"max_restarts":{"type":"integer","default":3},"health_url":{"type":"string"}},"required":["command"]}, start_process),

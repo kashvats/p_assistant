@@ -9,7 +9,7 @@ if (Test-Path $ReleaseDaemon) {
 } else { throw "No installed Living Assistant runtime found. Run install_release_windows.ps1 or bootstrap.ps1 first." }
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
-$Settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$Settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName "LivingAssistant" -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Force | Out-Null
 Start-ScheduledTask -TaskName "LivingAssistant"
 Get-ScheduledTask -TaskName "LivingAssistant" | Select-Object TaskName,State

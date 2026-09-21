@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-400: #8ba8ff;
+  --color-brand-500: #708dff;
+  --color-brand-600: #5b73df;
+}
+
+@layer base {
+  html { background: #020617; }
+  body { min-height: 100vh; }
+  button, input, textarea { font: inherit; }
+}

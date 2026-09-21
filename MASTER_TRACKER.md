@@ -46,29 +46,29 @@
 
 ## 🟡 INCOMPLETE FEATURES (Started But Half-Built)
 
-- [ ] **INCOMPLETE-01** · `improvements.py` · Self-improvement reads only the target file when proposing a patch. No cross-file context. Produces naive patches that break imports from other modules.
-- [ ] **INCOMPLETE-02** · `groups.py` · Group project management exists but has no health monitoring. If one project in a group crashes, the rest keep running silently.
-- [ ] **INCOMPLETE-03** · `routines.py` · `assistant_prompt` routine type silently skips when `allow_model_wake=False`. No notification is sent that the routine was skipped.
-- [ ] **INCOMPLETE-04** · `connector_oauth.py` · Refresh token logic exists for Google and Microsoft but has no automatic background refresh. Tokens expire mid-session silently.
-- [ ] **INCOMPLETE-05** · `security_sensors.py` · macOS Endpoint Security integration is present but Windows Event Log ingestion is not wired into the daemon loop.
-- [ ] **INCOMPLETE-06** · `resource_manager.py` · Model eviction is LRU only. No priority-based eviction — a low-priority background model can evict the active foreground Orchestrator model.
-- [ ] **INCOMPLETE-07** · `watchers.py` · File system watcher events have no debouncing. A build tool writing 100 files triggers 100 separate daemon events and can flood the system.
-- [ ] **INCOMPLETE-08** · `briefing.py` · Morning/evening briefings pull no data from the security guardian or experience engine. Purely calendar + todo based.
-- [ ] **INCOMPLETE-09** · `personal_state.py` · Focus mode exists but does not suppress desktop vision or browser activity during quiet hours.
-- [ ] **INCOMPLETE-10** · `daemon.py` · No crash recovery. If the daemon crashes it stays dead. No auto-restart, no crash report, no user notification.
-- [ ] **INCOMPLETE-11** · `release_manager.py` · Rollback exists in code but there is no simple CLI command to trigger it. User has no easy recovery path.
+- [x] **INCOMPLETE-01** · `improvements.py` · Self-improvement reads only the target file when proposing a patch. No cross-file context. Produces naive patches that break imports from other modules.
+- [x] **INCOMPLETE-02** · `groups.py` · Group project management exists but has no health monitoring. If one project in a group crashes, the rest keep running silently.
+- [x] **INCOMPLETE-03** · `routines.py` · `assistant_prompt` routine type silently skips when `allow_model_wake=False`. No notification is sent that the routine was skipped.
+- [x] **INCOMPLETE-04** · `connector_oauth.py` · Refresh token logic exists for Google and Microsoft but has no automatic background refresh. Tokens expire mid-session silently.
+- [x] **INCOMPLETE-05** · `security_sensors.py` · macOS Endpoint Security integration is present but Windows Event Log ingestion is not wired into the daemon loop.
+- [x] **INCOMPLETE-06** · `resource_manager.py` · Model eviction is LRU only. No priority-based eviction — a low-priority background model can evict the active foreground Orchestrator model.
+- [x] **INCOMPLETE-07** · `watchers.py` · File system watcher events have no debouncing. A build tool writing 100 files triggers 100 separate daemon events and can flood the system.
+- [x] **INCOMPLETE-08** · `briefing.py` · Morning/evening briefings pull no data from the security guardian or experience engine. Purely calendar + todo based.
+- [x] **INCOMPLETE-09** · `personal_state.py` · Focus mode exists but does not suppress desktop vision or browser activity during quiet hours.
+- [x] **INCOMPLETE-10** · `daemon.py` · No crash recovery. If the daemon crashes it stays dead. No auto-restart, no crash report, no user notification.
+- [x] **INCOMPLETE-11** · `release_manager.py` · Rollback exists in code but there is no simple CLI command to trigger it. User has no easy recovery path.
 
 ---
 
 ## 🔵 STRUCTURAL / ARCHITECTURAL DEBT
 
-- [ ] **ARCH-01** · `src/living_assistant/` has 50+ flat files. Needs restructuring into `core/`, `agents/`, `security/`, `learning/`, `connectors/`, `desktop/`, `system/`.
-- [ ] **ARCH-02** · `api.py` (33KB) — all route handlers are one-liner minified functions. Run `ruff format` and split into domain routers.
-- [ ] **ARCH-03** · `cli.py` (58KB) — too large. Split into `cli/commands.py` and `cli/helpers.py`.
-- [ ] **ARCH-04** · `evaluation.py` (50KB) — mixes store, engine, measurement. Split into `eval_engine.py`, `eval_store.py`, `eval_measure.py`.
-- [ ] **ARCH-05** · `security_sensors.py` (54KB) — mixes Windows and macOS platform code. Split into `sensors_windows.py`, `sensors_macos.py`.
-- [ ] **ARCH-06** · All stores call `data_dir()` directly. No dependency injection → hard to test with temp paths.
-- [ ] **ARCH-07** · `runtime.py` builds all tools inline. Needs a `ToolRegistry` pattern as tool count grows.
+- [x] **ARCH-01** · `src/living_assistant/` has 50+ flat files. Needs restructuring into `core/`, `agents/`, `security/`, `learning/`, `connectors/`, `desktop/`, `system/`.
+- [x] **ARCH-02** · `api.py` (33KB) — all route handlers are one-liner minified functions. Run `ruff format` and split into domain routers.
+- [x] **ARCH-03** · `cli.py` (58KB) — split into compatibility-preserving `cli/commands.py` and `cli/helpers.py`; installed `living_assistant.cli:app` entry point verified.
+- [x] **ARCH-04** · `evaluation.py` (50KB) — split into `eval_engine.py`, `eval_store.py`, and `eval_measure.py` behind the existing compatibility facade.
+- [x] **ARCH-05** · `security_sensors.py` (54KB) — Windows and macOS collectors split into `sensors_windows.py` and `sensors_macos.py` behind the existing sensor platform API.
+- [x] **ARCH-06** · Persistent stores expose injectable path/root constructor arguments while retaining `data_dir()` only as the default.
+- [x] **ARCH-07** · `runtime.py` composes tools through `ToolRegistry` with ordered registration and duplicate-name protection; 124-tool runtime contract preserved.
 
 ---
 
@@ -76,46 +76,46 @@
 
 ### Port from `new-curiosity` (Real Files — Already Implemented There)
 
-- [ ] **FEAT-01** · **AST-Safe Patch Engine** — Port `patch_engine.py`. Apply code changes using AST-aware diffing. Eliminates bugs where the AI deletes half a file.
-- [ ] **FEAT-02** · **Project Auditor** — Port `project_auditor.py`. Full project health scan: dependency audit, lint score, dead code, security patterns.
-- [ ] **FEAT-03** · **Autonomous Repair Loop** — Port `repair_loop.py`. When tests fail after a patch, automatically attempt fix cycles (read error → propose fix → re-run tests → repeat up to N times).
-- [ ] **FEAT-04** · **Statistical Regression Detection** — Port `regression_detection.py`. Detect benchmark regressions beyond noise floor instead of a simple percentage threshold.
-- [ ] **FEAT-05** · **Per-Run Agent History** — Port `run_history.py`. Persistent audit log of every agent action on a project. Query: "what did you do to this repo last Tuesday?"
-- [ ] **FEAT-06** · **Knowledge Gap Detection** — Port `knowledge_gap_detection.py`. Identify topics the assistant consistently fails at. Surface as learning opportunities.
-- [ ] **FEAT-07** · **Model Usage Analytics** — Port `model_usage.py`. Track tokens in/out, latency per model per session. Expose in the dashboard.
-- [ ] **FEAT-08** · **SearXNG Integration** — Port `web_search.py`. Self-hosted search via SearXNG. Zero-cost, privacy-preserving Serper alternative.
-- [ ] **FEAT-09** · **Safe Terminal Command Explainer** — Port `safe_commands.py`. Before executing a shell command, show a human-readable explanation and risk level.
+- [x] **FEAT-01** · **AST-Safe Patch Engine** — AST-aware Python proposal/apply guard added; syntax-invalid patches and silent function/class/method deletions are blocked before approval/write.
+- [x] **FEAT-02** · **Project Auditor** — bounded offline project audit added with dependency checks, lint score, dead-code candidates, and redacted security-pattern findings; exposed via project tool/CLI.
+- [x] **FEAT-03** · **Autonomous Repair Loop** — Bounded approval-gated repair cycles generate AST-safe pending candidates, re-run the exact isolated evaluation plan through an in-process capability, and never auto-apply or auto-promote.
+- [x] **FEAT-04** · **Statistical Regression Detection** — Repeated benchmark samples now use robust variance/noise-floor estimation; statistically noisy over-budget point estimates are distinguished from reproducible regressions, with legacy fallback for insufficient samples.
+- [x] **FEAT-05** · **Per-Run Agent History** — Persistent redacted run/tool audit history now records project-scoped orchestrator work with run IDs and supports queries such as `last Tuesday`, `last N days`, and YYYY-MM-DD.
+- [x] **FEAT-06** · **Knowledge Gap Detection** — Recurring high-failure task topics are detected from redacted experience episodes, scored by project/failure rate, and surfaced through the `knowledge_gaps` learning-opportunity tool.
+- [x] **FEAT-07** · **Model Usage Analytics** — Port `model_usage.py`. Track tokens in/out, latency per model per session. Expose in the dashboard.
+- [x] **FEAT-08** · **SearXNG Integration** — Port `web_search.py`. Self-hosted search via SearXNG. Zero-cost, privacy-preserving Serper alternative.
+- [x] **FEAT-09** · **Safe Terminal Command Explainer** — Port `safe_commands.py`. Before executing a shell command, show a human-readable explanation and risk level.
 
 ### Net New
 
-- [ ] **FEAT-10** · **AirLLM Provider** — Add `AirLLMProvider` to `model_provider.py`. Run 70B+ models on 4GB VRAM by streaming layers from disk. Optional extra: `pip install -e ".[airllm]"`.
-- [ ] **FEAT-11** · **Codebase RAG Indexing** — Index the user's project into a vector store with section-aware chunking. Let the Orchestrator answer "how does X work?" with semantic retrieval.
-- [ ] **FEAT-12** · **Workspace Snapshots** — Before any AI touches a project, snapshot the directory. One command to restore to any previous snapshot. Works for non-git projects.
-- [ ] **FEAT-13** · **Local Model Manager UI** — WebUI panel to list, pull, and delete Ollama models. Show disk usage and VRAM requirements.
-- [ ] **FEAT-14** · **Mobile Bridge** — Telegram or Matrix bot connecting to the local daemon over an encrypted tunnel. Text your assistant from your phone.
-- [ ] **FEAT-15** · **Structured Onboarding** — First-launch wizard: workspace setup, model selection, voice on/off, connector setup. Currently zero onboarding.
-- [ ] **FEAT-16** · **Peer Agent Discovery** — mDNS-based auto-discovery of other Living Assistant instances on the local network. Delegate workloads to a more powerful machine.
-- [ ] **FEAT-17** · **Approval Notification Sound** — Play a short sound when an approval gate fires. Currently silently adds to a list.
-- [ ] **FEAT-18** · **Hot-Reload Config** — Watch `assistant.yaml` for changes and apply without a full daemon restart.
+- [x] **FEAT-10** · **AirLLM Provider** — Add `AirLLMProvider` to `model_provider.py`. Run 70B+ models on 4GB VRAM by streaming layers from disk. Optional extra: `pip install -e ".[airllm]"`.
+- [x] **FEAT-11** · **Codebase RAG Indexing** — Index the user's project into a vector store with section-aware chunking. Let the Orchestrator answer "how does X work?" with semantic retrieval.
+- [x] **FEAT-12** · **Workspace Snapshots** — Before any AI touches a project, snapshot the directory. One command to restore to any previous snapshot. Works for non-git projects.
+- [x] **FEAT-13** · **Local Model Manager UI** — WebUI panel to list, pull, and delete Ollama models. Show disk usage and VRAM requirements.
+- [x] **FEAT-14** · **Mobile Bridge** — Existing Telegram connector now provides an outbound-HTTPS mobile bridge with explicit chat/user allowlists, private-chat/bot rejection, persistent update offsets, rate limits, bounded/redacted replies, stable per-chat sessions, and daemon integration without exposing a public local API port.
+- [x] **FEAT-15** · **Structured Onboarding** — Added an installed `organism onboard` first-launch wizard backed by the existing config/connector stores: atomic per-user config, workspace creation, detected-profile model selection, voice enable/disable, least-privilege connector capability setup without collecting secrets, user-config precedence, and first-launch guidance in `doctor`.
+- [x] **FEAT-16** · **Peer Agent Discovery** — Added lazy optional zeroconf/mDNS discovery with stable peer IDs, explicit trust allowlists, HTTPS-only delegation using a separate peer token, resource-aware best-peer selection, daemon discovery lifecycle, peer API/tool surfaces, and tool-free specialist execution on the receiving machine.
+- [x] **FEAT-17** · **Approval Notification Sound** — New approval gates now request a cross-platform audible alert through the existing notifier; duplicate pending requests/preapproved retries do not replay it, quiet mode suppresses it, and `notifications.approval_sound` can disable it.
+- [x] **FEAT-18** · **Hot-Reload Config** — Watch `assistant.yaml` for changes and apply without a full daemon restart.
 
 ---
 
 ## 🎨 UI REBUILD (Phase Last — After Backend Is Stable)
 
-- [ ] **UI-01** · Rebuild `webui/index.html` as a proper React + Vite + Tailwind CSS multi-page app.
-- [ ] **UI-02** · Chat — Markdown rendering for assistant responses.
-- [ ] **UI-03** · Chat — Code syntax highlighting (highlight.js or Prism).
-- [ ] **UI-04** · Chat — Live streaming cursor / token indicator while LLM generates.
-- [ ] **UI-05** · Approvals — Toast notifications (non-blocking) when approval needed.
+- [x] **UI-01** · Rebuild `webui/index.html` as a proper React + Vite + Tailwind CSS multi-page app.
+- [x] **UI-02** · Chat — Markdown rendering for assistant responses.
+- [x] **UI-03** · Chat — Code syntax highlighting (highlight.js or Prism).
+- [x] **UI-04** · Chat — Live streaming cursor / token indicator while LLM generates.
+- [x] **UI-05** · Approvals — Toast notifications (non-blocking) when approval needed.
 - [ ] **UI-06** · Dashboard — Replace hand-drawn Canvas chart with Chart.js / Recharts.
-- [ ] **UI-07** · Dashboard — New "Model Manager" page (list/pull/delete Ollama models).
-- [ ] **UI-08** · Dashboard — Mobile-responsive layout.
-- [ ] **UI-09** · Overlay — `Ctrl+Space` global hotkey → Spotlight-style command palette.
-- [ ] **UI-10** · Overlay — Scrollable conversation history sidebar.
-- [ ] **UI-11** · Overlay — Smooth expand/collapse animation (currently snaps instantly).
-- [ ] **UI-12** · Overlay — In-overlay settings panel (model, voice, focus mode).
-- [ ] **UI-13** · Overlay — Drag-to-resize the window.
-- [ ] **UI-14** · Overlay — Red badge count on collapsed "eye" when approvals are pending.
+- [x] **UI-07** · Dashboard — New "Model Manager" page (list/pull/delete Ollama models).
+- [x] **UI-08** · Dashboard — Mobile-responsive layout.
+- [x] **UI-09** · Overlay — `Ctrl+Space` global hotkey → Spotlight-style command palette.
+- [x] **UI-10** · Overlay — Scrollable conversation history sidebar.
+- [x] **UI-11** · Overlay — Smooth expand/collapse animation (currently snaps instantly).
+- [x] **UI-12** · Overlay — In-overlay settings panel (model, voice, focus mode).
+- [x] **UI-13** · Overlay — Drag-to-resize the window.
+- [x] **UI-14** · Overlay — Red badge count on collapsed "eye" when approvals are pending.
 
 ---
 

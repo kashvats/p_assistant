@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 from pathlib import Path
 from .base import Tool
-from ..task_graph import TaskGraphManager
+from living_assistant.agents.task_graph import TaskGraphManager
 
 def build_planning_tools(db_path: Path | TaskGraphManager) -> List[Tool]:
     graph = db_path if isinstance(db_path, TaskGraphManager) else TaskGraphManager(db_path)

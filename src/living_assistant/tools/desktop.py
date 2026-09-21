@@ -2,8 +2,8 @@ from __future__ import annotations
 from pathlib import Path
 import webbrowser
 from .base import Tool
-from ..workspace import Workspace
-from ..approval import ApprovalManager
+from living_assistant.core.workspace import Workspace
+from living_assistant.core.approval import ApprovalManager
 
 
 def _clipboard_read_impl() -> str:

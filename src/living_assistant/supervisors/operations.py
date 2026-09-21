@@ -3,8 +3,8 @@ import json
 import logging
 from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from ..model_provider import ModelManager
-from ..models import SpecialistResponse
+from living_assistant.core.model_provider import ModelManager
+from living_assistant.core.models import SpecialistResponse
 
 logger = logging.getLogger(__name__)
 
