@@ -46,9 +46,9 @@
 
 ## 🟡 INCOMPLETE FEATURES (Started But Half-Built)
 
-- [x] **INCOMPLETE-01** · `improvements.py` · Self-improvement reads only the target file when proposing a patch. No cross-file context. Produces naive patches that break imports from other modules.
-- [x] **INCOMPLETE-02** · `groups.py` · Group project management exists but has no health monitoring. If one project in a group crashes, the rest keep running silently.
-- [x] **INCOMPLETE-03** · `routines.py` · `assistant_prompt` routine type silently skips when `allow_model_wake=False`. No notification is sent that the routine was skipped.
+- [ ] **INCOMPLETE-01** · `improvements.py` · Self-improvement reads only the target file when proposing a patch. No cross-file context. Produces naive patches that break imports from other modules.
+- [ ] **INCOMPLETE-02** · `groups.py` · Group project management exists but has no health monitoring. If one project in a group crashes, the rest keep running silently.
+- [ ] **INCOMPLETE-03** · `routines.py` · `assistant_prompt` routine type silently skips when `allow_model_wake=False`. No notification is sent that the routine was skipped.
 - [ ] **INCOMPLETE-04** · `connector_oauth.py` · Refresh token logic exists for Google and Microsoft but has no automatic background refresh. Tokens expire mid-session silently.
 - [ ] **INCOMPLETE-05** · `security_sensors.py` · macOS Endpoint Security integration is present but Windows Event Log ingestion is not wired into the daemon loop.
 - [ ] **INCOMPLETE-06** · `resource_manager.py` · Model eviction is LRU only. No priority-based eviction — a low-priority background model can evict the active foreground Orchestrator model.
