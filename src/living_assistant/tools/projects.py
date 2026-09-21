@@ -1,12 +1,14 @@
 from __future__ import annotations
 from pathlib import Path
-import json, time
+import json, time, re
 from .base import Tool
 from ..workspace import Workspace
 from ..config import data_dir
 from ..storage_utils import atomic_write_json
-from ..security_utils import is_loopback_http_url
+from ..security_utils import is_loopback_http_url, redact_secrets
 
+_SECRET_ENV_NAME = re.compile(r'(?i)(password|passwd|pwd|token|secret|api[_-]?key|access[_-]?key|private[_-]?key|credential)')
+_ENV_NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 
 def detect_project(path: Path) -> dict:
     found: list[str] = []
@@ -81,15 +83,33 @@ class ProjectRegistry:
                     "auto_restart": False,
                     "max_restarts": 3,
                     "health_url": None,
+                    "env": {},
                     "created_at": time.time(),
                 }
+                changed = True
+            elif isinstance(item, dict) and 'env' not in item:
+                item['env'] = {}
                 changed = True
         if changed:
             self._save(data)
 
+    @staticmethod
+    def _clean_env(env: dict | None) -> dict[str,str]:
+        clean={}
+        for raw_key, raw_value in (env or {}).items():
+            key=str(raw_key).strip(); value=str(raw_value)
+            if not _ENV_NAME.fullmatch(key):
+                raise ValueError(f'Invalid environment variable name: {key}')
+            if _SECRET_ENV_NAME.search(key) or redact_secrets(value) != value:
+                raise ValueError(f'Secret-like project environment values cannot be stored in projects.json: {key}')
+            if len(value) > 4096:
+                raise ValueError(f'Environment variable value is too large: {key}')
+            clean[key]=value
+        return clean
+
     def add(self, name: str, path: str, start_command: str | None = None,
             test_command: str | None = None, auto_restart: bool = False,
-            max_restarts: int = 3, health_url: str | None = None) -> dict:
+            max_restarts: int = 3, health_url: str | None = None, env: dict | None = None) -> dict:
         data = self._load_raw()
         resolved = Path(path).expanduser().resolve()
         detected = detect_project(resolved)
@@ -102,6 +122,7 @@ class ProjectRegistry:
             "auto_restart": bool(auto_restart),
             "max_restarts": max(0, min(int(max_restarts), 20)),
             "health_url": health_url,
+            "env": self._clean_env(env),
             "created_at": data.get(name, {}).get("created_at", time.time()) if isinstance(data.get(name), dict) else time.time(),
             "updated_at": time.time(),
         }
@@ -113,13 +134,15 @@ class ProjectRegistry:
         data = self._load_raw()
         if name not in data:
             raise KeyError(name)
-        allowed = {"start_command", "test_command", "auto_restart", "max_restarts", "health_url"}
+        allowed = {"start_command", "test_command", "auto_restart", "max_restarts", "health_url", "env"}
         for k, v in changes.items():
             if k in allowed and v is not None:
                 if k == "max_restarts":
                     v = max(0, min(int(v), 20))
                 if k == "health_url" and v and not is_loopback_http_url(str(v)):
                     raise ValueError('Project health_url must be a loopback http/https URL.')
+                if k == "env":
+                    v = self._clean_env(v)
                 data[name][k] = v
         data[name]["updated_at"] = time.time()
         self._save(data)

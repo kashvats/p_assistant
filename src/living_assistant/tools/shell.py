@@ -40,11 +40,12 @@ class ProcessRegistry:
             return False
 
     @staticmethod
-    def _spawn(command: str, cwd: str, log_path: str) -> subprocess.Popen:
+    def _spawn(command: str, cwd: str, log_path: str, env_overrides: dict | None = None) -> subprocess.Popen:
         log = open(log_path, "a", encoding="utf-8")
+        process_env=os.environ.copy(); process_env.update({str(k):str(v) for k,v in (env_overrides or {}).items()})
         kwargs = dict(
             cwd=cwd, shell=True, stdout=log, stderr=subprocess.STDOUT,
-            text=True, env=os.environ.copy(),
+            text=True, env=process_env,
         )
         if platform.system() == "Windows":
             kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -57,11 +58,11 @@ class ProcessRegistry:
 
     def start(self, command: str, cwd: str, name: str | None = None,
               project: str | None = None, auto_restart: bool = False,
-              max_restarts: int = 3, health_url: str | None = None) -> dict:
+              max_restarts: int = 3, health_url: str | None = None, env: dict | None = None) -> dict:
         key = uuid.uuid4().hex[:10]
         log_dir = data_dir() / "logs"; log_dir.mkdir(parents=True, exist_ok=True)
         log_path = str(log_dir / f"process-{key}.log")
-        proc = self._spawn(command, cwd, log_path)
+        proc = self._spawn(command, cwd, log_path, env)
         now = time.time()
         try:
             pid_create_time = float(psutil.Process(proc.pid).create_time())
@@ -83,8 +84,12 @@ class ProcessRegistry:
             "max_restarts": max(0, min(int(max_restarts), 20)),
             "restart_count": 0,
             "health_url": health_url,
+            "env": {str(k):str(v) for k,v in (env or {}).items()},
         }
-        data = self._load(); data[key] = meta; self._save(data)
+        # Keep load/update/save atomic because project-group parallel startup can
+        # register multiple processes concurrently.
+        with self._lock:
+            data = self._load(); data[key] = meta; self._save(data)
         return {"ok": True, "id": key, **meta, "running": True}
 
     def list(self) -> list[dict]:
@@ -142,7 +147,7 @@ class ProcessRegistry:
         if self._process_matches(int(meta.get("pid", -1)), meta.get("pid_create_time")):
             return {"ok": True, "already_running": True, "id": key, "pid": meta["pid"]}
         try:
-            proc = self._spawn(meta["command"], meta["cwd"], meta["log"])
+            proc = self._spawn(meta["command"], meta["cwd"], meta["log"], meta.get("env"))
         except Exception as e:
             return {"ok": False, "error": str(e)}
         meta["pid"] = proc.pid

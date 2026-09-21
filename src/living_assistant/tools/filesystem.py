@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import difflib
+import re
 from .base import Tool
 from ..workspace import Workspace
 from ..approval import ApprovalManager
@@ -70,27 +71,47 @@ def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | Non
         return {'ok': True, 'path': result, 'bytes': len(content.encode('utf-8')),
                 'diff': '[REDACTED: sensitive file diff]' if sensitive else diff, 'sensitive': sensitive}
 
-    def search_files(query: str, path: str = '.', limit: int = 50):
+    def search_files(query: str, path: str = '.', limit: int = 50, regex: bool = False,
+                     extensions: list[str] | None = None):
         root = workspace.resolve(path)
         out = []
-        q = query.lower()
+        bounded_limit=max(1,min(int(limit),200))
+        ext_filter={str(x).lower() if str(x).startswith('.') else '.'+str(x).lower() for x in (extensions or []) if str(x).strip()}
+        pattern=None
+        if regex:
+            try:
+                pattern=re.compile(query,re.IGNORECASE)
+            except re.error as exc:
+                return {'ok':False,'error':f'Invalid search regex: {exc}'}
+        q=query.lower()
         for p in root.rglob('*'):
-            if len(out) >= min(limit, 200):
+            if len(out) >= bounded_limit:
                 break
-            if p.is_file():
-                if q in p.name.lower():
-                    out.append({'path': str(p), 'match': 'filename', 'sensitive': is_sensitive_path(p)})
+            if not p.is_file() or (ext_filter and p.suffix.lower() not in ext_filter):
+                continue
+            filename_match=bool(pattern.search(p.name)) if pattern else q in p.name.lower()
+            if filename_match:
+                out.append({'path': str(p), 'match': 'filename', 'sensitive': is_sensitive_path(p)})
+                continue
+            if is_sensitive_path(p):
+                # Never index/search sensitive contents without an explicit targeted read approval.
+                continue
+            try:
+                if p.stat().st_size > 2_000_000:
                     continue
-                if is_sensitive_path(p):
-                    # Never index/search sensitive contents without an explicit targeted read approval.
+                data=p.read_bytes()
+                sample=data[:8192]
+                # NUL bytes or a high proportion of non-text control bytes are a
+                # strong binary signal. Skip content decoding in that case.
+                controls=sum(1 for b in sample if b < 32 and b not in (9,10,13))
+                if b'\x00' in sample or (sample and controls/len(sample) > 0.10):
                     continue
-                try:
-                    if p.stat().st_size <= 2_000_000:
-                        txt = p.read_text(encoding='utf-8', errors='ignore')
-                        if q in txt.lower():
-                            out.append({'path': str(p), 'match': 'content'})
-                except Exception:
-                    pass
+                txt=data.decode('utf-8',errors='ignore')
+                matched=bool(pattern.search(txt)) if pattern else q in txt.lower()
+                if matched:
+                    out.append({'path': str(p), 'match': 'content'})
+            except Exception:
+                pass
         return out
 
     return [
@@ -102,6 +123,6 @@ def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | Non
              {'type':'object','properties':{'path':{'type':'string'},'content':{'type':'string'}},'required':['path','content']}, preview_write_file),
         Tool('write_file', 'Write text inside an approved workspace. Sensitive files always require explicit approval.',
              {'type':'object','properties':{'path':{'type':'string'},'content':{'type':'string'}},'required':['path','content']}, write_file),
-        Tool('search_files', 'Search filenames/text inside an approved workspace. Sensitive file contents are never indexed.',
-             {'type':'object','properties':{'query':{'type':'string'},'path':{'type':'string','default':'.'},'limit':{'type':'integer','default':50}},'required':['query']}, search_files),
+        Tool('search_files', 'Search filenames/text inside an approved workspace with optional regex and extension filtering. Binary and sensitive file contents are never indexed.',
+             {'type':'object','properties':{'query':{'type':'string'},'path':{'type':'string','default':'.'},'limit':{'type':'integer','default':50},'regex':{'type':'boolean','default':False},'extensions':{'type':'array','items':{'type':'string'}}},'required':['query']}, search_files),
     ]

@@ -45,3 +45,17 @@ def test_rollback_requires_approval_and_restores(tmp_path):
     approvals.resolve(rb['approval_id'],True)
     assert engine.rollback(p['id'])['ok'] is True
     assert ws.read_text('a.txt')=='old'
+
+
+def test_rollback_refuses_to_overwrite_post_apply_edit(tmp_path):
+    ws,approvals,engine=build(tmp_path)
+    ws.write_text('app.py','old')
+    p=engine.propose('app.py','new','change','why')
+    first=engine.apply(p['id']); approvals.resolve(first['approval_id'],True)
+    assert engine.apply(p['id'])['ok'] is True
+
+    ws.write_text('app.py','legitimate subsequent edit')
+    result=engine.rollback(p['id'])
+    assert result['ok'] is False and result['conflict'] is True
+    assert ws.read_text('app.py')=='legitimate subsequent edit'
+    assert engine.store.get(p['id'])['status']=='applied'

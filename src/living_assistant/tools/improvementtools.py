@@ -11,8 +11,14 @@ def build_improvement_tools(engine: ImprovementEngine, evaluations: EvaluationEn
 
     tools = [
         Tool(
+            'improvement_context',
+            'Inspect bounded cross-file context (imports, nearby modules, callers/references) before drafting an improvement. Sensitive/protected files are excluded.',
+            {'type':'object','properties':{'target_path':{'type':'string'},'max_files':{'type':'integer','default':8}},'required':['target_path']},
+            engine.context,
+        ),
+        Tool(
             'propose_improvement',
-            'Create a reviewable exact-file improvement proposal. This does not modify the target file.',
+            'Create a reviewable exact-file improvement proposal. Before generating new_content, inspect improvement_context for imports/callers so the patch is cross-file aware. This does not modify the target file.',
             {'type':'object','properties':{'target_path':{'type':'string'},'new_content':{'type':'string'},'title':{'type':'string'},'rationale':{'type':'string'},'tests':{'type':'array','items':{'type':'string'}}},'required':['target_path','new_content','title','rationale']},
             propose_improvement,
         ),

@@ -14,10 +14,19 @@ def test_session_history_search_and_delete(tmp_path):
 
 
 def test_session_prune(tmp_path):
+    import json
     s=SessionStore(tmp_path/'s.sqlite3',retention_days=1)
     sid=s.create('old')['id']
+    s.add_message(sid,'user','archived conversation')
     s.conn.execute("UPDATE sessions SET updated_at='2026-01-01T00:00:00' WHERE id=?",(sid,)); s.conn.commit()
     assert s.prune(dt.datetime(2026,1,3,0,0))==1
+    assert s.get(sid) is None
+    archives=list((tmp_path/'session_archives').glob('sessions-*.json'))
+    assert len(archives)==1
+    payload=json.loads(archives[0].read_text())
+    assert payload['session_count']==1
+    assert payload['sessions'][0]['id']==sid
+    assert payload['sessions'][0]['messages'][0]['content']=='archived conversation'
 
 def test_session_redacts_common_secrets(tmp_path):
     s=SessionStore(tmp_path/'s2.sqlite3')
@@ -52,3 +61,17 @@ def test_session_search_rebuilds_fts_for_existing_database(tmp_path):
     rows = store.search('historical searchable phrase')
     assert rows and rows[0]['session_id'] == 'legacy'
     assert store.conn.execute("SELECT 1 FROM living_assistant_migrations WHERE name='sessions_fts_v1'").fetchone()
+
+
+def test_session_prune_does_not_delete_when_archive_write_fails(tmp_path, monkeypatch):
+    import living_assistant.sessions as sessions_module
+
+    store=SessionStore(tmp_path/'s.sqlite3',retention_days=1)
+    sid=store.create('old')['id']
+    store.conn.execute("UPDATE sessions SET updated_at='2026-01-01T00:00:00' WHERE id=?",(sid,)); store.conn.commit()
+    monkeypatch.setattr(sessions_module,'atomic_write_json',lambda *a,**k: (_ for _ in ()).throw(OSError('disk full')))
+
+    import pytest
+    with pytest.raises(OSError):
+        store.prune(dt.datetime(2026,1,3,0,0))
+    assert store.get(sid) is not None

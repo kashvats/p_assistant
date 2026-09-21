@@ -1,4 +1,5 @@
 from __future__ import annotations
+import copy
 import datetime as dt
 
 class BriefingEngine:
@@ -6,13 +7,22 @@ class BriefingEngine:
         self.config=config.get('briefings',{})
         self.state=state; self.memory=memory; self.calendar=calendar; self.projects=projects
         self.processes=processes; self.approvals=approvals; self.notifier=notifier
+        self._cache: dict[str, tuple[dt.datetime, dict]] = {}
 
     def _day_bounds(self, now: dt.datetime):
         start=now.replace(hour=0,minute=0,second=0,microsecond=0)
         return start,start+dt.timedelta(days=1)
 
     def build(self,kind: str='morning',now: dt.datetime | None=None) -> dict:
-        now=now or self.state.now(); start,end=self._day_bounds(now)
+        now=now or self.state.now()
+        cache_seconds=max(0,int(self.config.get('cache_seconds',300)))
+        cached=self._cache.get(kind)
+        if cached is not None and cache_seconds>0:
+            cached_at,cached_item=cached
+            age=(now-cached_at).total_seconds()
+            if cached_at.date()==now.date() and 0 <= age <= cache_seconds:
+                return copy.deepcopy(cached_item)
+        start,end=self._day_bounds(now)
         todos=self.memory.list_todos(include_done=False)
         due=[]; overdue=[]
         for t in todos:
@@ -46,7 +56,9 @@ class BriefingEngine:
             completed=sum(1 for t in self.memory.list_todos(include_done=True) if t.get('done'))
             lines.append(f'Local todo total completed: {completed}.')
         text='\n'.join(lines)
-        return {'kind':kind,'generated_at':now.isoformat(timespec='seconds'),'text':text,'calendar':events,'due':due,'overdue':overdue,'pending_approvals':len(pending),'running_processes':len(running),'broken_processes':len(broken)}
+        item={'kind':kind,'generated_at':now.isoformat(timespec='seconds'),'text':text,'calendar':events,'due':due,'overdue':overdue,'pending_approvals':len(pending),'running_processes':len(running),'broken_processes':len(broken)}
+        self._cache[kind]=(now,copy.deepcopy(item))
+        return item
 
     @staticmethod
     def _time_due(now: dt.datetime, hhmm: str) -> bool:
