@@ -1,6 +1,6 @@
 from __future__ import annotations
 from .base import Tool
-from ..browser import BrowserController
+from living_assistant.desktop.browser import BrowserController
 
 def build_browser_tools(controller: BrowserController, enabled: bool = True) -> list[Tool]:
     if not enabled:

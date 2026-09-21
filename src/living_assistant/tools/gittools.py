@@ -2,9 +2,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from .base import Tool
-from ..workspace import Workspace, WorkspaceViolation
-from ..approval import ApprovalManager
-from ..security_utils import is_sensitive_path, redact_secrets
+from living_assistant.core.workspace import Workspace, WorkspaceViolation
+from living_assistant.core.approval import ApprovalManager
+from living_assistant.security.security_utils import is_sensitive_path, redact_secrets
 
 
 def _git(cwd: Path, args: list[str], timeout: int = 30) -> dict:

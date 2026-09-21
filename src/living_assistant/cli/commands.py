@@ -1,57 +1,128 @@
 from __future__ import annotations
+
 from pathlib import Path
 import json
 import os
-import typer
-from rich.console import Console
-from rich.table import Table
-from .runtime import build_runtime
-from .hardware import detect_hardware, choose_profile
-from .config import load_config
-from .daemon import NervousSystem
-from .tools.security import audit_local, antivirus_status
-from .security_policy import classify_command
-from .security_guardian import startup_inventory, inspect_process, file_signature, process_triage, network_activity_summary
-from .platform_hardening import platform_status, probe_link_capability, service_status
-from .release_manager import ReleaseManager
 
-app = typer.Typer(no_args_is_help=True, help='Living Assistant local-first personal agent.')
-console = Console()
-project_app = typer.Typer(help='Register, run and supervise projects.')
-group_app = typer.Typer(help='Manage multi-project application groups.')
-security_app = typer.Typer(help='Defensive local security tools.')
-approval_app = typer.Typer(help='Review persistent approval requests.')
-watch_app = typer.Typer(help='Manage low-resource filesystem watches.')
-skill_app = typer.Typer(help='Manage user-confirmed reusable prompt skills.')
-todo_app = typer.Typer(help='Manage reminders/todos.')
-quarantine_app = typer.Typer(help='Inspect/release downloaded quarantined files.')
-git_app = typer.Typer(help='Git-aware project inspection.')
-desktop_app = typer.Typer(help='Optional clipboard/screenshot desktop actions.')
-browser_app = typer.Typer(help='Optional isolated browser sessions.')
-voice_app = typer.Typer(help='Local push-to-talk and optional hands-free wake-word voice.')
-routine_app = typer.Typer(help='Deterministic event/interval routines.')
-improve_app = typer.Typer(help='Reviewable self-improvement/file-change proposals.')
-calendar_app = typer.Typer(help='Local personal calendar and agenda.')
-personal_app = typer.Typer(help='Quiet hours, focus mode and personal operating state.')
-briefing_app = typer.Typer(help='Morning/evening deterministic briefings.')
-session_app = typer.Typer(help='Local conversation/session history.')
-integration_app = typer.Typer(help='Real external app connectors with scoped capabilities and approval-gated writes.')
-experience_app = typer.Typer(help='Evidence-weighted lessons from past mistakes and successful recoveries.')
-model_app = typer.Typer(help='Inspect and manage adaptive local-model residency.')
-platform_app = typer.Typer(help='Cross-platform capability, link, and background-service diagnostics.')
-release_app = typer.Typer(help='Versioned install, backup, rollback, and runtime lifecycle.')
-for sub, name in [
-    (project_app,'project'),(group_app,'group'),(security_app,'security'),(approval_app,'approval'),
-    (watch_app,'watch'),(skill_app,'skill'),(todo_app,'todo'),(quarantine_app,'quarantine'),
-    (git_app,'git'),(desktop_app,'desktop'),(browser_app,'browser'),(voice_app,'voice'),
-    (routine_app,'routine'),(improve_app,'improve'),(calendar_app,'calendar'),(personal_app,'personal'),
-    (briefing_app,'briefing'),(session_app,'session'),(integration_app,'integration'),(experience_app,'experience'),
-    (model_app,'model'),(platform_app,'platform'),(release_app,'release')]:
-    app.add_typer(sub, name=name)
+import typer
+from rich.table import Table
+
+from living_assistant.core.runtime import build_runtime
+from living_assistant.system.hardware import detect_hardware, choose_profile
+from living_assistant.core.config import load_config, project_root
+from living_assistant.system.onboarding import OnboardingManager
+from living_assistant.system.daemon import NervousSystem
+from living_assistant.tools.security import audit_local, antivirus_status
+from living_assistant.security.security_policy import classify_command
+from living_assistant.security.security_guardian import (
+    startup_inventory,
+    inspect_process,
+    file_signature,
+    process_triage,
+    network_activity_summary,
+)
+from living_assistant.system.platform_hardening import (
+    platform_status,
+    probe_link_capability,
+    service_status,
+)
+from living_assistant.system.release_manager import ReleaseManager
+
+from .helpers import (
+    app,
+    console,
+    project_app,
+    group_app,
+    security_app,
+    approval_app,
+    watch_app,
+    skill_app,
+    todo_app,
+    quarantine_app,
+    git_app,
+    desktop_app,
+    browser_app,
+    voice_app,
+    routine_app,
+    improve_app,
+    calendar_app,
+    personal_app,
+    briefing_app,
+    session_app,
+    integration_app,
+    experience_app,
+    model_app,
+    platform_app,
+    release_app,
+)
+
+@app.command()
+def onboard():
+    """Run the first-launch workspace/model/voice/connector setup wizard."""
+    manager = OnboardingManager()
+    current = manager.status()
+    if current.get('complete') and not typer.confirm('Onboarding is already complete. Reconfigure?', default=False):
+        console.print(current); return
+
+    cfg = load_config()
+    hw = detect_hardware(); profile = choose_profile(cfg, hw)
+    profile_cfg = cfg.get('profiles', {}).get(profile, {})
+    default_model = str((profile_cfg.get('models') or {}).get('orchestrator') or '')
+    roots = cfg.get('workspace_roots') or ['./workspace']
+    default_workspace = Path(str(roots[0])).expanduser()
+    if not default_workspace.is_absolute():
+        default_workspace = project_root() / default_workspace
+
+    console.print(f'[bold]Detected profile[/bold] {profile}')
+    workspace = typer.prompt('Workspace directory', default=str(default_workspace.resolve()))
+    model = typer.prompt('Local model for this profile', default=default_model)
+    voice_enabled = typer.confirm('Enable local voice features?', default=bool((cfg.get('voice') or {}).get('enabled', True)))
+
+    connector = None
+    if typer.confirm('Set up an external connector now?', default=False):
+        providers = ['google','microsoft','github','telegram','discord','notion','obsidian']
+        provider = typer.prompt('Provider (' + ', '.join(providers) + ')').strip().lower()
+        if provider not in providers:
+            raise typer.BadParameter(f'Provider must be one of {providers}')
+        allowed = manager.allowed_connector_capabilities(provider)
+        console.print('[dim]Available capabilities:[/dim] ' + ', '.join(allowed))
+        name = typer.prompt('Connector name', default=provider)
+        capability_text = typer.prompt('Capabilities (comma separated)', default=','.join(allowed[:1]))
+        capabilities = [x.strip() for x in capability_text.split(',') if x.strip()]
+        env_prefix = typer.prompt('Credential environment prefix', default=name.upper().replace('-','_'))
+        kind_defaults = {'google':'productivity','microsoft':'productivity','github':'developer','telegram':'messaging','discord':'messaging','notion':'productivity','obsidian':'productivity'}
+        settings = {}
+        if provider == 'obsidian':
+            settings['vault_path'] = typer.prompt('Obsidian vault path')
+        elif provider == 'github':
+            repo = typer.prompt('Default GitHub repo owner/name (optional)', default='').strip()
+            if repo: settings['repo'] = repo
+        elif provider == 'discord':
+            channel = typer.prompt('Default Discord channel id (optional)', default='').strip()
+            if channel: settings['channel_id'] = channel
+        elif provider == 'notion':
+            parent = typer.prompt('Default Notion parent page id (optional)', default='').strip()
+            if parent: settings['parent_id'] = parent
+        connector = {'name':name,'provider':provider,'kind':kind_defaults[provider],
+                     'capabilities':capabilities,'env_prefix':env_prefix,'settings':settings}
+
+    result = manager.complete(workspace_root=workspace, profile=profile, model=model,
+                              voice_enabled=voice_enabled, connector=connector)
+    console.print('[green]Onboarding complete.[/green]', result)
+    if result.get('connector'):
+        item = result['connector']; prefix = item.get('env_prefix') or item.get('name','').upper()
+        provider = item.get('provider')
+        if provider in {'google','microsoft','github'}:
+            console.print(f'Next: organism integration auth {item["name"]}')
+        elif provider in {'telegram','discord'}:
+            console.print(f'Configure {prefix}_BOT_TOKEN in your environment or OS credential workflow; the token was not requested or stored by onboarding.')
+
 
 @app.command()
 def doctor():
     cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw)
+    if not bool((cfg.get('onboarding') or {}).get('completed', False)):
+        console.print('[yellow]First launch:[/yellow] run `organism onboard` for guided workspace/model/voice/connector setup.')
     console.print('[bold]Hardware[/bold]', hw.to_dict())
     console.print('[bold]Selected profile[/bold]', profile)
     try: console.print('[bold]Platform hardening[/bold]', platform_status().to_dict())
@@ -172,14 +243,14 @@ def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                   routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).run_forever()
+                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences, group_controller=rt.group_controller, connector_manager=rt.connector_manager, mobile_bridge=rt.mobile_bridge, peers=rt.peers).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                                 routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).tick())
+                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences, group_controller=rt.group_controller, connector_manager=rt.connector_manager, mobile_bridge=rt.mobile_bridge, peers=rt.peers).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -193,7 +264,7 @@ def tray():
     """Run optional system tray + nervous-system loop. Start `organism serve` separately for the dashboard."""
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     try:
-        from .tray import run_tray
+        from ..tray import run_tray
         run_tray(rt)
     except RuntimeError as e:
         console.print(f'[red]{e}[/red]'); raise typer.Exit(2)
@@ -222,8 +293,43 @@ def project_list():
 
 @project_app.command('detect')
 def project_detect(path: str = '.'):
-    from .tools.projects import detect_project
+    from ..tools.projects import detect_project
     rt = build_runtime(interactive=False); console.print(detect_project(rt.workspace.resolve(path)))
+
+@project_app.command('audit')
+def project_audit(path: str = typer.Argument('.')):
+    from living_assistant.system.project_auditor import ProjectAuditor
+    rt = build_runtime(interactive=False)
+    console.print(ProjectAuditor(rt.workspace).audit(path))
+
+
+@project_app.command('snapshot')
+def project_snapshot(path: str = typer.Argument('.'), reason: str = typer.Option('manual CLI snapshot', '--reason')):
+    rt = build_runtime(interactive=False)
+    console.print(rt.snapshots.create_for_path(rt.workspace.resolve(path), reason))
+
+
+@project_app.command('snapshots')
+def project_snapshots(path: str = typer.Argument('.'), limit: int = typer.Option(20, '--limit')):
+    rt = build_runtime(interactive=False)
+    root = rt.snapshots.project_root_for(rt.workspace.resolve(path))
+    console.print(rt.snapshots.list(root, limit))
+
+
+@project_app.command('snapshot-restore')
+def project_snapshot_restore(snapshot_id: str, yes: bool = typer.Option(False, '--yes', '-y')):
+    rt = build_runtime(interactive=False)
+    if not yes and not typer.confirm(f'Restore workspace snapshot {snapshot_id}? A safety snapshot of the current state will be created first.'):
+        raise typer.Exit(1)
+    try:
+        console.print(rt.snapshots.restore(snapshot_id))
+    except KeyError:
+        console.print('[red]Unknown snapshot id.[/red]')
+        raise typer.Exit(1)
+    except Exception as exc:
+        console.print(f'[red]{exc}[/red]')
+        raise typer.Exit(1)
+
 
 @project_app.command('run')
 def project_run(name: str):
@@ -306,7 +412,7 @@ def approval_deny(approval_id: str): console.print(build_runtime(interactive=Fal
 def approval_ui():
     rt=build_runtime(interactive=False)
     try:
-        from .approval_ui import run_approval_ui
+        from ..approval_ui import run_approval_ui
         run_approval_ui(rt)
     except RuntimeError as e:
         console.print(f'[red]{e}[/red]'); raise typer.Exit(2)
@@ -387,13 +493,13 @@ def git_diff(path: str='.',staged: bool=False):
 def desktop_screenshot(destination: str='artifacts/desktop-screenshot.png'):
     rt=build_runtime(interactive=True); target=rt.workspace.resolve(destination)
     if input(f'Capture desktop screenshot to {target}? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
-    from .tools.desktop import _screenshot_impl
+    from ..tools.desktop import _screenshot_impl
     console.print({'ok':True,'path':_screenshot_impl(target)})
 
 @desktop_app.command('clipboard-read')
 def desktop_clipboard_read():
     if input('Read current clipboard? It may contain secrets. [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
-    from .tools.desktop import _clipboard_read_impl
+    from ..tools.desktop import _clipboard_read_impl
     console.print(_clipboard_read_impl())
 
 
@@ -994,7 +1100,7 @@ def integration_list():
 
 @integration_app.command('providers')
 def integration_providers():
-    from .connectors import PROVIDER_ACTIONS, DEFAULT_SCOPES
+    from ..connectors import PROVIDER_ACTIONS, DEFAULT_SCOPES
     console.print({p:{'actions':sorted(a),'capabilities':sorted({v['cap'] for v in a.values()}),'default_scopes':DEFAULT_SCOPES.get(p,{})} for p,a in PROVIDER_ACTIONS.items()})
 
 @integration_app.command('add')
@@ -1042,7 +1148,7 @@ def integration_auth(name: str):
         console.print({'ok':False,'error':'This provider uses a token from the environment/OS keyring and has no interactive OAuth flow.'})
         raise typer.Exit(2)
     except Exception as e:
-        from .security_utils import redact_secrets
+        from ..security_utils import redact_secrets
         console.print({'ok':False,'error':redact_secrets(e,1000)}); raise typer.Exit(2)
 
 @integration_app.command('clear-credentials')

@@ -2,17 +2,18 @@ from __future__ import annotations
 import re
 import queue
 import threading
+import time
 from contextlib import nullcontext
-from .model_provider import ModelManager
-from .prompts import SPECIALISTS
-from .resource_manager import ResourceManager
+from living_assistant.core.model_provider import ModelManager
+from living_assistant.agents.prompts import SPECIALISTS
+from living_assistant.system.resource_manager import ResourceManager
 
 HANDOFF_RE = re.compile(r"^HANDOFF::(general|coder|researcher|security|database|planner)::(.+)$", re.M)
 
 class SpecialistRouter:
     def __init__(self, model_manager: ModelManager, models: dict[str,str], keep_alive: int = 45,
                  max_handoffs: int = 2, context_tokens: int = 4096, resource_manager: ResourceManager | None = None,
-                 timeout_seconds: float = 60.0):
+                 timeout_seconds: float = 60.0, model_usage=None):
         self.mm = model_manager
         self.models = models
         self.keep_alive = keep_alive
@@ -20,9 +21,11 @@ class SpecialistRouter:
         self.context_tokens = context_tokens
         self.resources = resource_manager
         self.timeout_seconds = max(1.0, float(timeout_seconds))
+        self.model_usage = model_usage
         self._delegate_slots = threading.BoundedSemaphore(max(1, int(getattr(model_manager, 'max_concurrent_generations', 1) or 1)))
 
-    def delegate(self, role: str, task: str, context: str = "", depth: int = 0) -> dict:
+    def delegate(self, role: str, task: str, context: str = "", depth: int = 0,
+                 session_id: str | None = None, run_id: str | None = None) -> dict:
         if role not in SPECIALISTS:
             return {"ok":False,"error":f"Unknown specialist role: {role}"}
         if depth > self.max_handoffs:
@@ -65,7 +68,18 @@ class SpecialistRouter:
                         self.mm.activate(model)
                     model_lease = nullcontext(self.keep_alive)
                 with model_lease as keep_alive:
+                    usage_started = time.perf_counter()
                     data = self.mm.provider.chat(model, messages, keep_alive=keep_alive, options={"num_ctx": self.context_tokens})
+                    usage_elapsed = time.perf_counter() - usage_started
+                if self.model_usage:
+                    try:
+                        self.model_usage.record_response(
+                            model, data, usage_elapsed, session_id=session_id,
+                            run_id=run_id, role=f"specialist:{role}"
+                        )
+                    except Exception:
+                        # Analytics are best-effort and cannot break specialist output.
+                        pass
                 result_queue.put((True, data))
             except BaseException as exc:
                 result_queue.put((False, exc))
@@ -93,5 +107,8 @@ class SpecialistRouter:
         m = HANDOFF_RE.search(answer)
         if m and depth < self.max_handoffs:
             next_role, next_task = m.group(1), m.group(2).strip()
-            result["handoff"] = self.delegate(next_role, next_task, context=answer, depth=depth+1)
+            result["handoff"] = self.delegate(
+                next_role, next_task, context=answer, depth=depth+1,
+                session_id=session_id, run_id=run_id
+            )
         return result

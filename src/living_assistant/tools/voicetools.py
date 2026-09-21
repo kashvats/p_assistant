@@ -1,6 +1,6 @@
 from __future__ import annotations
 from .base import Tool
-from ..voice import VoiceEngine
+from living_assistant.desktop.voice import VoiceEngine
 
 def build_voice_tools(voice: VoiceEngine) -> list[Tool]:
     # Explicit one-shot recording/transcription remain available even when the

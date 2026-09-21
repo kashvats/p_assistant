@@ -1,8 +1,8 @@
 from __future__ import annotations
 import psutil, platform
 from .base import Tool
-from ..memory import MemoryStore
-from ..notifications import Notifier
+from living_assistant.core.memory import MemoryStore
+from living_assistant.system.notifications import Notifier
 
 
 def build_personal_tools(memory: MemoryStore, notifier: Notifier | None = None) -> list[Tool]:

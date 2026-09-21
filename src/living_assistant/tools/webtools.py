@@ -1,7 +1,7 @@
 from __future__ import annotations
 from .. import __version__
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from collections import deque
 import datetime as dt
 import os
@@ -9,14 +9,18 @@ import sqlite3
 import threading
 import time
 import httpx
+from typing import TYPE_CHECKING
 from .base import Tool
-from ..workspace import Workspace
-from ..security_policy import sanitize_external_observation
-from ..security_utils import url_network_scope, safe_display_url, redact_secrets
-from ..quarantine import QuarantineVault, is_risky_download, download_risk_reasons
-from ..approval import ApprovalManager
-from ..browser import BrowserController
-from ..config import data_dir
+from living_assistant.core.workspace import Workspace
+from living_assistant.security.security_policy import sanitize_external_observation
+from living_assistant.security.security_utils import url_network_scope, safe_display_url, redact_secrets
+from living_assistant.security.quarantine import QuarantineVault, is_risky_download, download_risk_reasons
+from living_assistant.core.approval import ApprovalManager
+from living_assistant.desktop.browser import BrowserController
+from living_assistant.core.config import data_dir
+
+if TYPE_CHECKING:
+    from living_assistant.system.workspace_snapshots import WorkspaceSnapshotManager
 
 IMAGE_TYPES = {'image/jpeg','.jpg','.jpeg','image/png','.png','image/webp','.webp','image/gif','.gif','image/svg+xml','.svg'}
 IMAGE_CONTENT_EXTENSIONS = {
@@ -36,7 +40,8 @@ class _NetworkGate(Exception):
 
 
 def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManager | None = None,
-                    quarantine: QuarantineVault | None = None, browser: BrowserController | None = None) -> list[Tool]:
+                    quarantine: QuarantineVault | None = None, browser: BrowserController | None = None,
+                    snapshot_manager: "WorkspaceSnapshotManager | None" = None) -> list[Tool]:
     policy = config.get('policy', {})
     dcfg = config.get('downloads', {})
     scfg = config.get('web_search', {})
@@ -224,9 +229,16 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             item = quarantine.register(item_id,temp,final_url,ctype,original_name=dest.name,risk_reasons=download_risk_reasons(dest.name,ctype))
             return {'ok':True,'quarantined':True,'item':item,
                     'message':'Downloaded into quarantine and not released/executed.'}
+        snapshot_id = None
+        if snapshot_manager is not None:
+            try:
+                snapshot_id = snapshot_manager.create_for_path(dest, 'AI web download into workspace')['snapshot_id']
+            except Exception as exc:
+                temp.unlink(missing_ok=True)
+                return {'ok':False,'blocked':True,'error':f'Pre-change workspace snapshot failed: {exc}'}
         dest.parent.mkdir(parents=True, exist_ok=True)
         temp.replace(dest)
-        return {'ok':True,'path':str(dest),'bytes':total,'content_type':ctype,'quarantined':False}
+        return {'ok':True,'path':str(dest),'bytes':total,'content_type':ctype,'quarantined':False,'snapshot_id':snapshot_id}
 
     def download_image(url: str, destination: str):
         return download_url(url, destination, _image_only=True)
@@ -245,16 +257,106 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         if not verification.get('ok'):
             return {'ok':False,'blocked':True,'error':'Quarantine artifact changed after registration; refusing release.','verification':verification}
         source = Path(item['path'])
+        snapshot_id = None
+        if snapshot_manager is not None:
+            try:
+                snapshot_id = snapshot_manager.create_for_path(target, 'Release quarantined file into workspace')['snapshot_id']
+            except Exception as exc:
+                return {'ok':False,'blocked':True,'error':f'Pre-change workspace snapshot failed: {exc}'}
         target.parent.mkdir(parents=True, exist_ok=True)
         source.replace(target); quarantine.mark_released(item_id, str(target))
-        return {'ok':True,'path':str(target),'sha256':item.get('sha256')}
+        return {'ok':True,'path':str(target),'sha256':item.get('sha256'),'snapshot_id':snapshot_id}
+
+    def _searxng_endpoint() -> tuple[str | None, str | None]:
+        configured = str(scfg.get('searxng_url') or os.environ.get('SEARXNG_BASE_URL') or '').strip()
+        if not configured:
+            return None, None
+        try:
+            parsed = urlparse(configured)
+        except Exception:
+            return None, 'SearXNG URL is invalid.'
+        if parsed.scheme not in {'http', 'https'} or not parsed.hostname:
+            return None, 'SearXNG URL must be an http/https URL with a hostname.'
+        if parsed.username or parsed.password:
+            return None, 'SearXNG URL must not contain embedded credentials.'
+        if parsed.query or parsed.fragment:
+            return None, 'SearXNG URL must not contain a query string or fragment.'
+        return configured.rstrip('/'), None
+
+    def _searxng_search(query: str, limit: int, *, images: bool = False) -> dict:
+        base_url, config_error = _searxng_endpoint()
+        if config_error:
+            return {'ok': False, 'provider': 'searxng', 'error': config_error}
+        if not base_url:
+            return {'ok': False, 'provider': 'searxng', 'error': 'SEARXNG_BASE_URL / web_search.searxng_url is not configured.'}
+        try:
+            timeout = max(1.0, min(float(scfg.get('searxng_timeout_seconds', 10)), 60.0))
+        except (TypeError, ValueError):
+            timeout = 10.0
+        try:
+            with httpx.Client(
+                timeout=timeout,
+                headers={'User-Agent': f'LivingAssistant/{__version__}'},
+                trust_env=False,
+            ) as client:
+                response = client.get(
+                    urljoin(base_url + '/', 'search'),
+                    params={
+                        'q': query,
+                        'format': 'json',
+                        'categories': 'images' if images else 'general',
+                    },
+                )
+                response.raise_for_status()
+                payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError('SearXNG returned a non-object JSON response.')
+            raw_results = payload.get('results') or []
+            if not isinstance(raw_results, list):
+                raise ValueError('SearXNG returned an invalid results collection.')
+            cleaned = []
+            for item in raw_results[:limit]:
+                if not isinstance(item, dict):
+                    continue
+                if images:
+                    image_url = str(item.get('img_src') or item.get('thumbnail_src') or '')
+                    link = str(item.get('url') or '')
+                    if not image_url:
+                        continue
+                    cleaned.append({
+                        'title': sanitize_external_observation(str(item.get('title') or ''), 4000),
+                        'imageUrl': image_url,
+                        'link': link,
+                        'source': sanitize_external_observation(
+                            str(item.get('source') or item.get('engine') or 'SearXNG'), 2000
+                        ),
+                    })
+                else:
+                    link = str(item.get('url') or '')
+                    if not link:
+                        continue
+                    cleaned.append({
+                        'title': sanitize_external_observation(str(item.get('title') or ''), 4000),
+                        'link': link,
+                        'snippet': sanitize_external_observation(
+                            str(item.get('content') or item.get('snippet') or ''), 8000
+                        ),
+                    })
+            return {'ok': True, 'provider': 'searxng', 'results': cleaned}
+        except Exception as exc:
+            kind = 'image search' if images else 'search'
+            return {
+                'ok': False,
+                'provider': 'searxng',
+                'error': f'SearXNG {kind} failed: {redact_secrets(exc, 1000)}',
+            }
 
     def image_search(query: str, num: int = 5):
         query = (query or '').strip()
         if not query:
             return {'ok': False, 'error': 'Image search query must not be empty.'}
         provider = str(scfg.get('provider', 'auto')).strip().lower()
-        if provider not in {'auto', 'serper', 'browser', 'disabled'}:
+        if provider not in {'auto', 'searxng', 'serper', 'browser', 'disabled'}:
             return {'ok': False, 'error': f'Unsupported web search provider: {provider!r}.'}
         if provider == 'disabled':
             return {'ok': False, 'disabled': True, 'error': 'Web search is disabled by configuration.'}
@@ -266,15 +368,29 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         limit = max(1, min(requested, max(1, min(configured_max, 10))))
 
         key = os.environ.get('SERPER_API_KEY')
+        searxng_url, searxng_config_error = _searxng_endpoint()
+        if provider == 'searxng' and searxng_config_error:
+            return {'ok': False, 'provider': 'searxng', 'error': searxng_config_error}
+        if provider == 'searxng' and not searxng_url:
+            return {'ok': False, 'provider': 'searxng', 'error': 'SEARXNG_BASE_URL / web_search.searxng_url is not configured.'}
         if provider == 'serper' and not key:
             return {'ok': False, 'provider': 'serper', 'error': 'SERPER_API_KEY is not configured.'}
         if provider == 'browser' and (browser is None or not callable(getattr(browser, 'search_images', None))):
             return {'ok': False, 'provider': 'browser', 'error': 'Browser image search provider is unavailable.'}
-        if provider == 'auto' and not key and (browser is None or not callable(getattr(browser, 'search_images', None))):
-            return {'ok': False, 'provider': 'browser', 'error': 'Browser image search provider is unavailable. Install/configure the browser extra or set SERPER_API_KEY.'}
+        if provider == 'auto' and not searxng_url and not key and (browser is None or not callable(getattr(browser, 'search_images', None))):
+            return {'ok': False, 'provider': 'browser', 'error': 'No image search provider is available. Configure SearXNG, install/configure the browser extra, or set SERPER_API_KEY.'}
         budget_error = _consume_search_budget()
         if budget_error:
             return budget_error
+
+        searxng_error = None
+        if provider in {'auto', 'searxng'} and searxng_url:
+            result = _searxng_search(query, limit, images=True)
+            if result.get('ok'):
+                return result
+            searxng_error = str(result.get('error') or 'SearXNG image search failed.')
+            if provider == 'searxng':
+                return result
 
         serper_error = None
         if provider in {'auto', 'serper'} and key:
@@ -303,8 +419,10 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
 
         if browser is None or not callable(getattr(browser, 'search_images', None)):
             message = 'Browser image search provider is unavailable.'
-            if provider == 'auto' and not key:
-                message += ' Install/configure the browser extra or set SERPER_API_KEY.'
+            if provider == 'auto' and not searxng_url and not key:
+                message += ' Configure SearXNG, install/configure the browser extra, or set SERPER_API_KEY.'
+            if searxng_error:
+                message += f' SearXNG fallback reason: {searxng_error}'
             if serper_error:
                 message += f' Serper fallback reason: {serper_error}'
             return {'ok': False, 'provider': 'browser', 'error': message}
@@ -340,7 +458,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         if not query:
             return {'ok': False, 'error': 'Search query must not be empty.'}
         provider = str(scfg.get('provider', 'auto')).strip().lower()
-        if provider not in {'auto', 'serper', 'browser', 'disabled'}:
+        if provider not in {'auto', 'searxng', 'serper', 'browser', 'disabled'}:
             return {'ok': False, 'error': f'Unsupported web search provider: {provider!r}.'}
         if provider == 'disabled':
             return {'ok': False, 'disabled': True, 'error': 'Web search is disabled by configuration.'}
@@ -352,15 +470,29 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         limit = max(1, min(requested, max(1, min(configured_max, 10))))
 
         key = os.environ.get('SERPER_API_KEY')
+        searxng_url, searxng_config_error = _searxng_endpoint()
+        if provider == 'searxng' and searxng_config_error:
+            return {'ok': False, 'provider': 'searxng', 'error': searxng_config_error}
+        if provider == 'searxng' and not searxng_url:
+            return {'ok': False, 'provider': 'searxng', 'error': 'SEARXNG_BASE_URL / web_search.searxng_url is not configured.'}
         if provider == 'serper' and not key:
             return {'ok': False, 'provider': 'serper', 'error': 'SERPER_API_KEY is not configured.'}
         if provider == 'browser' and (browser is None or not callable(getattr(browser, 'search_web', None))):
             return {'ok': False, 'provider': 'browser', 'error': 'Browser search provider is unavailable.'}
-        if provider == 'auto' and not key and (browser is None or not callable(getattr(browser, 'search_web', None))):
-            return {'ok': False, 'provider': 'browser', 'error': 'Browser search provider is unavailable. Install/configure the browser extra or set SERPER_API_KEY.'}
+        if provider == 'auto' and not searxng_url and not key and (browser is None or not callable(getattr(browser, 'search_web', None))):
+            return {'ok': False, 'provider': 'browser', 'error': 'No web search provider is available. Configure SearXNG, install/configure the browser extra, or set SERPER_API_KEY.'}
         budget_error = _consume_search_budget()
         if budget_error:
             return budget_error
+
+        searxng_error = None
+        if provider in {'auto', 'searxng'} and searxng_url:
+            result = _searxng_search(query, limit, images=False)
+            if result.get('ok'):
+                return result
+            searxng_error = str(result.get('error') or 'SearXNG search failed.')
+            if provider == 'searxng':
+                return result
 
         serper_error = None
         if provider in {'auto', 'serper'} and key:
@@ -388,8 +520,10 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
 
         if browser is None or not callable(getattr(browser, 'search_web', None)):
             message = 'Browser search provider is unavailable.'
-            if provider == 'auto' and not key:
-                message += ' Install/configure the browser extra or set SERPER_API_KEY.'
+            if provider == 'auto' and not searxng_url and not key:
+                message += ' Configure SearXNG, install/configure the browser extra, or set SERPER_API_KEY.'
+            if searxng_error:
+                message += f' SearXNG fallback reason: {searxng_error}'
             if serper_error:
                 message += f' Serper fallback reason: {serper_error}'
             return {'ok': False, 'provider': 'browser', 'error': message}

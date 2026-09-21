@@ -13,13 +13,13 @@ import urllib.parse
 
 import httpx
 
-from .approval import ApprovalManager
-from .config import data_dir
-from .connector_credentials import CredentialStore
-from .connector_oauth import OAuthManager
-from .security_policy import sanitize_external_observation
-from .security_utils import redact_secrets
-from .storage_utils import atomic_write_json
+from living_assistant.core.approval import ApprovalManager
+from living_assistant.core.config import data_dir
+from living_assistant.connectors.connector_credentials import CredentialStore
+from living_assistant.connectors.connector_oauth import OAuthManager
+from living_assistant.security.security_policy import sanitize_external_observation
+from living_assistant.security.security_utils import redact_secrets
+from living_assistant.core.storage_utils import atomic_write_json
 
 KINDS={'mail','calendar','files','contacts','messaging','productivity','developer','custom'}
 _SECRET_KEY_RE=re.compile(r'(?i)(password|passwd|pwd|token|secret|api[_-]?key|client[_-]?secret|private[_-]?key)')
@@ -172,6 +172,46 @@ class ConnectorManager:
         c=self.registry.get(name)
         if not c: return {'ok':False,'error':'Unknown connector.'}
         return {'ok':True,'connector':c,'credentials':self.credentials.status(c),'actions':sorted(PROVIDER_ACTIONS.get(c['provider'],{}))}
+
+    def refresh_expiring_oauth_tokens(self, *, refresh_window_seconds: int = 300) -> list[dict[str, Any]]:
+        """Proactively refresh enabled OAuth connectors that are nearing expiry.
+
+        Only Google and Microsoft currently have refresh-token implementations.
+        Connectors without a stored refresh token or expiry are intentionally skipped;
+        environment-only access tokens remain the user's responsibility.  Failures are
+        returned as redacted status records so the daemon can surface them without
+        leaking provider responses or credentials.
+        """
+        now = time.time()
+        window = max(120, int(refresh_window_seconds))
+        results: list[dict[str, Any]] = []
+        for name, item in self.registry.list().items():
+            if not isinstance(item, dict) or not item.get('enabled', True):
+                continue
+            connector = {'name': name, **item}
+            if connector.get('provider') not in {'google', 'microsoft'}:
+                continue
+            bundle = self.credentials.load_bundle(connector)
+            refresh_token = bundle.get('refresh_token')
+            expires_at = bundle.get('expires_at')
+            if not refresh_token or expires_at is None:
+                continue
+            try:
+                expires_at_f = float(expires_at)
+            except (TypeError, ValueError):
+                results.append({'connector': name, 'ok': False, 'error': 'Stored OAuth expiry is invalid.'})
+                continue
+            if expires_at_f > now + window:
+                continue
+            try:
+                token = self.oauth.refresh(connector)
+                if token:
+                    results.append({'connector': name, 'ok': True, 'provider': connector.get('provider')})
+                else:
+                    results.append({'connector': name, 'ok': False, 'error': 'OAuth refresh did not return an access token.'})
+            except Exception as exc:
+                results.append({'connector': name, 'ok': False, 'error': redact_secrets(exc, 1000)})
+        return results
 
     def oauth_scopes(self,c: dict) -> list[str]:
         explicit=(c.get('settings') or {}).get('oauth_scopes')

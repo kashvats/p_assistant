@@ -48,3 +48,26 @@ def test_briefing_build_uses_bounded_same_day_cache(tmp_path):
 
     refreshed=b.build('morning',now+dt.timedelta(seconds=301))
     assert 'Added after first build' in refreshed['text']
+
+
+def test_briefing_includes_bounded_security_and_experience_context(tmp_path):
+    class Guardian:
+        def findings(self,status='open',limit=20):
+            return [
+                {'severity':'critical','title':'Disk encryption disabled','details':{'secret':'must not appear'}},
+                {'severity':'high','title':'Unexpected persistence item','details':{'raw':'private'}}
+            ]
+    class Experiences:
+        def stats(self):
+            return {'lessons_by_status':{'active':3},'trusted_lessons':2,'episodes':11}
+
+    state=PersonalState(tmp_path/'state.json')
+    mem=MemoryStore(tmp_path/'db.sqlite3')
+    cal=CalendarStore(tmp_path/'db.sqlite3')
+    b=BriefingEngine({'briefings':{'enabled':True}},state,mem,cal,EmptyProjects(),EmptyProcesses(),EmptyApprovals(),Note(),guardian=Guardian(),experiences=Experiences())
+    item=b.build('morning',dt.datetime(2026,9,15,9,0))
+    assert 'Security: 2 open finding(s)' in item['text']
+    assert 'Disk encryption disabled' in item['text']
+    assert 'Experience: 2 trusted lesson(s), 3 active lesson(s), 11 retained episode(s).' in item['text']
+    assert 'must not appear' not in item['text'] and 'private' not in item['text']
+    assert item['security_open_findings']==2
