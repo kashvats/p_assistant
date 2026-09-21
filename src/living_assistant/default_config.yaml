@@ -213,6 +213,7 @@ personal:
 
 briefings:
   enabled: true
+  cache_seconds: 300
   morning_time: "08:30"
   evening_time: "20:30"
   notify: true

@@ -19,7 +19,7 @@ import psutil
 from .approval import ApprovalManager
 from .config import data_dir
 from .sqlite_utils import ThreadLocalSQLite
-from .evaluation import EvaluationEngine, _git, _repo_root, _copy_project
+from .evaluation import EvaluationEngine, _git, _repo_root, _copy_project, _kill_tree
 from .improvements import ImprovementEngine
 from .sandbox import ContainerRuntime, SandboxSpec, sanitized_env
 from .security_policy import classify_command
@@ -196,10 +196,15 @@ class CanaryEngine:
                 while time.monotonic()<until and proc.poll() is None:
                     samples.append(_health_probe(url)); st=_process_tree_stats(proc.pid); peak_rss=max(peak_rss,st['rss_mb']); peak_cpu=max(peak_cpu,st['cpu_percent']); time.sleep(0.5)
         finally:
-            try: proc.terminate(); proc.wait(timeout=5)
+            # Canary commands may spawn workers/children. Terminating only the
+            # direct process can leave those descendants running after a startup
+            # timeout or failed health check, so reuse the hardened evaluation
+            # process-tree cleanup path.
+            _kill_tree(proc.pid)
+            try:
+                proc.wait(timeout=5)
             except Exception:
-                try: proc.kill()
-                except Exception: pass
+                pass
             fh.close()
         summary=_summarize(samples,peak_rss,peak_cpu); summary.update({'ok':ready,'url':url,'log':str(log_path),'returncode':proc.poll(),'provider':'host','startup_probes':startup_samples[-50:]})
         if not ready:

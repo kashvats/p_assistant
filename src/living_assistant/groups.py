@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import json, time
+from concurrent.futures import ThreadPoolExecutor
 from .config import data_dir
 from .storage_utils import atomic_write_json
 from .security_policy import classify_command
@@ -16,13 +17,34 @@ class ProjectGroupRegistry:
 
     def _save(self, data): atomic_write_json(self.path, data)
 
-    def add(self, name: str, projects: list[str], stop_reverse: bool = True) -> dict:
-        clean = [x.strip() for x in projects if x.strip()]
+    def add(self, name: str, projects: list[str], stop_reverse: bool = True,
+            dependencies: dict[str, list[str]] | None = None, parallel_start: bool = False,
+            max_parallel: int = 4) -> dict:
+        clean = list(dict.fromkeys(x.strip() for x in projects if x.strip()))
         if not clean: raise ValueError('At least one project is required.')
+        allowed=set(clean); deps={}
+        for project, required in (dependencies or {}).items():
+            project=str(project).strip()
+            if project not in allowed: raise ValueError(f'Unknown dependency target: {project}')
+            values=list(dict.fromkeys(str(x).strip() for x in (required or []) if str(x).strip()))
+            unknown=[x for x in values if x not in allowed]
+            if unknown: raise ValueError(f'Unknown dependencies for {project}: {", ".join(unknown)}')
+            if project in values: raise ValueError(f'Project cannot depend on itself: {project}')
+            if values: deps[project]=values
         data = self._load()
-        data[name] = {'projects': clean, 'stop_reverse': bool(stop_reverse), 'updated_at': time.time()}
+        data[name] = {
+            'projects': clean, 'stop_reverse': bool(stop_reverse), 'dependencies': deps,
+            'parallel_start': bool(parallel_start), 'max_parallel': max(1,min(int(max_parallel),16)),
+            'desired_state': 'stopped', 'updated_at': time.time(),
+        }
         self._save(data)
         return {'name': name, **data[name]}
+
+    def set_desired_state(self, name: str, state: str) -> bool:
+        if state not in {'running','stopped'}: raise ValueError('Group state must be running or stopped.')
+        data=self._load()
+        if name not in data: return False
+        data[name]['desired_state']=state; data[name]['updated_at']=time.time(); self._save(data); return True
 
     def list(self) -> dict: return self._load()
     def get(self, name: str) -> dict | None:
@@ -38,16 +60,32 @@ class ProjectGroupController:
     def plan(self, group_name: str) -> dict:
         group = self.groups.get(group_name)
         if not group: return {'ok': False, 'error': 'Unknown group.'}
-        plan = []
-        for name in group['projects']:
+        entries = {}
+        order=list(group['projects'])
+        for name in order:
             p = self.projects.get(name)
             if not p: return {'ok': False, 'error': f'Unknown project in group: {name}'}
             cmd = p.get('start_command')
             if not cmd: return {'ok': False, 'error': f'Project has no start command: {name}'}
             d = classify_command(cmd, True)
             if not d.allowed: return {'ok': False, 'error': f'Blocked project command for {name}: {d.reason}'}
-            plan.append({'project': name, 'command': cmd, 'path': p['path']})
-        return {'ok': True, 'group': group_name, 'plan': plan}
+            entries[name]={'project': name, 'command': cmd, 'path': p['path']}
+
+        dependencies={name:list((group.get('dependencies') or {}).get(name,[])) for name in order}
+        remaining=set(order); completed=set(); stages=[]
+        while remaining:
+            ready=[name for name in order if name in remaining and set(dependencies[name]).issubset(completed)]
+            if not ready:
+                blocked={name:dependencies[name] for name in order if name in remaining}
+                return {'ok': False, 'error': 'Project-group dependency cycle detected.', 'blocked': blocked}
+            stage=[entries[name] for name in ready]
+            stages.append(stage); completed.update(ready); remaining.difference_update(ready)
+        plan=[entry for stage in stages for entry in stage]
+        return {
+            'ok': True, 'group': group_name, 'plan': plan, 'stages': stages,
+            'parallel_start': bool(group.get('parallel_start',False)),
+            'max_parallel': max(1,min(int(group.get('max_parallel',4) or 4),16)),
+        }
 
     def start(self, group_name: str) -> dict:
         planned = self.plan(group_name)
@@ -55,14 +93,47 @@ class ProjectGroupController:
         action = 'Start project group %s: %s' % (group_name, '; '.join(x['project'] + '=' + x['command'] for x in planned['plan']))
         req = self.approvals.request(action, 'Starting multiple registered project services.', 'EXECUTE')
         if not req.get('allowed'): return {'ok': False, 'approval_required': True, **req}
+        if hasattr(self.groups,'set_desired_state'): self.groups.set_desired_state(group_name,'running')
         results = []
-        for entry in planned['plan']:
+        def launch(entry):
             p = self.projects.get(entry['project'])
-            results.append(self.processes.start(
+            result=self.processes.start(
                 p['start_command'], p['path'], name=p['name'], project=p['name'],
-                auto_restart=bool(p.get('auto_restart')), max_restarts=int(p.get('max_restarts',3)), health_url=p.get('health_url')
-            ))
+                auto_restart=bool(p.get('auto_restart')), max_restarts=int(p.get('max_restarts',3)), health_url=p.get('health_url'), env=p.get('env')
+            )
+            return {'project':entry['project'],**result}
+
+        for stage_index, stage in enumerate(planned['stages']):
+            if planned.get('parallel_start') and len(stage)>1:
+                workers=min(planned.get('max_parallel',4),len(stage))
+                with ThreadPoolExecutor(max_workers=workers,thread_name_prefix='project-group') as pool:
+                    stage_results=list(pool.map(launch,stage))
+            else:
+                stage_results=[launch(entry) for entry in stage]
+            results.extend(stage_results)
+            if not all(x.get('ok') for x in stage_results):
+                remaining=[e['project'] for later in planned['stages'][stage_index+1:] for e in later]
+                for project in remaining:
+                    results.append({'ok':False,'project':project,'skipped':True,'error':'Dependency stage failed; project was not started.'})
+                break
         return {'ok': all(x.get('ok') for x in results), 'group': group_name, 'results': results}
+
+    def health(self, group_name: str) -> dict:
+        group=self.groups.get(group_name)
+        if not group: return {'ok':False,'error':'Unknown group.'}
+        desired=group.get('desired_state','stopped')
+        if desired!='running':
+            return {'ok':True,'group':group_name,'monitored':False,'healthy':True,'desired_state':desired,'projects':[]}
+        active=self.processes.list(); projects=[]
+        for project in group['projects']:
+            items=[item for item in active if item.get('project')==project and item.get('desired_state')=='running']
+            running=any(bool(item.get('running')) for item in items)
+            projects.append({'project':project,'running':running,'process_ids':[item.get('id') for item in items]})
+        healthy=all(item['running'] for item in projects) if projects else True
+        return {'ok':True,'group':group_name,'monitored':True,'healthy':healthy,'desired_state':'running','projects':projects}
+
+    def health_all(self) -> list[dict]:
+        return [self.health(name) for name in self.groups.list()]
 
     def stop(self, group_name: str) -> dict:
         group = self.groups.get(group_name)
@@ -75,4 +146,5 @@ class ProjectGroupController:
             for item in active:
                 if item.get('project') == project and item.get('running'):
                     results.append({'project': project, 'process_id': item['id'], **self.processes.stop(item['id'])})
+        if hasattr(self.groups,'set_desired_state'): self.groups.set_desired_state(group_name,'stopped')
         return {'ok': all(x.get('ok') for x in results) if results else True, 'group': group_name, 'results': results}

@@ -18,7 +18,14 @@ from ..approval import ApprovalManager
 from ..browser import BrowserController
 from ..config import data_dir
 
-IMAGE_TYPES = {'image/jpeg','.jpg','image/png','.png','image/webp','.webp','image/gif','.gif','image/svg+xml','.svg'}
+IMAGE_TYPES = {'image/jpeg','.jpg','.jpeg','image/png','.png','image/webp','.webp','image/gif','.gif','image/svg+xml','.svg'}
+IMAGE_CONTENT_EXTENSIONS = {
+    'image/jpeg': ('.jpg', {'.jpg', '.jpeg'}),
+    'image/png': ('.png', {'.png'}),
+    'image/webp': ('.webp', {'.webp'}),
+    'image/gif': ('.gif', {'.gif'}),
+    'image/svg+xml': ('.svg', {'.svg'}),
+}
 MAX_REDIRECTS = 5
 
 
@@ -180,7 +187,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
                 r.close()
         return total, ctype, final_url
 
-    def download_url(url: str, destination: str):
+    def download_url(url: str, destination: str, _image_only: bool = False):
         dest = workspace.resolve(destination)
         item_id, temp = quarantine.reserve(url, dest.name)
         try:
@@ -189,6 +196,28 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             temp.unlink(missing_ok=True); return gate.result
         except Exception as e:
             temp.unlink(missing_ok=True); return {'ok':False,'error':redact_secrets(e,1000)}
+
+        if _image_only:
+            image_type = IMAGE_CONTENT_EXTENSIONS.get(ctype)
+            if image_type is None:
+                temp.unlink(missing_ok=True)
+                return {'ok':False,'error':f'URL did not return a supported image (content-type: {ctype or "unknown"}).'}
+            canonical_ext, allowed_exts = image_type
+            suffix = dest.suffix.lower()
+            if suffix and suffix not in allowed_exts:
+                temp.unlink(missing_ok=True)
+                return {'ok':False,'error':f'Image content type {ctype} does not match destination extension {suffix}.'}
+            if not suffix:
+                dest = workspace.resolve(f'{destination}{canonical_ext}')
+            # SVG is active XML content and can carry script/external references. Keep it quarantined.
+            if ctype == 'image/svg+xml':
+                item = quarantine.register(
+                    item_id, temp, final_url, ctype, original_name=dest.name,
+                    risk_reasons=['active_svg_image'],
+                )
+                return {'ok':True,'quarantined':True,'item':item,
+                        'message':'SVG image downloaded into quarantine because SVG can contain active content.'}
+
         risky = is_risky_download(dest.name, ctype)
         quarantine_non_image = bool(dcfg.get('quarantine_all_non_images', False)) and not ctype.startswith('image/')
         if (bool(dcfg.get('quarantine_risky_files', True)) and risky) or quarantine_non_image:
@@ -198,6 +227,9 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         dest.parent.mkdir(parents=True, exist_ok=True)
         temp.replace(dest)
         return {'ok':True,'path':str(dest),'bytes':total,'content_type':ctype,'quarantined':False}
+
+    def download_image(url: str, destination: str):
+        return download_url(url, destination, _image_only=True)
 
     def quarantine_list(): return quarantine.list()
 
@@ -390,6 +422,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
     return [
         Tool('web_fetch','Fetch a web page as untrusted observation text with size/time limits. Private/local targets require explicit approval, including redirects.',{'type':'object','properties':{'url':{'type':'string'}},'required':['url']},web_fetch),
         Tool('download_url','Download a URL. Private/local targets require approval; risky executables/scripts are quarantined.',{'type':'object','properties':{'url':{'type':'string'},'destination':{'type':'string'}},'required':['url','destination']},download_url),
+        Tool('download_image','Download a raster image URL into the workspace with content-type/extension validation. Missing extensions are inferred; SVG is quarantined as active content.',{'type':'object','properties':{'url':{'type':'string'},'destination':{'type':'string'}},'required':['url','destination']},download_image),
         Tool('quarantine_list','List downloaded files currently tracked by the quarantine vault.',{'type':'object','properties':{}},quarantine_list),
         Tool('quarantine_release','Release a quarantined file into the approved workspace. Requires explicit approval.',{'type':'object','properties':{'item_id':{'type':'string'},'destination':{'type':'string'}},'required':['item_id','destination']},quarantine_release),
         Tool('image_search','Search the web for image URLs using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},image_search),

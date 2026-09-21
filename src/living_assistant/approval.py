@@ -35,7 +35,13 @@ class ApprovalStore:
 
     @staticmethod
     def action_hash(action: str, reason: str, kind: str) -> str:
-        raw = json.dumps({"action": action, "reason": reason, "kind": kind}, sort_keys=True).encode()
+        # Approval retries must be stable across harmless boundary whitespace
+        # differences, while preserving internal whitespace that may be
+        # semantically meaningful (for example in shell commands or SQL).
+        raw = json.dumps(
+            {"action": action.strip(), "reason": reason.strip(), "kind": kind.strip()},
+            sort_keys=True,
+        ).encode()
         return hashlib.sha256(raw).hexdigest()
 
     def expire_pending(self, *, max_age_hours: float | None = None, now: dt.datetime | None = None) -> int:

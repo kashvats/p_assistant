@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import json
+import os
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -171,14 +172,14 @@ def daemon():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                   routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).run_forever()
+                  briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences, group_controller=rt.group_controller).run_forever()
 
 @app.command()
 def tick():
     rt = build_runtime(interactive=False); rt.model_manager.sleep()
     console.print(NervousSystem(rt.config, rt.memory, rt.processes, rt.watches, rt.notifier,
                                 routines=rt.routines, orchestrator=rt.orchestrator, model_manager=rt.model_manager,
-                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences).tick())
+                                briefings=rt.briefings, sessions=rt.sessions, guardian=rt.guardian, security_sensors=rt.security_sensors, experiences=rt.experiences, group_controller=rt.group_controller).tick())
 
 @app.command()
 def serve(host: str = '127.0.0.1', port: int = 8787):
@@ -200,11 +201,17 @@ def tray():
 @project_app.command('add')
 def project_add(name: str, path: str, start: str | None = typer.Option(None, '--start'),
                 test: str | None = typer.Option(None, '--test'), auto_restart: bool = False,
-                max_restarts: int = 3, health_url: str | None = None):
+                max_restarts: int = 3, health_url: str | None = None,
+                env: str = typer.Option('', '--env', help='JSON object of non-secret project environment variables.')):
     rt = build_runtime(interactive=False); resolved = Path(path).expanduser().resolve()
     if not resolved.exists() or not resolved.is_dir():
         console.print(f'[red]Project directory does not exist:[/red] {resolved}'); raise typer.Exit(1)
-    console.print(rt.projects.add(name, str(resolved), start, test, auto_restart, max_restarts, health_url))
+    try:
+        env_values=json.loads(env) if env.strip() else {}
+        if not isinstance(env_values,dict): raise ValueError('--env must be a JSON object')
+        console.print(rt.projects.add(name, str(resolved), start, test, auto_restart, max_restarts, health_url, env_values))
+    except ValueError as exc:
+        console.print(f'[red]{exc}[/red]'); raise typer.Exit(1)
 
 @project_app.command('list')
 def project_list():
@@ -227,7 +234,7 @@ def project_run(name: str):
     decision = classify_command(command, True)
     if not decision.allowed: console.print({'ok':False,'blocked':True,'reason':decision.reason}); raise typer.Exit(2)
     if input(f'Start {name} with `{command}`? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
-    console.print(rt.processes.start(command,item['path'],name=name,project=name,auto_restart=bool(item.get('auto_restart')),max_restarts=int(item.get('max_restarts',3)),health_url=item.get('health_url')))
+    console.print(rt.processes.start(command,item['path'],name=name,project=name,auto_restart=bool(item.get('auto_restart')),max_restarts=int(item.get('max_restarts',3)),health_url=item.get('health_url'),env=item.get('env')))
 
 @project_app.command('test')
 def project_test(name: str):
@@ -237,7 +244,8 @@ def project_test(name: str):
     cmd = item['test_command']
     if input(f'Run tests for {name} with `{cmd}`? [y/N]: ').strip().lower() not in {'y','yes'}: raise typer.Exit(1)
     import subprocess
-    p = subprocess.run(cmd,cwd=item['path'],shell=True,text=True,capture_output=True,timeout=600)
+    project_env=os.environ.copy(); project_env.update({str(k):str(v) for k,v in (item.get('env') or {}).items()})
+    p = subprocess.run(cmd,cwd=item['path'],shell=True,text=True,capture_output=True,timeout=600,env=project_env)
     console.print({'returncode':p.returncode,'stdout':p.stdout[-30000:],'stderr':p.stderr[-10000:]})
 
 @project_app.command('processes')
@@ -260,8 +268,16 @@ def project_restart(process_id: str):
 def project_stop(process_id: str): console.print(build_runtime(interactive=False).processes.stop(process_id))
 
 @group_app.command('add')
-def group_add(name: str, projects: str):
-    rt=build_runtime(interactive=False); console.print(rt.groups.add(name,[x.strip() for x in projects.split(',')]))
+def group_add(name: str, projects: str, dependencies: str = '', parallel_start: bool = False, max_parallel: int = 4):
+    deps={}
+    if dependencies.strip():
+        try:
+            deps=json.loads(dependencies)
+            if not isinstance(deps,dict): raise ValueError('dependencies must be a JSON object')
+        except Exception as exc:
+            console.print(f'[red]Invalid dependencies JSON: {exc}[/red]'); raise typer.Exit(1)
+    rt=build_runtime(interactive=False)
+    console.print(rt.groups.add(name,[x.strip() for x in projects.split(',')],dependencies=deps,parallel_start=parallel_start,max_parallel=max_parallel))
 
 @group_app.command('list')
 def group_list(): console.print(build_runtime(interactive=False).groups.list())

@@ -150,3 +150,41 @@ def test_connector_api_routes_use_same_manager(monkeypatch):
     assert client.get('/connectors/x/status').json()['name']=='x'
     body=client.post('/connectors/x/call',json={'action':'pr.list','params':{'repo':'a/b'}}).json()
     assert body['action']=='pr.list' and body['params']['repo']=='a/b'
+
+
+def test_connector_refreshes_oauth_token_well_before_expiry(tmp_path, monkeypatch):
+    import time
+
+    r = registry(tmp_path)
+    c = r.add('g', 'mail', 'google', ['mail.read'], env_prefix='G')
+    m = ConnectorManager(r, Approval(), CredentialStore(use_keyring=False))
+
+    monkeypatch.setattr(m.credentials, 'secret', lambda connector, *keys: 'old-token')
+    monkeypatch.setattr(m.credentials, 'load_bundle', lambda connector: {
+        'access_token': 'old-token',
+        'refresh_token': 'refresh-token',
+        'expires_at': time.time() + 90,
+    })
+    calls = []
+    monkeypatch.setattr(m.oauth, 'refresh', lambda connector: calls.append(connector['name']) or 'new-token')
+
+    assert m._token(c) == 'new-token'
+    assert calls == ['g']
+
+
+def test_connector_keeps_token_outside_refresh_safety_window(tmp_path, monkeypatch):
+    import time
+
+    r = registry(tmp_path)
+    c = r.add('g', 'mail', 'google', ['mail.read'], env_prefix='G')
+    m = ConnectorManager(r, Approval(), CredentialStore(use_keyring=False))
+
+    monkeypatch.setattr(m.credentials, 'secret', lambda connector, *keys: 'current-token')
+    monkeypatch.setattr(m.credentials, 'load_bundle', lambda connector: {
+        'access_token': 'current-token',
+        'refresh_token': 'refresh-token',
+        'expires_at': time.time() + 180,
+    })
+    monkeypatch.setattr(m.oauth, 'refresh', lambda connector: (_ for _ in ()).throw(AssertionError('unexpected refresh')))
+
+    assert m._token(c) == 'current-token'

@@ -341,3 +341,26 @@ def test_higher_priority_foreground_model_evicts_lower_priority_background_model
     mm.activate('orchestrator', priority=100)
     assert provider.unloaded == ['background-specialist']
     assert [item['model'] for item in mm.status()['resident_models']] == ['orchestrator']
+
+
+def test_can_start_model_rejects_known_model_that_would_force_cpu_fallback(monkeypatch):
+    rm = ResourceManager('balanced', cfg(), hardware=hw(32, vram=16, free=4))
+    monkeypatch.setattr(rm, 'snapshot', lambda: {
+        'cpu_percent': 10, 'ram_percent': 30, 'available_ram_gb': 20,
+        'gpu_free_vram_gb': 4,
+    })
+    ok, reason = rm.can_start_model(8 * 1024**3)
+    assert ok is False
+    assert 'VRAM start gate' in reason
+    assert 'silent CPU fallback' in reason
+
+
+def test_can_start_model_blocks_when_only_reserved_vram_remains(monkeypatch):
+    rm = ResourceManager('balanced', cfg(), hardware=hw(32, vram=16, free=1))
+    monkeypatch.setattr(rm, 'snapshot', lambda: {
+        'cpu_percent': 10, 'ram_percent': 30, 'available_ram_gb': 20,
+        'gpu_free_vram_gb': 1,
+    })
+    ok, reason = rm.can_start_model()
+    assert ok is False
+    assert 'VRAM is free' in reason

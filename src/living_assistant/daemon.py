@@ -15,12 +15,12 @@ class NervousSystem:
     def __init__(self, config: dict, memory: MemoryStore, processes: ProcessRegistry | None = None,
                  watches: WatchRegistry | None = None, notifier: Notifier | None = None,
                  routines: RoutineRegistry | None = None, orchestrator=None, model_manager=None,
-                 briefings=None, sessions=None, guardian=None, security_sensors=None, experiences=None):
+                 briefings=None, sessions=None, guardian=None, security_sensors=None, experiences=None, group_controller=None):
         self.config=config; self.cfg=config.get('daemon',{}); self.memory=memory
         self.processes=processes or ProcessRegistry(); self.watches=watches or WatchRegistry()
         self.notifier=notifier or Notifier(); self.routines=routines or RoutineRegistry()
-        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.security_sensors=security_sensors; self.experiences=experiences
-        self.last_ports=set(); self.previous_running={}; self.health_failures={}; self.restart_exhausted_notified=set()
+        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.security_sensors=security_sensors; self.experiences=experiences; self.group_controller=group_controller
+        self.last_ports=set(); self.previous_running={}; self.health_failures={}; self.restart_exhausted_notified=set(); self.previous_group_health={}
         self.last_maintenance=0.0; self.last_security_scan=0.0; self.last_security_posture_scan=0.0; self.last_sensor_scan=0.0
         resume_gap=max(float(self.cfg.get('resume_gap_seconds',60)), float(self.cfg.get('poll_seconds',15))*3.0)
         self.power_monitor=SleepResumeMonitor(resume_gap)
@@ -91,6 +91,18 @@ class NervousSystem:
                 for port in sorted(now_ports-self.last_ports): events.append({'kind':'new_listening_port','local':port})
             self.last_ports=now_ports
         events.extend(self._process_events()); events.extend(self._todo_events())
+        if self.group_controller is not None:
+            try:
+                for status in self.group_controller.health_all():
+                    if not status.get('ok') or not status.get('monitored'): continue
+                    name=status.get('group'); healthy=bool(status.get('healthy')); previous=self.previous_group_health.get(name)
+                    self.previous_group_health[name]=healthy
+                    if previous is not False and not healthy:
+                        events.append({'kind':'project_group_degraded','group':name,'projects':status.get('projects',[])})
+                    elif previous is False and healthy:
+                        events.append({'kind':'project_group_recovered','group':name,'projects':status.get('projects',[])})
+            except Exception as exc:
+                events.append({'kind':'project_group_health_error','error':str(exc)})
         file_events=[]
         if self.cfg.get('watch_files',True):
             file_events=self.watches.poll(max_events_per_watch=int(self.cfg.get('max_watch_events_per_tick',25)))
@@ -140,7 +152,7 @@ class NervousSystem:
         todo_notified=set()
         for e in events:
             self.memory.add_event(e['kind'],e)
-            if e['kind'] in {'project_process_crashed','project_process_restarted','project_restart_exhausted','project_health_failed','todo_due','new_listening_port','security_baseline_missing','security_new_persistence','security_new_listener','security_integrity_change','security_suspicious_process','security_posture_weakened','security_guardian_error','security_sensor_error','security_correlated_chain','security_new_usb','security_new_browser_extension','security_extension_permissions','security_backup_integrity','security_ransomware_like_burst','security_trusted_binary_changed'}:
+            if e['kind'] in {'project_process_crashed','project_process_restarted','project_restart_exhausted','project_health_failed','project_group_degraded','project_group_recovered','todo_due','new_listening_port','security_baseline_missing','security_new_persistence','security_new_listener','security_integrity_change','security_suspicious_process','security_posture_weakened','security_guardian_error','security_sensor_error','security_correlated_chain','security_new_usb','security_new_browser_extension','security_extension_permissions','security_backup_integrity','security_ransomware_like_burst','security_trusted_binary_changed'}:
                 should_notify=True
                 if str(e.get('kind','')).startswith('security_'):
                     ranks={'low':1,'medium':2,'high':3,'critical':4}
@@ -175,6 +187,8 @@ class NervousSystem:
         if kind=='project_process_restarted': return f"Restarted: {e.get('name')} (attempt {e.get('restart_count')})"
         if kind=='project_restart_exhausted': return f"Auto-restart exhausted for {e.get('name')}"
         if kind=='project_health_failed': return f"Health check failed for {e.get('name')}"
+        if kind=='project_group_degraded': return f"Project group degraded: {e.get('group')}"
+        if kind=='project_group_recovered': return f"Project group recovered: {e.get('group')}"
         if kind=='security_baseline_missing': return f"Security setup needed: initialize the {e.get('baseline')} baseline"
         if kind=='security_new_persistence': return 'Security: new startup/persistence item detected'
         if kind=='security_new_listener':

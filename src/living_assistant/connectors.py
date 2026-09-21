@@ -157,7 +157,12 @@ class ConnectorManager:
         keys=('BOT_TOKEN','TOKEN','ACCESS_TOKEN') if bot else ('ACCESS_TOKEN','TOKEN')
         token=self.credentials.secret(c,*keys)
         bundle=self.credentials.load_bundle(c)
-        if token and bundle.get('access_token')==token and bundle.get('expires_at') and float(bundle['expires_at'])<=time.time()+30:
+        # Refresh well before provider expiry so the refresh request itself and
+        # the immediately following API call cannot straddle token expiration on
+        # a slow network. OAuth token bundles already retain their provider expiry
+        # metadata; this is only an admission safety window.
+        refresh_skew_seconds = 120
+        if token and bundle.get('access_token')==token and bundle.get('expires_at') and float(bundle['expires_at'])<=time.time()+refresh_skew_seconds:
             token=self.oauth.refresh(c)
         if not token: token=self.oauth.refresh(c)
         if not token: raise RuntimeError(f'No access token configured for {c["name"]}. Run `organism integration auth {c["name"]}` or configure the documented environment variable.')

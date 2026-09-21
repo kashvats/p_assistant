@@ -150,3 +150,33 @@ def test_evaluation_subprocess_redacts_common_secret_environment(monkeypatch,tmp
     cmd='python -c "import os; assert os.getenv(\'MY_API_KEY\') is None; assert os.getenv(\'NORMAL_BUILD_FLAG\') == \'ok\'"'
     result=measure_command(cmd,tmp_path,timeout_seconds=3)
     assert result['ok'] is True
+
+
+def test_host_canary_timeout_terminates_descendant_processes(tmp_path):
+    import psutil
+    import time
+
+    project, approvals, improvements, evaluations, canaries = base_stack(tmp_path)
+    pid_file = project / "child.pid"
+    script = project / "spawn_child.sh"
+    script.write_text("sleep 30 &\necho $! > child.pid\nsleep 30\n")
+
+    from living_assistant.canary import _free_port
+    result = canaries._run_host_service(
+        'sh spawn_child.sh', project, _free_port(), '/health', 1, 1
+    )
+    assert result['ok'] is False
+    assert pid_file.exists()
+    child_pid = int(pid_file.read_text())
+
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline and psutil.pid_exists(child_pid):
+        try:
+            if psutil.Process(child_pid).status() == psutil.STATUS_ZOMBIE:
+                break
+        except psutil.NoSuchProcess:
+            break
+        time.sleep(0.05)
+
+    if psutil.pid_exists(child_pid):
+        assert psutil.Process(child_pid).status() == psutil.STATUS_ZOMBIE

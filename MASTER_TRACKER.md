@@ -40,15 +40,15 @@
 - [x] **BROKEN-07** · `skills.py` + package data · Fresh registries are now seeded from packaged `default_skills.json` with conservative debugging/code-change/research workflows. Existing registries are never overwritten, and user-created skills outrank built-ins on trigger-score ties. Packaging and matching regressions are covered.
 - [x] **BROKEN-08** · `webui/index.html` · Reworked the existing single-file dashboard into readable structured JavaScript with visible request/stream error handling, safe DOM-based Markdown rendering, dependency-free code highlighting, and packaged the dashboard HTML into production wheels. Regression tests verify rendering hooks, security headers, and package data.
 - [x] **BROKEN-09** · `overlay.py` + desktop API · Removed dead commented import stubs, made the existing CustomTkinter overlay dependency explicit, repaired the error-state widget update, and wired the existing Screen eye control to an authenticated `/desktop/analyze-screen` route that delegates to the already approval-gated `DesktopController.analyze_screen()` implementation. Focused overlay/desktop regressions pass.
-- [ ] **BROKEN-10** · `tools/webtools.py` · `download_url()` saves files to workspace but there is no image-specific download path — asking to "download an image" works inconsistently.
+- [x] **BROKEN-10** · `tools/webtools.py` · `download_url()` saves files to workspace but there is no image-specific download path — asking to "download an image" works inconsistently.
 
 ---
 
 ## 🟡 INCOMPLETE FEATURES (Started But Half-Built)
 
-- [ ] **INCOMPLETE-01** · `improvements.py` · Self-improvement reads only the target file when proposing a patch. No cross-file context. Produces naive patches that break imports from other modules.
-- [ ] **INCOMPLETE-02** · `groups.py` · Group project management exists but has no health monitoring. If one project in a group crashes, the rest keep running silently.
-- [ ] **INCOMPLETE-03** · `routines.py` · `assistant_prompt` routine type silently skips when `allow_model_wake=False`. No notification is sent that the routine was skipped.
+- [x] **INCOMPLETE-01** · `improvements.py` · Self-improvement reads only the target file when proposing a patch. No cross-file context. Produces naive patches that break imports from other modules.
+- [x] **INCOMPLETE-02** · `groups.py` · Group project management exists but has no health monitoring. If one project in a group crashes, the rest keep running silently.
+- [x] **INCOMPLETE-03** · `routines.py` · `assistant_prompt` routine type silently skips when `allow_model_wake=False`. No notification is sent that the routine was skipped.
 - [ ] **INCOMPLETE-04** · `connector_oauth.py` · Refresh token logic exists for Google and Microsoft but has no automatic background refresh. Tokens expire mid-session silently.
 - [ ] **INCOMPLETE-05** · `security_sensors.py` · macOS Endpoint Security integration is present but Windows Event Log ingestion is not wired into the daemon loop.
 - [ ] **INCOMPLETE-06** · `resource_manager.py` · Model eviction is LRU only. No priority-based eviction — a low-priority background model can evict the active foreground Orchestrator model.
@@ -155,23 +155,23 @@ esource_manager.py � _evict_one_locked() uses pure LRU with no priority. The a
 
 ## ?? ADDITIONAL BROKEN FEATURES (Found in Deep Audit Round 2)
 
-- [ ] **BROKEN-11** � pproval.py � Pre-approvals use SHA-256 of action+reason+kind. The hash must match **exactly** � a single space difference (e.g. trailing whitespace in a dynamic path string) silently creates a new pending approval instead of consuming the pre-approval. This is the root cause of voice wake-word approval mismatches.
-- [ ] **BROKEN-12** � daemon.py � experiences.maintenance() is called in the daemon tick, but maintenance() only prunes episodes and merges duplicates � it does NOT call experience.decay(). The decay method exists but is never reached from any code path.
-- [ ] **BROKEN-13** � canary.py � CanaryEngine._run_host_service() starts the candidate service as a background process but does not clean it up if the health check times out. Orphan processes are left running on the host.
-- [ ] **BROKEN-14** � 
+- [x] **BROKEN-11** � pproval.py � Pre-approvals use SHA-256 of action+reason+kind. The hash must match **exactly** � a single space difference (e.g. trailing whitespace in a dynamic path string) silently creates a new pending approval instead of consuming the pre-approval. This is the root cause of voice wake-word approval mismatches.
+- [x] **BROKEN-12** � daemon.py � experiences.maintenance() is called in the daemon tick, but maintenance() only prunes episodes and merges duplicates � it does NOT call experience.decay(). The decay method exists but is never reached from any code path.
+- [x] **BROKEN-13** � canary.py � CanaryEngine._run_host_service() starts the candidate service as a background process but does not clean it up if the health check times out. Orphan processes are left running on the host.
+- [x] **BROKEN-14** � 
 esource_manager.py � can_start_model() checks available RAM but not available VRAM when GPU is present. You can start loading a 13B model into a 4GB VRAM GPU even if 12GB are already committed, then Ollama silently falls back to CPU � killing performance without any warning.
-- [ ] **BROKEN-15** � connector_oauth.py � Token refresh only triggers when expires_at <= now + 30s. But refresh is called inline during call(). If the refresh HTTP request takes >30s (slow network), the token expires mid-request and the API call fails with a 401.
+- [x] **BROKEN-15** � connector_oauth.py � Token refresh only triggers when expires_at <= now + 30s. But refresh is called inline during call(). If the refresh HTTP request takes >30s (slow network), the token expires mid-request and the API call fails with a 401.
 
 ---
 
 ## ?? ADDITIONAL INCOMPLETE FEATURES (Found in Deep Audit Round 2)
 
-- [ ] **INCOMPLETE-12** � daemon.py � Sleep/resume detection (SleepResumeMonitor) fires a resume event correctly but the daemon does NOT re-sync process health checks or watcher baselines after a resume. A laptop that sleeps for 8 hours wakes up with stale health status.
-- [ ] **INCOMPLETE-13** � riefing.py � Briefings have no content caching. If the LLM is sleeping/unavailable, calling GET /briefing/morning waits for model load and generation every time with no fallback or cached last result.
-- [ ] **INCOMPLETE-14** � groups.py � GroupOrchestrator.start() starts all group projects sequentially. For large groups this is slow. There is no parallel startup option, and no dependency ordering within the group.
-- [ ] **INCOMPLETE-15** � sessions.py � prune() deletes old sessions but does NOT archive them. Chat history older than 
+- [x] **INCOMPLETE-12** � daemon.py � Sleep/resume detection (SleepResumeMonitor) fires a resume event correctly but the daemon does NOT re-sync process health checks or watcher baselines after a resume. A laptop that sleeps for 8 hours wakes up with stale health status.
+- [x] **INCOMPLETE-13** � riefing.py � Briefings have no content caching. If the LLM is sleeping/unavailable, calling GET /briefing/morning waits for model load and generation every time with no fallback or cached last result.
+- [x] **INCOMPLETE-14** � groups.py � GroupOrchestrator.start() starts all group projects sequentially. For large groups this is slow. There is no parallel startup option, and no dependency ordering within the group.
+- [x] **INCOMPLETE-15** � sessions.py � prune() deletes old sessions but does NOT archive them. Chat history older than 
 etention_days is permanently deleted with no export path.
-- [ ] **INCOMPLETE-16** � improvements.py � 
+- [x] **INCOMPLETE-16** � improvements.py � 
 ollback() restores the original file from backup but does NOT check if the file was modified again after the proposal was applied. Rolling back may overwrite legitimate subsequent edits.
-- [ ] **INCOMPLETE-17** � 	ools/filesystem.py � search_files() uses simple substring matching on file content. No regex support, no file-type filtering, no binary file detection. Searching a binary file returns garbage bytes.
-- [ ] **INCOMPLETE-18** � 	ools/projects.py � Project registration exists (name, path, start_command) but there is no per-project environment variable management. You cannot set PORT=3000 for project A and PORT=4000 for project B separately.
+- [x] **INCOMPLETE-17** � 	ools/filesystem.py � search_files() uses simple substring matching on file content. No regex support, no file-type filtering, no binary file detection. Searching a binary file returns garbage bytes.
+- [x] **INCOMPLETE-18** � 	ools/projects.py � Project registration exists (name, path, start_command) but there is no per-project environment variable management. You cannot set PORT=3000 for project A and PORT=4000 for project B separately.

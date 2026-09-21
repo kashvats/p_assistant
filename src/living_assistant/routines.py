@@ -79,7 +79,10 @@ class RoutineRegistry:
             elif atype=='todo':
                 title=str(action.get('title') or f'Routine: {name}'); result['todo_id']=memory.add_todo(title,action.get('due_at'))
             elif atype=='assistant_prompt':
-                if not allow_model_wake or orchestrator is None: result.update({'ok':False,'skipped':True,'reason':'assistant_prompt model wake is disabled'})
+                if not allow_model_wake or orchestrator is None:
+                    reason='assistant_prompt model wake is disabled'
+                    result.update({'ok':False,'skipped':True,'reason':reason})
+                    notifier.send('Living Assistant',f'Routine {name} skipped: model wake is disabled.')
                 else:
                     prompt=str(action.get('prompt','')).strip()
                     if not prompt: result.update({'ok':False,'skipped':True,'reason':'empty prompt'})

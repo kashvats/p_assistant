@@ -176,12 +176,35 @@ class ResourceManager:
             reason=reason,
         )
 
-    def can_start_model(self) -> tuple[bool, str]:
+    def can_start_model(self, size_bytes: int | None = None) -> tuple[bool, str]:
         s = self.snapshot()
         minimum = {"lite": 0.7, "balanced": 1.5, "power": 3.0}.get(self.profile, 1.0)
         minimum = max(minimum, self.model_policy.reserve_ram_gb)
         if s["available_ram_gb"] < minimum:
             return False, f"Only {s['available_ram_gb']} GB RAM is available; free memory before loading another model."
+
+        # On dedicated-GPU systems, do not silently admit a model that is known
+        # to exceed currently free VRAM. Ollama can otherwise fall back heavily
+        # to CPU without surfacing that performance degradation to the caller.
+        # Unified-memory systems intentionally skip this dedicated-VRAM gate.
+        if self.hardware.gpu_vram_gb is not None and not self.hardware.unified_memory:
+            free_vram = s.get("gpu_free_vram_gb")
+            if free_vram is not None:
+                reserve = self.model_policy.reserve_vram_gb
+                if free_vram <= reserve:
+                    return False, (
+                        f"Only {free_vram} GB VRAM is free; {reserve:.2f} GB is reserved. "
+                        "Free GPU memory before loading a model."
+                    )
+                if size_bytes:
+                    estimated_gb = float(size_bytes) / GIB * 1.15
+                    usable_vram = max(0.0, float(free_vram) - reserve)
+                    if estimated_gb > usable_vram:
+                        return False, (
+                            f"VRAM start gate: {free_vram} GB free with {reserve:.2f} GB reserved, "
+                            f"but the model is estimated to require ~{estimated_gb:.2f} GB. "
+                            "Refusing silent CPU fallback."
+                        )
         return True, "ok"
 
     def can_admit_model(self, size_bytes: int | None = None, resident_count: int = 0, resident_size_bytes: int = 0) -> tuple[bool, str]:

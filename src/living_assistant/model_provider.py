@@ -259,7 +259,12 @@ class ModelManager:
                 if not ok and not self._resident:
                     # One model is allowed to use Ollama's normal partial-offload path
                     # as long as basic system RAM remains healthy.
-                    basic_ok, basic_reason = self.resources.can_start_model()
+                    try:
+                        basic_ok, basic_reason = self.resources.can_start_model(size)
+                    except TypeError:
+                        # Backwards compatibility for external/custom resource
+                        # managers implementing the older zero-argument hook.
+                        basic_ok, basic_reason = self.resources.can_start_model()
                     if not basic_ok:
                         raise ModelError(basic_reason)
             self._touch_locked(model, priority)

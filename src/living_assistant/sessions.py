@@ -5,6 +5,7 @@ import sqlite3, uuid, re
 from .config import data_dir
 from .sqlite_utils import ThreadLocalSQLite
 from .security_utils import redact_secrets
+from .storage_utils import atomic_write_json
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions(
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS living_assistant_migrations(
 class SessionStore:
     def __init__(self, path: Path | None = None, retention_days: int = 30, redact_secrets: bool = True):
         self.path=path or (data_dir()/'assistant.sqlite3')
+        self.archive_dir=self.path.parent/'session_archives'
         self.retention_days=max(1,int(retention_days))
         self.redact_secrets=bool(redact_secrets)
         self.conn=ThreadLocalSQLite(self.path)
@@ -119,6 +121,30 @@ class SessionStore:
 
     def prune(self,now: dt.datetime | None=None) -> int:
         now=now or dt.datetime.now(); cutoff=(now-dt.timedelta(days=self.retention_days)).isoformat(timespec='seconds')
-        ids=[r['id'] for r in self.conn.execute('SELECT id FROM sessions WHERE updated_at<?',(cutoff,)).fetchall()]
-        if not ids: return 0
+        rows=self.conn.execute('SELECT * FROM sessions WHERE updated_at<? ORDER BY updated_at,id',(cutoff,)).fetchall()
+        if not rows: return 0
+
+        archived=[]
+        for row in rows:
+            session=dict(row)
+            messages=[dict(item) for item in self.conn.execute(
+                'SELECT id,session_id,role,content,created_at FROM session_messages WHERE session_id=? ORDER BY id',
+                (session['id'],),
+            ).fetchall()]
+            archived.append({**session,'messages':messages})
+
+        # Archive is written atomically before destructive retention cleanup. If
+        # this write fails, the exception propagates and no session rows are
+        # deleted, preferring retained history over silent data loss.
+        stamp=now.strftime('%Y%m%dT%H%M%S')
+        archive_path=self.archive_dir/f'sessions-{stamp}-{uuid.uuid4().hex[:8]}.json'
+        atomic_write_json(archive_path,{
+            'version':1,
+            'archived_at':now.isoformat(timespec='seconds'),
+            'retention_days':self.retention_days,
+            'session_count':len(archived),
+            'sessions':archived,
+        },mode=0o600)
+
+        ids=[item['id'] for item in archived]
         self.conn.executemany('DELETE FROM sessions WHERE id=?',[(x,) for x in ids]); self.conn.commit(); return len(ids)
