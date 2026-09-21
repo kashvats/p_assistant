@@ -34,6 +34,7 @@ from .security_sensors import SecuritySensorPlatform
 from .experience import ExperienceEngine
 from .event_bus import EventBus
 from .desktop_intelligence import DesktopController
+from .task_graph import TaskGraphManager
 from .tools.filesystem import build_filesystem_tools
 from .tools.shell import build_shell_tools, ProcessRegistry
 from .tools.projects import build_project_tools, ProjectRegistry
@@ -54,6 +55,7 @@ from .tools.briefingtools import build_briefing_tools
 from .tools.sessiontools import build_session_tools
 from .tools.experiencetools import build_experience_tools
 from .tools.connectortools import build_connector_tools
+from .tools.planning import build_planning_tools
 
 @dataclass
 class Runtime:
@@ -88,6 +90,7 @@ class Runtime:
     guardian: SecurityGuardian
     security_sensors: SecuritySensorPlatform
     experiences: ExperienceEngine
+    planner: TaskGraphManager
     events_bus: EventBus
     def dispatch(self, event_type: str, data: dict[str, Any] = None) -> Any:
         return self.orchestrator.dispatch(event_type, data)
@@ -145,6 +148,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     guardian=SecurityGuardian(cfg,approval=approval)
     security_sensors=SecuritySensorPlatform(cfg,approval=approval,guardian=guardian)
     experiences=ExperienceEngine(config=cfg)
+    planner=TaskGraphManager(approvals.path)
     events_bus=EventBus(max_events=int(cfg.get('ui',{}).get('activity_history',500)), path=approvals.path)
 
     ocfg=cfg.get('ollama',{})
@@ -170,6 +174,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tools += build_briefing_tools(briefings)
     tools += build_session_tools(sessions)
     tools += build_experience_tools(experiences)
+    tools += build_planning_tools(planner)
     if bool(cfg.get('connectors',{}).get('enabled',True)): tools += build_connector_tools(connector_manager)
     tools += build_routine_tools(routines)
     tools += build_improvement_tools(improvements, evaluations, canaries)
@@ -185,7 +190,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     orchestrator=Orchestrator(mm,pcfg['models']['orchestrator'],tools,specialists,
                               keep_alive=keep_alive,max_steps=int(pcfg['max_tool_steps']),context_tokens=context_tokens,
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
-                              max_session_messages=int(session_cfg.get('max_context_messages',12)), experiences=experiences, event_bus=events_bus)
+                              max_session_messages=int(session_cfg.get('max_context_messages',24)), experiences=experiences, event_bus=events_bus)
     return Runtime(cfg,profile,hw,ws,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,canaries,browser,
-                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,events_bus,orchestrator,mm,desktop_controller)
+                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,planner,events_bus,orchestrator,mm,desktop_controller)

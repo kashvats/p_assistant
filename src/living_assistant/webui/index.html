@@ -6,6 +6,8 @@
 <title>Living Assistant</title>
 <style>
 :root{color-scheme:dark;--bg:#0a0d12;--panel:#111722;--panel2:#151d2b;--line:#253149;--text:#edf2ff;--muted:#91a0ba;--accent:#7c9cff;--good:#55d68b;--bad:#ff7373;--warn:#f3bd5d;--r:16px}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#14203b 0,#0a0d12 42%);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}.side{border-right:1px solid var(--line);padding:22px 14px;position:sticky;top:0;height:100vh;background:#0d121bde;backdrop-filter:blur(18px)}.brand{font-weight:800;font-size:18px;padding:0 8px 20px}.brand span{color:var(--accent)}.nav button{width:100%;text-align:left;background:transparent;border:0;color:var(--muted);padding:10px 12px;border-radius:10px;cursor:pointer;margin:2px 0}.nav button.active,.nav button:hover{background:#182238;color:#fff}.main{padding:22px;min-width:0}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}.title h1{font-size:24px;margin:0}.title p{margin:3px 0;color:var(--muted)}.pill{border:1px solid var(--line);padding:7px 10px;border-radius:999px;color:var(--muted);background:#101621}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}.card{background:linear-gradient(180deg,#131a27,#101620);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:0 8px 30px #0003}.span12{grid-column:span 12}.span8{grid-column:span 8}.span6{grid-column:span 6}.span4{grid-column:span 4}.span3{grid-column:span 3}.metric{font-size:28px;font-weight:750}.label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.row{display:flex;align-items:center;gap:10px}.between{justify-content:space-between}.muted{color:var(--muted)}button,input,textarea{font:inherit}.btn{border:1px solid #344462;background:#19243a;color:#eaf0ff;padding:8px 12px;border-radius:10px;cursor:pointer}.btn:hover{background:#22304d}.btn.good{border-color:#236b48;background:#153a2a}.btn.bad{border-color:#76383b;background:#3b1c22}.btn.primary{background:#536fe0;border-color:#6f88eb}.field{background:#0b111b;border:1px solid var(--line);color:#fff;border-radius:10px;padding:10px 11px;width:100%}.chat{height:58vh;overflow:auto;padding:6px}.msg{max-width:80%;padding:11px 13px;margin:9px 0;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}.msg.user{margin-left:auto;background:#293b69}.msg.assistant{background:#172134;border:1px solid #273753}.msg.system{color:var(--muted);font-size:12px;background:transparent;border:0;padding:4px}.composer{display:grid;grid-template-columns:1fr auto;gap:9px;margin-top:10px}.activity{max-height:430px;overflow:auto}.event{border-left:2px solid #324467;padding:7px 10px;margin:5px 0;color:#c7d3ea}.approval,.item{border:1px solid var(--line);background:#0d131d;border-radius:12px;padding:11px;margin:8px 0}.approval b,.item b{display:block;margin-bottom:3px}.actions{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.hidden{display:none!important}.auth{display:flex;gap:8px;align-items:center}.auth input{width:220px}canvas{width:100%;height:95px;background:#0b111a;border-radius:10px}.dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--good)}.dot.off{background:var(--bad)}.section-title{font-size:16px;font-weight:700;margin:0 0 10px}.empty{color:var(--muted);padding:15px 2px}.toast{position:fixed;right:20px;bottom:20px;background:#151f31;border:1px solid #334462;padding:11px 14px;border-radius:12px;display:none;z-index:5}.tabs>.page{display:none}.tabs>.page.active{display:block}@media(max-width:980px){.app{grid-template-columns:1fr}.side{height:auto;position:relative;display:flex;align-items:center;gap:10px;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.brand{padding:0 10px 0 0;white-space:nowrap}.nav{display:flex}.nav button{white-space:nowrap}.main{padding:14px}.span8,.span6,.span4,.span3{grid-column:span 12}.chat{height:48vh}.auth input{width:140px}}
+
+.markdown-body{white-space:normal;line-height:1.55}.markdown-body p{margin:.35em 0 .7em}.markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{margin:.7em 0 .35em;line-height:1.25}.markdown-body ul,.markdown-body ol{margin:.35em 0 .7em;padding-left:1.5em}.markdown-body blockquote{margin:.6em 0;padding:.4em .8em;border-left:3px solid #52688f;color:#c5d1e8;background:#0d1420}.markdown-body pre{margin:.65em 0;padding:12px;overflow:auto;border:1px solid #2b3953;border-radius:10px;background:#090e16}.markdown-body pre code{white-space:pre;font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.md-inline-code{padding:1px 5px;border-radius:5px;background:#0b111b;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.markdown-body a{color:#9bb1ff}.tok-comment{color:#8290a8}.tok-string{color:#a8d58d}.tok-number{color:#e6bd75}.tok-keyword{color:#9db4ff}.tok-literal{color:#d6a5ff}.tok-variable{color:#8fd6cf}
 </style>
 </head>
 <body>
@@ -28,19 +30,604 @@
 <section id="page-activity" class="page"><div class="card"><div class="row between"><h3 class="section-title">Activity timeline</h3><button class="btn" onclick="loadActivity()">Refresh</button></div><div id="activityList" class="activity"></div></div></section>
 </div></main></div><div id="toast" class="toast"></div>
 <script>
-const $=id=>document.getElementById(id); let token=sessionStorage.getItem('assistant_token')||''; $('apiToken').value=token; let sessionId=localStorage.getItem('assistant_session')||crypto.randomUUID().replaceAll('-','').slice(0,12); localStorage.setItem('assistant_session',sessionId); let history=[]; let lastEvent=0; let activityRows=[]; let activityAbort=null;
-function authHeaders(extra={}){return Object.assign({},extra,token?{Authorization:'Bearer '+token}:{})} async function api(url,opt={}){opt.headers=authHeaders(opt.headers||{});let r=await fetch(url,opt);if(!r.ok)throw new Error((await r.text())||('HTTP '+r.status));let ct=r.headers.get('content-type')||'';return ct.includes('json')?r.json():r.text()} function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))} function toast(t){$('toast').textContent=t;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',2200)}
-$('saveToken').onclick=()=>{token=$('apiToken').value.trim();if(token)sessionStorage.setItem('assistant_token',token);else sessionStorage.removeItem('assistant_token');refreshAll();startActivityStream()};document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('page-'+b.dataset.page).classList.add('active');$('pageTitle').textContent=b.textContent});
-function renderEvents(rows,target){let el=$(target);if(!rows.length){el.innerHTML='<div class="empty">No recent activity.</div>';return}el.innerHTML=rows.slice(-40).reverse().map(e=>'<div class="event"><b>'+esc(e.type)+'</b> <span class="muted">'+esc(e.created_at||'')+'</span><div class="muted">'+esc(JSON.stringify(e.data||{}))+'</div></div>').join('')}
-async function loadActivity(){try{activityRows=await api('/activity?limit=100');if(activityRows.length)lastEvent=Math.max(lastEvent,...activityRows.map(x=>x.id||0));renderEvents(activityRows,'activityList');renderEvents(activityRows.slice(-8),'homeActivity')}catch(e){renderError(e)}}
-async function startActivityStream(){if(activityAbort)activityAbort.abort();activityAbort=new AbortController();let ctl=activityAbort;try{let r=await fetch('/activity/stream?after_id='+lastEvent,{headers:authHeaders({'Accept':'text/event-stream'}),signal:ctl.signal});if(!r.ok)throw new Error(await r.text());let reader=r.body.getReader(),dec=new TextDecoder(),buf='';while(true){let {done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let parts=buf.split('\n\n');buf=parts.pop();for(let block of parts){let dataLine=block.split('\n').find(x=>x.startsWith('data:'));if(!dataLine)continue;let ev=JSON.parse(dataLine.slice(5).trim());lastEvent=Math.max(lastEvent,ev.id||0);activityRows.push(ev);if(activityRows.length>100)activityRows.shift();renderEvents(activityRows,'activityList');renderEvents(activityRows.slice(-8),'homeActivity')}}}catch(e){if(e.name!=='AbortError')setTimeout(()=>{if(ctl===activityAbort)startActivityStream()},2500)}}
-async function loadStatus(){try{let [s,d]=await Promise.all([api('/status'),api('/desktop/status').catch(()=>null)]);$('liveDot').className='dot';$('liveText').textContent='online · '+s.profile;$('cpu').textContent=s.resources.cpu_percent+'%';$('ram').textContent=s.resources.ram_percent+'%';$('avail').textContent=s.resources.available_ram_gb+' GB';let mr=s.model_runtime||{},mp=mr.policy||{},rc=mr.resident_count||0,maxr=mp.max_resident_models||1;$('model').textContent=(s.active_model||'sleeping')+' · '+rc+'/'+maxr+' resident';$('systemInfo').innerHTML='<b>'+esc(s.hardware.os)+' '+esc(s.hardware.machine)+'</b><br>RAM '+esc(s.hardware.ram_gb)+' GB<br>GPU '+esc(s.hardware.gpu_name||'not detected')+(s.hardware.gpu_vram_gb?' · '+esc(s.hardware.gpu_vram_gb)+' GB VRAM':'')+'<br>Model runtime '+esc(mp.mode||'single')+' · '+esc(mp.max_concurrent_generations||1)+' concurrent generation(s)'+(d?'<br>Desktop '+esc(d.semantic_backend)+' · vision '+(d.vision_enabled?'enabled':'sleeping/off'):'');history.push([s.resources.cpu_percent,s.resources.ram_percent]);if(history.length>60)history.shift();drawChart()}catch(e){$('liveDot').className='dot off';$('liveText').textContent='offline';}}
-function drawChart(){let c=$('resourceChart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);ctx.strokeStyle='#273650';ctx.lineWidth=1;for(let y=0;y<=100;y+=25){let py=h-y*h/100;ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(w,py);ctx.stroke()}[[0,'#7c9cff'],[1,'#55d68b']].forEach(([idx,col])=>{ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();history.forEach((v,i)=>{let x=i*w/Math.max(59,history.length-1),y=h-v[idx]*h/100;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()})}
-async function loadApprovals(){try{let rows=await api('/approvals');renderApprovals(rows,'approvalList');renderApprovals(rows.slice(0,4),'homeApprovals')}catch(e){renderError(e)}} function renderApprovals(rows,target){let el=$(target);if(!rows.length){el.innerHTML='<div class="empty">No pending approvals.</div>';return}el.innerHTML=rows.map(x=>'<div class="approval"><b>'+esc(x.kind)+'</b><div>'+esc(x.action)+'</div><div class="muted">'+esc(x.reason)+'</div><div class="actions"><button class="btn good" onclick="decide(\''+esc(x.id)+'\',true)">Approve once</button><button class="btn bad" onclick="decide(\''+esc(x.id)+'\',false)">Deny</button></div></div>').join('')} async function decide(id,approved){await api('/approvals/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved})});loadApprovals()}
-async function loadTodos(){try{let rows=await api('/todos');$('todoList').innerHTML=rows.length?rows.map(x=>'<div class="item"><b>'+esc(x.title)+'</b><span class="muted">'+esc(x.due_at||'No due date')+'</span>'+(!x.done?'<div class="actions"><button class="btn good" onclick="completeTodo('+Number(x.id)+')">Complete</button></div>':'<div class="muted">Completed</div>')+'</div>').join(''):'<div class="empty">No todos.</div>'}catch(e){renderError(e)}} $('todoAdd').onclick=async()=>{let title=$('todoTitle').value.trim();if(!title)return;await api('/todos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,due_at:$('todoDue').value||null})});$('todoTitle').value='';loadTodos()};async function completeTodo(id){await api('/todos/'+id+'/complete',{method:'POST'});loadTodos()}
-async function loadCalendar(){try{let rows=await api('/calendar');$('calendarList').innerHTML=rows.length?rows.map(x=>'<div class="item"><b>'+esc(x.title)+'</b><div class="muted">'+esc(x.start_at)+' '+esc(x.location||'')+'</div><div class="actions"><button class="btn bad" onclick="deleteCal(\''+esc(x.id)+'\')">Cancel</button></div></div>').join(''):'<div class="empty">No events.</div>'}catch(e){renderError(e)}} $('calAdd').onclick=async()=>{let title=$('calTitle').value.trim(),start=$('calStart').value;if(!title||!start)return;await api('/calendar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,start_at:start})});$('calTitle').value='';loadCalendar()};async function deleteCal(id){await api('/calendar/'+encodeURIComponent(id),{method:'DELETE'});loadCalendar()}
-async function loadSecurity(){try{let [s,f,ss]=await Promise.all([api('/security/summary'),api('/security/findings'),api('/security/sensors/status').catch(()=>null)]);$('securitySummary').textContent=JSON.stringify(s,null,2);$('securitySensors').textContent=ss?JSON.stringify(ss,null,2):'Sensor status unavailable';$('securityFindings').innerHTML=f.length?f.map(x=>'<div class="item"><b>'+esc(x.severity||'')+' · '+esc(x.kind||x.title||'Finding')+'</b><div class="muted">'+esc(x.summary||x.details||JSON.stringify(x))+'</div></div>').join(''):'<div class="empty">No open findings.</div>'}catch(e){renderError(e)}}
-function addMsg(role,text){let d=document.createElement('div');d.className='msg '+role;d.textContent=text;$('chatBox').appendChild(d);$('chatBox').scrollTop=$('chatBox').scrollHeight;return d} async function sendChat(){let text=$('chatInput').value.trim();if(!text)return;$('chatInput').value='';addMsg('user',text);let out=addMsg('assistant','');$('sendChat').disabled=true;try{let r=await fetch('/chat/stream',{method:'POST',headers:authHeaders({'Content-Type':'application/json','Accept':'text/event-stream'}),body:JSON.stringify({message:text,session_id:sessionId})});if(!r.ok)throw new Error(await r.text());let reader=r.body.getReader(),dec=new TextDecoder(),buf='';while(true){let {done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let parts=buf.split('\n\n');buf=parts.pop();for(let block of parts){let dataLine=block.split('\n').find(x=>x.startsWith('data:'));if(!dataLine)continue;let ev=JSON.parse(dataLine.slice(5).trim());if(ev.type==='token'){out.textContent+=ev.text;$('chatBox').scrollTop=$('chatBox').scrollHeight}else if(ev.type==='tool'){let a=document.createElement('div');a.className='event';a.textContent=(ev.status==='started'?'Running ':'Finished ')+(ev.tool||'tool');$('chatActivity').prepend(a)}else if(ev.type==='error'){out.textContent='Error: '+ev.error}}}}catch(e){out.textContent='Error: '+e.message}finally{$('sendChat').disabled=false;loadActivity();loadStatus()}} $('sendChat').onclick=sendChat;$('chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}})
-function renderError(e){console.error(e)} async function refreshAll(){await Promise.allSettled([loadStatus(),loadApprovals(),loadTodos(),loadCalendar(),loadSecurity(),loadActivity()])} refreshAll().then(startActivityStream);setInterval(loadStatus,2500);setInterval(loadApprovals,5000);
+const $ = (id) => document.getElementById(id);
+
+let token = sessionStorage.getItem('assistant_token') || '';
+$('apiToken').value = token;
+
+const generatedSessionId = (
+  globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12)
+    : `session${Date.now().toString(36)}`.slice(0, 12)
+);
+let sessionId = localStorage.getItem('assistant_session') || generatedSessionId;
+localStorage.setItem('assistant_session', sessionId);
+
+let history = [];
+let lastEvent = 0;
+let activityRows = [];
+let activityAbort = null;
+
+function authHeaders(extra = {}) {
+  return Object.assign({}, extra, token ? {Authorization: `Bearer ${token}`} : {});
+}
+
+async function api(url, opt = {}) {
+  const options = {...opt, headers: authHeaders(opt.headers || {})};
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    throw new Error(`Network request failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!response.ok) {
+    const body = (await response.text()).slice(0, 2000);
+    throw new Error(body || `HTTP ${response.status}`);
+  }
+  const contentType = response.headers.get('content-type') || '';
+  return contentType.includes('json') ? response.json() : response.text();
+}
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
+function toast(text) {
+  const el = $('toast');
+  el.textContent = String(text || '');
+  el.style.display = 'block';
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function renderError(error, context = 'Request failed') {
+  console.error(context, error);
+  const message = error instanceof Error ? error.message : String(error || 'Unknown error');
+  toast(`${context}: ${message}`.slice(0, 500));
+}
+
+function appendInlineMarkdown(parent, text) {
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
+  let cursor = 0;
+  for (const match of text.matchAll(pattern)) {
+    if (match.index > cursor) parent.append(document.createTextNode(text.slice(cursor, match.index)));
+    const tokenText = match[0];
+    if (tokenText.startsWith('**')) {
+      const strong = document.createElement('strong');
+      strong.textContent = tokenText.slice(2, -2);
+      parent.append(strong);
+    } else if (tokenText.startsWith('`')) {
+      const code = document.createElement('code');
+      code.className = 'md-inline-code';
+      code.textContent = tokenText.slice(1, -1);
+      parent.append(code);
+    } else {
+      const parsed = tokenText.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      const label = parsed ? parsed[1] : tokenText;
+      const href = parsed ? parsed[2].trim() : '';
+      let safe = false;
+      try {
+        const url = new URL(href, window.location.href);
+        safe = ['http:', 'https:', 'mailto:'].includes(url.protocol);
+      } catch (_) {
+        safe = false;
+      }
+      if (safe) {
+        const link = document.createElement('a');
+        link.textContent = label;
+        link.href = href;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        parent.append(link);
+      } else {
+        parent.append(document.createTextNode(label));
+      }
+    }
+    cursor = match.index + tokenText.length;
+  }
+  if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
+}
+
+function highlightCode(codeElement, source, language = '') {
+  const lang = String(language || '').toLowerCase();
+  const patterns = {
+    python: /#[^\n]*|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\b(?:def|class|return|if|elif|else|for|while|try|except|finally|with|import|from|as|in|is|not|and|or|True|False|None|async|await|yield|lambda)\b|\b\d+(?:\.\d+)?\b/g,
+    py: /#[^\n]*|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\b(?:def|class|return|if|elif|else|for|while|try|except|finally|with|import|from|as|in|is|not|and|or|True|False|None|async|await|yield|lambda)\b|\b\d+(?:\.\d+)?\b/g,
+    javascript: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|\b(?:const|let|var|function|return|if|else|for|while|try|catch|finally|class|new|true|false|null|undefined|async|await|throw|import|export|from)\b|\b\d+(?:\.\d+)?\b/g,
+    js: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|\b(?:const|let|var|function|return|if|else|for|while|try|catch|finally|class|new|true|false|null|undefined|async|await|throw|import|export|from)\b|\b\d+(?:\.\d+)?\b/g,
+    json: /"(?:\\.|[^"\\])*"|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g,
+    bash: /#[^\n]*|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\b(?:if|then|else|fi|for|do|done|case|esac|function|in)\b|\$[A-Za-z_][A-Za-z0-9_]*/g,
+    sh: /#[^\n]*|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\b(?:if|then|else|fi|for|do|done|case|esac|function|in)\b|\$[A-Za-z_][A-Za-z0-9_]*/g,
+  };
+  const pattern = patterns[lang];
+  if (!pattern) {
+    codeElement.textContent = source;
+    return;
+  }
+
+  let cursor = 0;
+  for (const match of source.matchAll(pattern)) {
+    if (match.index > cursor) codeElement.append(document.createTextNode(source.slice(cursor, match.index)));
+    const value = match[0];
+    const span = document.createElement('span');
+    if (/^(#|\/\/|\/\*)/.test(value)) span.className = 'tok-comment';
+    else if (/^['"`]/.test(value)) span.className = 'tok-string';
+    else if (/^-?\d/.test(value)) span.className = 'tok-number';
+    else if (/^(true|false|null|True|False|None|undefined)$/.test(value)) span.className = 'tok-literal';
+    else if (/^\$/.test(value)) span.className = 'tok-variable';
+    else span.className = 'tok-keyword';
+    span.textContent = value;
+    codeElement.append(span);
+    cursor = match.index + value.length;
+  }
+  if (cursor < source.length) codeElement.append(document.createTextNode(source.slice(cursor)));
+}
+
+function renderMarkdown(target, markdown) {
+  const source = String(markdown ?? '').replace(/\r\n?/g, '\n');
+  target.replaceChildren();
+  target.classList.add('markdown-body');
+
+  const lines = source.split('\n');
+  let index = 0;
+  let list = null;
+
+  const closeList = () => { list = null; };
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const fence = line.match(/^```\s*([A-Za-z0-9_+-]*)\s*$/);
+    if (fence) {
+      closeList();
+      const language = fence[1] || '';
+      const codeLines = [];
+      index += 1;
+      while (index < lines.length && !/^```\s*$/.test(lines[index])) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      if (language) code.dataset.language = language;
+      highlightCode(code, codeLines.join('\n'), language);
+      pre.append(code);
+      target.append(pre);
+      continue;
+    }
+
+    if (!line.trim()) {
+      closeList();
+      index += 1;
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      closeList();
+      const h = document.createElement(`h${heading[1].length}`);
+      appendInlineMarkdown(h, heading[2]);
+      target.append(h);
+      index += 1;
+      continue;
+    }
+
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+    const numbered = line.match(/^\s*\d+\.\s+(.+)$/);
+    if (bullet || numbered) {
+      const type = bullet ? 'ul' : 'ol';
+      if (!list || list.tagName.toLowerCase() !== type) {
+        list = document.createElement(type);
+        target.append(list);
+      }
+      const item = document.createElement('li');
+      appendInlineMarkdown(item, (bullet || numbered)[1]);
+      list.append(item);
+      index += 1;
+      continue;
+    }
+
+    const quote = line.match(/^>\s?(.*)$/);
+    if (quote) {
+      closeList();
+      const block = document.createElement('blockquote');
+      appendInlineMarkdown(block, quote[1]);
+      target.append(block);
+      index += 1;
+      continue;
+    }
+
+    closeList();
+    const paragraphLines = [line];
+    index += 1;
+    while (
+      index < lines.length && lines[index].trim() &&
+      !/^```/.test(lines[index]) && !/^(#{1,6})\s+/.test(lines[index]) &&
+      !/^\s*[-*]\s+/.test(lines[index]) && !/^\s*\d+\.\s+/.test(lines[index]) &&
+      !/^>\s?/.test(lines[index])
+    ) {
+      paragraphLines.push(lines[index]);
+      index += 1;
+    }
+    const paragraph = document.createElement('p');
+    appendInlineMarkdown(paragraph, paragraphLines.join('\n'));
+    target.append(paragraph);
+  }
+}
+
+function renderEvents(rows, target) {
+  const el = $(target);
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No recent activity.</div>';
+    return;
+  }
+  el.innerHTML = rows.slice(-40).reverse().map((event) => (
+    `<div class="event"><b>${esc(event.type)}</b> <span class="muted">${esc(event.created_at || '')}</span>` +
+    `<div class="muted">${esc(JSON.stringify(event.data || {}))}</div></div>`
+  )).join('');
+}
+
+async function loadActivity() {
+  try {
+    activityRows = await api('/activity?limit=100');
+    if (activityRows.length) lastEvent = Math.max(lastEvent, ...activityRows.map((x) => x.id || 0));
+    renderEvents(activityRows, 'activityList');
+    renderEvents(activityRows.slice(-8), 'homeActivity');
+  } catch (error) {
+    renderError(error, 'Unable to load activity');
+  }
+}
+
+async function startActivityStream() {
+  if (activityAbort) activityAbort.abort();
+  activityAbort = new AbortController();
+  const controller = activityAbort;
+  try {
+    const response = await fetch(`/activity/stream?after_id=${lastEvent}`, {
+      headers: authHeaders({'Accept': 'text/event-stream'}),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error((await response.text()).slice(0, 2000) || `HTTP ${response.status}`);
+    if (!response.body) throw new Error('Streaming response body is unavailable.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const block of parts) {
+        const dataLine = block.split('\n').find((line) => line.startsWith('data:'));
+        if (!dataLine) continue;
+        try {
+          const event = JSON.parse(dataLine.slice(5).trim());
+          lastEvent = Math.max(lastEvent, event.id || 0);
+          activityRows.push(event);
+          if (activityRows.length > 100) activityRows.shift();
+          renderEvents(activityRows, 'activityList');
+          renderEvents(activityRows.slice(-8), 'homeActivity');
+        } catch (error) {
+          console.warn('Ignoring malformed activity stream event', error);
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.warn('Activity stream disconnected; retrying.', error);
+      setTimeout(() => {
+        if (controller === activityAbort) startActivityStream();
+      }, 2500);
+    }
+  }
+}
+
+async function loadStatus() {
+  try {
+    const [status, desktop] = await Promise.all([
+      api('/status'),
+      api('/desktop/status').catch(() => null),
+    ]);
+    $('liveDot').className = 'dot';
+    $('liveText').textContent = `online · ${status.profile}`;
+    $('cpu').textContent = `${status.resources.cpu_percent}%`;
+    $('ram').textContent = `${status.resources.ram_percent}%`;
+    $('avail').textContent = `${status.resources.available_ram_gb} GB`;
+    const modelRuntime = status.model_runtime || {};
+    const policy = modelRuntime.policy || {};
+    const residentCount = modelRuntime.resident_count || 0;
+    const maxResident = policy.max_resident_models || 1;
+    $('model').textContent = `${status.active_model || 'sleeping'} · ${residentCount}/${maxResident} resident`;
+    $('systemInfo').innerHTML =
+      `<b>${esc(status.hardware.os)} ${esc(status.hardware.machine)}</b><br>` +
+      `RAM ${esc(status.hardware.ram_gb)} GB<br>` +
+      `GPU ${esc(status.hardware.gpu_name || 'not detected')}` +
+      (status.hardware.gpu_vram_gb ? ` · ${esc(status.hardware.gpu_vram_gb)} GB VRAM` : '') +
+      `<br>Model runtime ${esc(policy.mode || 'single')} · ${esc(policy.max_concurrent_generations || 1)} concurrent generation(s)` +
+      (desktop ? `<br>Desktop ${esc(desktop.semantic_backend)} · vision ${desktop.vision_enabled ? 'enabled' : 'sleeping/off'}` : '');
+    history.push([status.resources.cpu_percent, status.resources.ram_percent]);
+    if (history.length > 60) history.shift();
+    drawChart();
+  } catch (error) {
+    $('liveDot').className = 'dot off';
+    $('liveText').textContent = 'offline';
+    console.warn('Status refresh failed', error);
+  }
+}
+
+function drawChart() {
+  const canvas = $('resourceChart');
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  ctx.strokeStyle = '#273650';
+  ctx.lineWidth = 1;
+  for (let value = 0; value <= 100; value += 25) {
+    const y = height - value * height / 100;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  [[0, '#7c9cff'], [1, '#55d68b']].forEach(([index, color]) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    history.forEach((values, i) => {
+      const x = i * width / Math.max(59, history.length - 1);
+      const y = height - values[index] * height / 100;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  });
+}
+
+function renderApprovals(rows, target) {
+  const el = $(target);
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">No pending approvals.</div>';
+    return;
+  }
+  el.innerHTML = rows.map((item) => (
+    `<div class="approval"><b>${esc(item.kind)}</b><div>${esc(item.action)}</div>` +
+    `<div class="muted">${esc(item.reason)}</div><div class="actions">` +
+    `<button class="btn good" onclick="decide('${esc(item.id)}',true)">Approve once</button>` +
+    `<button class="btn bad" onclick="decide('${esc(item.id)}',false)">Deny</button></div></div>`
+  )).join('');
+}
+
+async function loadApprovals() {
+  try {
+    const rows = await api('/approvals');
+    renderApprovals(rows, 'approvalList');
+    renderApprovals(rows.slice(0, 4), 'homeApprovals');
+  } catch (error) {
+    renderError(error, 'Unable to load approvals');
+  }
+}
+
+async function decide(id, approved) {
+  try {
+    await api(`/approvals/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({approved}),
+    });
+    await loadApprovals();
+  } catch (error) {
+    renderError(error, 'Unable to update approval');
+  }
+}
+
+async function loadTodos() {
+  try {
+    const rows = await api('/todos');
+    $('todoList').innerHTML = rows.length ? rows.map((item) => (
+      `<div class="item"><b>${esc(item.title)}</b><span class="muted">${esc(item.due_at || 'No due date')}</span>` +
+      (!item.done
+        ? `<div class="actions"><button class="btn good" onclick="completeTodo(${Number(item.id)})">Complete</button></div>`
+        : '<div class="muted">Completed</div>') + '</div>'
+    )).join('') : '<div class="empty">No todos.</div>';
+  } catch (error) {
+    renderError(error, 'Unable to load todos');
+  }
+}
+
+async function completeTodo(id) {
+  try {
+    await api(`/todos/${id}/complete`, {method: 'POST'});
+    await loadTodos();
+  } catch (error) {
+    renderError(error, 'Unable to complete todo');
+  }
+}
+
+async function loadCalendar() {
+  try {
+    const rows = await api('/calendar');
+    $('calendarList').innerHTML = rows.length ? rows.map((item) => (
+      `<div class="item"><b>${esc(item.title)}</b><div class="muted">${esc(item.start_at)} ${esc(item.location || '')}</div>` +
+      `<div class="actions"><button class="btn bad" onclick="deleteCal('${esc(item.id)}')">Cancel</button></div></div>`
+    )).join('') : '<div class="empty">No events.</div>';
+  } catch (error) {
+    renderError(error, 'Unable to load calendar');
+  }
+}
+
+async function deleteCal(id) {
+  try {
+    await api(`/calendar/${encodeURIComponent(id)}`, {method: 'DELETE'});
+    await loadCalendar();
+  } catch (error) {
+    renderError(error, 'Unable to cancel calendar event');
+  }
+}
+
+async function loadSecurity() {
+  try {
+    const [summary, findings, sensors] = await Promise.all([
+      api('/security/summary'),
+      api('/security/findings'),
+      api('/security/sensors/status').catch(() => null),
+    ]);
+    $('securitySummary').textContent = JSON.stringify(summary, null, 2);
+    $('securitySensors').textContent = sensors ? JSON.stringify(sensors, null, 2) : 'Sensor status unavailable';
+    $('securityFindings').innerHTML = findings.length ? findings.map((item) => (
+      `<div class="item"><b>${esc(item.severity || '')} · ${esc(item.kind || item.title || 'Finding')}</b>` +
+      `<div class="muted">${esc(item.summary || item.details || JSON.stringify(item))}</div></div>`
+    )).join('') : '<div class="empty">No open findings.</div>';
+  } catch (error) {
+    renderError(error, 'Unable to load security status');
+  }
+}
+
+function addMsg(role, text) {
+  const message = document.createElement('div');
+  message.className = `msg ${role}`;
+  if (role === 'assistant') renderMarkdown(message, text);
+  else message.textContent = text;
+  $('chatBox').appendChild(message);
+  $('chatBox').scrollTop = $('chatBox').scrollHeight;
+  return message;
+}
+
+async function sendChat() {
+  const text = $('chatInput').value.trim();
+  if (!text || $('sendChat').disabled) return;
+  $('chatInput').value = '';
+  addMsg('user', text);
+  const output = addMsg('assistant', '');
+  let assistantText = '';
+  $('sendChat').disabled = true;
+
+  try {
+    const response = await fetch('/chat/stream', {
+      method: 'POST',
+      headers: authHeaders({'Content-Type': 'application/json', 'Accept': 'text/event-stream'}),
+      body: JSON.stringify({message: text, session_id: sessionId}),
+    });
+    if (!response.ok) throw new Error((await response.text()).slice(0, 2000) || `HTTP ${response.status}`);
+    if (!response.body) throw new Error('Streaming response body is unavailable.');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const block of parts) {
+        const dataLine = block.split('\n').find((line) => line.startsWith('data:'));
+        if (!dataLine) continue;
+        let event;
+        try {
+          event = JSON.parse(dataLine.slice(5).trim());
+        } catch (error) {
+          console.warn('Ignoring malformed chat stream event', error);
+          continue;
+        }
+        if (event.type === 'token') {
+          assistantText += event.text || '';
+          renderMarkdown(output, assistantText);
+          $('chatBox').scrollTop = $('chatBox').scrollHeight;
+        } else if (event.type === 'final' && !assistantText) {
+          assistantText = event.text || '';
+          renderMarkdown(output, assistantText);
+        } else if (event.type === 'tool') {
+          const row = document.createElement('div');
+          row.className = 'event';
+          row.textContent = `${event.status === 'started' ? 'Running' : 'Finished'} ${event.tool || 'tool'}`;
+          $('chatActivity').prepend(row);
+        } else if (event.type === 'error') {
+          throw new Error(event.error || 'Chat stream failed.');
+        }
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    renderMarkdown(output, `**Error:** ${message}`);
+    renderError(error, 'Chat failed');
+  } finally {
+    $('sendChat').disabled = false;
+    await Promise.allSettled([loadActivity(), loadStatus()]);
+  }
+}
+
+$('saveToken').onclick = () => {
+  token = $('apiToken').value.trim();
+  if (token) sessionStorage.setItem('assistant_token', token);
+  else sessionStorage.removeItem('assistant_token');
+  refreshAll();
+  startActivityStream();
+};
+
+document.querySelectorAll('.nav button').forEach((button) => {
+  button.onclick = () => {
+    document.querySelectorAll('.nav button').forEach((item) => item.classList.remove('active'));
+    button.classList.add('active');
+    document.querySelectorAll('.page').forEach((item) => item.classList.remove('active'));
+    $(`page-${button.dataset.page}`).classList.add('active');
+    $('pageTitle').textContent = button.textContent;
+  };
+});
+
+$('todoAdd').onclick = async () => {
+  const title = $('todoTitle').value.trim();
+  if (!title) return;
+  try {
+    await api('/todos', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, due_at: $('todoDue').value || null}),
+    });
+    $('todoTitle').value = '';
+    await loadTodos();
+  } catch (error) {
+    renderError(error, 'Unable to add todo');
+  }
+};
+
+$('calAdd').onclick = async () => {
+  const title = $('calTitle').value.trim();
+  const start = $('calStart').value;
+  if (!title || !start) return;
+  try {
+    await api('/calendar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title, start_at: start}),
+    });
+    $('calTitle').value = '';
+    await loadCalendar();
+  } catch (error) {
+    renderError(error, 'Unable to add calendar event');
+  }
+};
+
+$('sendChat').onclick = sendChat;
+$('chatInput').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    sendChat();
+  }
+});
+
+async function refreshAll() {
+  await Promise.allSettled([
+    loadStatus(), loadApprovals(), loadTodos(), loadCalendar(), loadSecurity(), loadActivity(),
+  ]);
+}
+
+refreshAll().then(startActivityStream).catch((error) => renderError(error, 'Initial refresh failed'));
+setInterval(loadStatus, 2500);
+setInterval(loadApprovals, 5000);
+
 </script>
 </body></html>

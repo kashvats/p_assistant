@@ -6,6 +6,7 @@ import numpy as np
 
 from living_assistant.voice import VoiceEngine
 from living_assistant.workspace import Workspace
+from living_assistant.approval import ApprovalManager, ApprovalStore
 
 
 class AllowApproval:
@@ -168,3 +169,52 @@ def test_clean_command_text_only_strips_leading_wake_phrase(tmp_path):
     v=VoiceEngine(ws,AllowApproval(),c,'balanced')
     assert v.clean_command_text('Hey Jarvis, open my project','hey_jarvis') == 'open my project'
     assert v.clean_command_text('tell me about hey jarvis','hey_jarvis') == 'tell me about hey jarvis'
+
+
+def test_wake_command_preapproval_replay_uses_identical_action_hash(tmp_path, monkeypatch):
+    """An approved listener request must be consumable by the exact retry.
+
+    This guards the hands-free CLI/non-interactive flow against action-string drift:
+    if the action, reason, kind, or resolved destination differs between request and
+    retry, ApprovalStore will not consume the preapproval and the voice command is
+    dropped before the audio device is opened.
+    """
+    root = tmp_path / 'w'
+    ws = Workspace([root])
+    store = ApprovalStore(tmp_path / 'approvals.sqlite3')
+    manager = ApprovalManager(interactive=False, store=store)
+    v = VoiceEngine(ws, manager, cfg(True), 'balanced')
+
+    # First call must stop at the approval boundary without touching audio.
+    monkeypatch.setattr(v, '_import_audio', lambda: (_ for _ in ()).throw(AssertionError('audio opened before approval')))
+    first = v.listen_for_command('artifacts/command.wav', 1)
+    assert first['ok'] is False and first['approval_required'] is True
+    approval_id = first['approval_id']
+    pending = store.list('pending')
+    assert len(pending) == 1 and pending[0]['id'] == approval_id
+
+    resolved = store.resolve(approval_id, True)
+    assert resolved['ok'] is True
+
+    # Retry with the same logical request. The approved row must be consumed rather
+    # than creating a second pending approval.
+    frames = 1280
+    quiet = np.full(frames, 70, dtype=np.int16)
+    wake = np.full(frames, 1200, dtype=np.int16)
+    speech = np.full(frames, 1800, dtype=np.int16)
+    blocks = [quiet, quiet, wake, speech, speech, speech, quiet, quiet, quiet]
+    monkeypatch.setattr(v, '_import_audio', lambda: (FakeSD(blocks), np))
+
+    class Model:
+        def __init__(self): self.n = 0
+        def predict(self, samples):
+            self.n += 1
+            return {'hey_jarvis': 0.8 if self.n == 3 else 0.05}
+
+    monkeypatch.setattr(v, '_load_wake_model', lambda: Model())
+    second = v.listen_for_command('artifacts/command.wav', 1)
+    assert second['ok'] is True and second['wake_word'] == 'hey_jarvis'
+    assert Path(second['path']).exists()
+    assert store.list('pending') == []
+    approved = store.conn.execute('SELECT consumed_at FROM approvals WHERE id=?', (approval_id,)).fetchone()
+    assert approved is not None and approved['consumed_at'] is not None

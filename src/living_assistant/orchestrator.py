@@ -14,7 +14,7 @@ class Orchestrator:
                  specialist_router: SpecialistRouter, keep_alive: int = 45, max_steps: int = 10,
                  context_tokens: int = 4096, skills: SkillRegistry | None = None,
                  resource_manager: ResourceManager | None = None, session_store=None,
-                 max_session_messages: int = 12, experiences=None, event_bus=None):
+                 max_session_messages: int = 24, experiences=None, event_bus=None):
         self.mm = model_manager
         self.model = model
         self.keep_alive = keep_alive
@@ -24,7 +24,7 @@ class Orchestrator:
         self.skills = skills
         self.resources = resource_manager
         self.sessions = session_store
-        self.max_session_messages = max(2, min(int(max_session_messages), 30))
+        self.max_session_messages = max(2, min(int(max_session_messages), 100))
         self.experiences = experiences
         self.event_bus = event_bus
         self.tools = {t.name:t for t in tools}
@@ -74,8 +74,26 @@ class Orchestrator:
         if not self.sessions or not session_id: return ''
         rows=self.sessions.recent_messages(session_id,self.max_session_messages)
         if not rows: return ''
-        rendered='\n'.join(f"{r['role'].upper()}: {r['content'][:4000]}" for r in rows)
-        return '\n\n[BOUNDED LOCAL SESSION HISTORY]\n' + rendered
+
+        # Keep substantially more short conversational turns than the old 12-message
+        # ceiling, while reserving model context for the current request, tools and
+        # answer. Select newest messages first so long historical messages cannot evict
+        # the latest exchange, then restore chronological order for the model.
+        char_budget=max(4000,min(60000,int(self.context_tokens*4*0.45)))
+        selected=[]
+        used=0
+        for row in reversed(rows):
+            rendered=f"{row['role'].upper()}: {str(row['content'])[:4000]}"
+            cost=len(rendered)+1
+            if selected and used+cost>char_budget:
+                break
+            if cost>char_budget:
+                rendered=rendered[-char_budget:]
+                cost=len(rendered)
+            selected.append(rendered)
+            used += cost
+        selected.reverse()
+        return '\n\n[BOUNDED LOCAL SESSION HISTORY]\n' + '\n'.join(selected)
 
 
     @staticmethod

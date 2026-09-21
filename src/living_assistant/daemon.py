@@ -160,6 +160,8 @@ class NervousSystem:
                 try:
                     ex=self.experiences.maintenance()
                     if ex.get('episodes_pruned'): self.memory.add_event('experience_episodes_pruned',ex)
+                    if ex.get('lessons_demoted') or ex.get('lessons_expired'):
+                        self.memory.add_event('experience_confidence_maintenance',ex)
                 except Exception: pass
             self.last_maintenance=now
         return events
