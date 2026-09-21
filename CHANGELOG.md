@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.17.2
+
+- Enforced Git repository-root containment so Git operations cannot escape an approved workspace through a parent `.git` directory.
+- Added sensitive-path approval and secret redaction to Git diff output.
+- Made local API authentication fail closed for direct ASGI/uvicorn launches by using the same persistent bearer-token authority as the CLI.
+- Shell timeout handling now terminates the complete process group/tree and verifies descendant cleanup.
+- Self-improvement refuses sensitive targets and scrubs legacy sensitive proposal payloads from persistent storage.
+- Added high-confidence secret-value rejection/redaction for connector metadata and additional output paths.
+- Device OAuth transactions keep raw device codes internal and expose only opaque one-time transaction IDs.
+- Desktop window titles are opt-in and require sensitive-read approval.
+- Database aliases support required table allowlists and sensitive-column redaction.
+- Added typed configuration validation and container-first evaluation/canary defaults.
+- Search budgets are durable across processes; VirusTotal hash disclosure is approval-gated; desktop URL opening uses the shared URL/network safety policy.
+- Direct HTTP fetch/download resolve once and connect to the validated IP; Chromium browser contexts now pin the exact authorized DNS answers and strict route guards do not re-resolve them.
+- Added adversarial regression coverage for the second-pass audit findings and DNS-rebinding protections.
+
+## 0.17.1
+
+- Web/image search no longer requires Serper in `auto` mode; browser-backed search is used when the key is absent and as a fallback when Serper fails.
+- Search-provider output is wrapped as untrusted external observation data and search calls are rate-budgeted.
+- Named browser sessions now enforce their host allowlist at the request-routing layer before network requests leave the browser.
+- Added browser session caps and deterministic runtime/browser/SQLite cleanup.
+- Normal `organism serve` startup now generates/reuses a local bearer token when one is not explicitly configured.
+- Linux/macOS/Windows release installers require a SHA-256 manifest entry and pass the verified digest to the versioned installer.
+- Added regression tests for search fallback, prompt-injection boundaries, search budgets, route isolation, session limits, and checksum enforcement.
+
 ## 0.17.0
 
 - Added versioned per-user runtime installs with one venv per release and stable launch shims.

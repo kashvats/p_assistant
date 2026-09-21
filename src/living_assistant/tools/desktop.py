@@ -70,7 +70,7 @@ def build_desktop_tools(workspace: Workspace, approval: ApprovalManager, control
         tools += [
             Tool('desktop_status','Report desktop-control/accessibility capability without taking control.',{'type':'object','properties':{}},controller.status),
             Tool('desktop_monitors','List monitor geometry for multi-monitor reasoning.',{'type':'object','properties':{}},controller.monitors),
-            Tool('desktop_windows','List visible native application windows without reading their contents.',{'type':'object','properties':{}},controller.windows),
+            Tool('desktop_windows','List visible native application windows. Window titles are omitted by default; requesting titles requires sensitive-read approval.',{'type':'object','properties':{'include_titles':{'type':'boolean','default':False}}},controller.windows),
             Tool('desktop_accessibility_tree','Read the active application accessibility tree. Requires sensitive-read approval.',{'type':'object','properties':{'max_nodes':{'type':'integer','default':250}}},controller.accessibility_tree),
             Tool('desktop_click','Click an approved screen coordinate. Prefer accessibility/semantic targets first.',{'type':'object','properties':{'x':{'type':'integer'},'y':{'type':'integer'},'button':{'type':'string','default':'left'}},'required':['x','y']},controller.click),
             Tool('desktop_type_text','Type text into the active application. Requires approval.',{'type':'object','properties':{'text':{'type':'string'},'interval':{'type':'number','default':0.01}},'required':['text']},controller.type_text),

@@ -109,9 +109,98 @@ _READ_ONLY_PRAGMAS = {
 
 
 def _strip_sql_comments(sql: str) -> str:
-    cleaned = re.sub(r"/\*.*?\*/", " ", sql, flags=re.S)
-    cleaned = re.sub(r"--.*?$", " ", cleaned, flags=re.M)
-    return cleaned.strip()
+    """Remove SQL comments without treating comment markers inside quotes as comments.
+
+    A regex-only implementation can be tricked by strings containing ``/*``/``*/``
+    around a real second statement, causing the write statement to disappear before
+    policy inspection. This small lexer keeps quoted regions intact and strips only
+    comments that occur in SQL code.
+    """
+    out: list[str] = []
+    i = 0
+    quote: str | None = None
+    block_depth = 0
+    line_comment = False
+    length = len(sql)
+
+    while i < length:
+        ch = sql[i]
+        nxt = sql[i + 1] if i + 1 < length else ''
+
+        if line_comment:
+            if ch in '\r\n':
+                out.append('\n')
+                line_comment = False
+            i += 1
+            continue
+
+        if block_depth:
+            if ch == '/' and nxt == '*':
+                block_depth += 1
+                i += 2
+                continue
+            if ch == '*' and nxt == '/':
+                block_depth -= 1
+                i += 2
+                if block_depth == 0:
+                    out.append(' ')
+                continue
+            if ch in '\r\n':
+                out.append('\n')
+            i += 1
+            continue
+
+        if quote is not None:
+            out.append(ch)
+            if quote == ']':
+                if ch == ']' and nxt == ']':
+                    out.append(nxt)
+                    i += 2
+                    continue
+                if ch == ']':
+                    quote = None
+                i += 1
+                continue
+            if ch == '\\' and nxt:
+                # Preserve common dialect backslash escapes so a quote following the
+                # escape cannot accidentally terminate the quoted region.
+                out.append(nxt)
+                i += 2
+                continue
+            if ch == quote:
+                if nxt == quote:
+                    out.append(nxt)
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+            continue
+
+        if ch in {"'", '"', '`'}:
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '[':
+            quote = ']'
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '-' and nxt == '-':
+            out.append(' ')
+            line_comment = True
+            i += 2
+            continue
+        if ch == '/' and nxt == '*':
+            out.append(' ')
+            block_depth = 1
+            i += 2
+            continue
+
+        out.append(ch)
+        i += 1
+
+    return ''.join(out).strip()
 
 
 def _single_statement(cleaned: str) -> bool:

@@ -128,6 +128,7 @@ def test_barge_in_denial_falls_back_to_normal_tts(tmp_path, monkeypatch):
         def runAndWait(self): events.append(('run',None))
         def stop(self): events.append(('stop',None))
     fake=types.SimpleNamespace(init=lambda:Engine())
+    monkeypatch.setitem(sys.modules,'piper',None)
     monkeypatch.setitem(sys.modules,'pyttsx3',fake)
     out=v.speak('hello',allow_barge_in=True)
     assert out['ok'] is True and out['barge_in_denied'] is True and out['interrupted'] is False

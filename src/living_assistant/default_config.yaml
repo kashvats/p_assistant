@@ -81,6 +81,7 @@ policy:
   max_web_text_chars: 120000
   max_db_rows: 200
   command_timeout_seconds: 120
+  specialist_timeout_seconds: 60
 
 daemon:
   poll_seconds: 15

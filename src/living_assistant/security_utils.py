@@ -53,6 +53,14 @@ def redact_secrets(value: object, max_chars: int | None = None) -> str:
         (re.compile(r'(?i)([?&](?:token|access_token|api_key|apikey|signature|sig|x-amz-signature)=)[^&\s]+'), r'\1[REDACTED]'),
         (re.compile(r'\bAKIA[0-9A-Z]{16}\b'), '[REDACTED AWS ACCESS KEY]'),
         (re.compile(r'\bASIA[0-9A-Z]{16}\b'), '[REDACTED AWS ACCESS KEY]'),
+        # Provider-issued credentials can appear in arbitrary prose/log output without
+        # a key name such as ``token=``. Keep these signatures narrow enough to avoid
+        # redacting ordinary identifiers while covering common live-token formats.
+        (re.compile(r'\bgh[pousr]_[A-Za-z0-9]{20,}\b', re.I), '[REDACTED GITHUB TOKEN]'),
+        (re.compile(r'\bgithub_pat_[A-Za-z0-9_]{20,}\b', re.I), '[REDACTED GITHUB TOKEN]'),
+        (re.compile(r'\bxox[baprs]-[A-Za-z0-9-]{10,}\b', re.I), '[REDACTED SLACK TOKEN]'),
+        (re.compile(r'\bsk-(?:live-|test-)?[A-Za-z0-9_-]{20,}\b', re.I), '[REDACTED API TOKEN]'),
+        (re.compile(r'\bAIza[0-9A-Za-z_-]{20,}\b'), '[REDACTED GOOGLE API KEY]'),
         (re.compile(r'\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b'), '[REDACTED JWT]'),
     ]
     for pat, repl in patterns:
@@ -126,6 +134,39 @@ def url_network_scope(url: str, resolve: bool = True) -> tuple[str, str | None]:
     if any(_non_public_ip(ip) for ip in ips):
         return 'private', 'Hostname resolves to a non-public address.'
     return 'public', None
+
+def resolve_url_target(url: str) -> tuple[str, str | None, tuple[str, ...]]:
+    """Like url_network_scope, but always resolves and returns the tuple of resolved IP addresses."""
+    try:
+        p = urlparse(url)
+    except Exception:
+        return 'invalid', 'URL could not be parsed.', ()
+    if p.scheme not in {'http', 'https'} or not p.hostname:
+        return 'invalid', 'Only http/https URLs with a hostname are allowed.', ()
+    host = p.hostname.lower().rstrip('.')
+    if p.username or p.password:
+        return 'invalid', 'Credentials embedded in URLs are not allowed.', ()
+    if host in _METADATA_HOSTS:
+        return 'private', 'Cloud metadata endpoints are blocked.', ()
+    if host == 'localhost' or host.endswith('.localhost'):
+        return 'private', 'Loopback/local endpoint.', ('127.0.0.1',)
+    try:
+        literal = ipaddress.ip_address(host.strip('[]'))
+        return ('private', 'Non-public IP address.', (str(literal),)) if _non_public_ip(literal) else ('public', None, (str(literal),))
+    except ValueError:
+        pass
+        
+    try:
+        ips = _resolved_ips(host)
+    except OSError:
+        return 'invalid', 'Hostname could not be resolved safely.', ()
+    if not ips:
+        return 'invalid', 'Hostname resolved to no usable addresses.', ()
+    
+    ips_tuple = tuple(sorted(str(ip) for ip in ips))
+    if any(_non_public_ip(ip) for ip in ips):
+        return 'private', 'Hostname resolves to a non-public address.', ips_tuple
+    return 'public', None, ips_tuple
 
 
 def is_loopback_http_url(url: str) -> bool:

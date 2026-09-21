@@ -198,7 +198,8 @@ def test_security_sensor_api_status(monkeypatch):
     fake=SimpleNamespace(security_sensors=SimpleNamespace(status=lambda:{'enabled':True,'yara':False}))
     monkeypatch.setattr(api,'runtime',fake)
     monkeypatch.delenv('ASSISTANT_API_TOKEN',raising=False)
-    r=TestClient(api.app).get('/security/sensors/status')
+    monkeypatch.setenv('ASSISTANT_API_TOKEN','test-token')
+    r=TestClient(api.app,headers={'Authorization':'Bearer test-token'}).get('/security/sensors/status')
     assert r.status_code==200 and r.json()['enabled'] is True
 
 
@@ -206,7 +207,8 @@ def test_dashboard_surfaces_sensor_platform(monkeypatch):
     from fastapi.testclient import TestClient
     import living_assistant.api as api
     monkeypatch.delenv('ASSISTANT_API_TOKEN',raising=False)
-    r=TestClient(api.app).get('/dashboard')
+    monkeypatch.setenv('ASSISTANT_API_TOKEN','test-token')
+    r=TestClient(api.app,headers={'Authorization':'Bearer test-token'}).get('/dashboard')
     assert r.status_code==200
     assert 'Sensor platform' in r.text
     assert '/security/sensors/status' in r.text

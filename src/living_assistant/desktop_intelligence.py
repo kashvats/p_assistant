@@ -109,14 +109,31 @@ class DesktopController:
                 out.append(asdict(MonitorInfo(idx, int(mon["left"]), int(mon["top"]), int(mon["width"]), int(mon["height"]), idx == 1)))
             return out
 
-    def windows(self) -> list[dict]:
+    def windows(self, include_titles: bool = False) -> dict:
+        if include_titles:
+            req = self._approve(
+                "Read visible application window titles",
+                "Window titles may contain customer names, document names, messages, or other sensitive information.",
+                "SENSITIVE_READ",
+            )
+            if not req.get("allowed"):
+                return {"ok": False, "approval_required": True, **req}
+
         if self.system == "windows":
-            return self._windows_windows()
-        if self.system == "darwin":
-            return self._mac_windows()
-        if self.system == "linux":
-            return self._linux_windows()
-        return []
+            windows = self._windows_windows()
+        elif self.system == "darwin":
+            windows = self._mac_windows()
+        elif self.system == "linux":
+            windows = self._linux_windows()
+        else:
+            windows = []
+
+        if not include_titles:
+            windows = [
+                {key: value for key, value in item.items() if key != "title"}
+                for item in windows if isinstance(item, dict)
+            ]
+        return {"ok": True, "windows": windows, "titles_included": bool(include_titles)}
 
     def _run(self, args: list[str], timeout: float = 8) -> subprocess.CompletedProcess:
         return subprocess.run(args, capture_output=True, text=True, timeout=timeout, shell=False)

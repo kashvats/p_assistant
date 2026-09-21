@@ -5,6 +5,7 @@ from .config import data_dir
 from .sqlite_utils import ThreadLocalSQLite
 from .workspace import Workspace
 from .approval import ApprovalManager
+from .security_utils import is_sensitive_path
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS improvement_proposals(
@@ -127,6 +128,20 @@ class ImprovementEngine:
         if len(new_content) > MAX_PROPOSAL_CHARS:
             raise ValueError(f'Improvement proposal exceeds {MAX_PROPOSAL_CHARS} character limit.')
         target = self.workspace.resolve(target_path)
+        protected_core = is_protected_core_path(target)
+        sensitive_target = is_sensitive_path(target)
+        if protected_core or sensitive_target:
+            return {
+                'ok': False,
+                'blocked': True,
+                'sensitive': True,
+                'protected_core': protected_core,
+                'error': (
+                    'Self-improvement proposals cannot target Living Assistant security/core files.'
+                    if protected_core else
+                    'Self-improvement proposals cannot target credential or secret-bearing files.'
+                ),
+            }
         old = target.read_text(encoding='utf-8', errors='replace') if target.exists() else ''
         diff = ''.join(difflib.unified_diff(old.splitlines(True), new_content.splitlines(True), fromfile=str(target), tofile=str(target)))
         return self.store.create(

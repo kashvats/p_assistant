@@ -43,10 +43,16 @@ class Orchestrator:
     def _model_lease(self):
         lease = getattr(self.mm, 'lease', None)
         if callable(lease):
-            return lease(self.model)
+            try:
+                return lease(self.model, priority=100)
+            except TypeError:
+                return lease(self.model)
         # Compatibility with older/custom ModelManager implementations and test
         # doubles that only implement the original activate() contract.
-        self.mm.activate(self.model)
+        try:
+            self.mm.activate(self.model, priority=100)
+        except TypeError:
+            self.mm.activate(self.model)
         return nullcontext(self.keep_alive)
 
     def _publish(self, event_type: str, **data):

@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS events(
   payload TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS living_assistant_migrations(
+  name TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
 """
 
 class MemoryStore:
@@ -47,6 +51,13 @@ class MemoryStore:
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self._migrate()
+        migration = 'memories_fts_v1'
+        if not self.conn.execute('SELECT 1 FROM living_assistant_migrations WHERE name=?', (migration,)).fetchone():
+            self.conn.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
+            self.conn.execute(
+                'INSERT INTO living_assistant_migrations(name,applied_at) VALUES(?,?)',
+                (migration, dt.datetime.now().isoformat(timespec='seconds')),
+            )
         self.conn.commit()
 
     def _migrate(self):
@@ -62,15 +73,16 @@ class MemoryStore:
         self.conn.commit(); return int(cur.lastrowid)
 
     def search(self, query: str, limit: int = 8) -> list[dict]:
-        try:
-            rows = self.conn.execute(
-                """SELECT m.* FROM memories_fts f JOIN memories m ON m.id=f.rowid
-                   WHERE memories_fts MATCH ? ORDER BY bm25(memories_fts) LIMIT ?""", (query, limit)
-            ).fetchall()
-        except sqlite3.OperationalError:
-            rows = self.conn.execute(
-                "SELECT * FROM memories WHERE content LIKE ? ORDER BY id DESC LIMIT ?", (f"%{query}%", limit)
-            ).fetchall()
+        query = (query or '').strip()
+        if not query:
+            return []
+        bounded_limit = max(1, min(int(limit), 200))
+        fts_query = '"' + query.replace('"', '""') + '"'
+        rows = self.conn.execute(
+            """SELECT m.* FROM memories_fts f JOIN memories m ON m.id=f.rowid
+               WHERE memories_fts MATCH ? ORDER BY bm25(memories_fts) LIMIT ?""",
+            (fts_query, bounded_limit),
+        ).fetchall()
         return [dict(r) for r in rows]
 
     def add_todo(self, title: str, due_at: str | None = None) -> int:

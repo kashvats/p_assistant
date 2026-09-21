@@ -52,13 +52,13 @@ profiles:
     max_handoffs: 2
     max_tool_steps: 10
     models:
-      orchestrator: qwen3.5:4b
-      general: qwen3.5:4b
-      coder: qwen3.5:4b
-      researcher: qwen3.5:2b
-      security: qwen3.5:2b
-      database: qwen3.5:2b
-      planner: qwen3.5:2b
+      orchestrator: qwen2.5:1.5b
+      general: qwen2.5:1.5b
+      coder: qwen2.5:1.5b
+      researcher: qwen2.5:1.5b
+      security: qwen2.5:1.5b
+      database: qwen2.5:1.5b
+      planner: qwen2.5:1.5b
 
   power:
     min_ram_gb: 48
@@ -103,15 +103,28 @@ desktop:
   clipboard_enabled: true
   tray_enabled: true
   computer_use_enabled: true
-  vision_enabled: false
-  vision_model: null
+  vision_enabled: true
+  vision_model: moondream
   allow_remote_vision: false
+  require_vision_approval: false
   input_pause_seconds: 0.08
 
 browser:
   enabled: true
   lite_enabled: false
   headless: false
+  max_live_sessions: 4
+
+# Search is independent from page browsing. In auto mode Serper is an optional
+# fast structured provider; when no key is configured (or Serper fails), the
+# assistant uses its Playwright browser as the search provider.
+web_search:
+  provider: auto  # auto | serper | browser | disabled
+  max_results: 8
+  max_calls_per_minute: 20
+  # Durable cross-process provider budget stored locally in SQLite.
+  max_calls_per_day: 1000
+  serper_timeout_seconds: 15
 
 downloads:
   quarantine_risky_files: true
@@ -137,12 +150,12 @@ voice:
     calibration_seconds: 0.4
     pre_roll_seconds: 0.24
     min_seconds: 0.35
-    silence_seconds: 0.9
+    silence_seconds: 0.5
     max_seconds: 15
     min_rms: 250
     noise_multiplier: 3.0
   hands_free:
-    enabled: false
+    enabled: true
     lite_enabled: false
     wake_model: ""
     wake_model_name: hey_jarvis
@@ -150,8 +163,8 @@ voice:
     wake_audio_tail_seconds: 0.32
     wake_threshold: 0.5
     wake_chunk_ms: 80
+    max_listener_lease_seconds: 31536000
     wake_timeout_seconds: 0
-    max_listener_lease_seconds: 300
     inference_framework: onnx
     vad_threshold: 0.0
     noise_suppression: false
@@ -168,6 +181,8 @@ self_improvement:
   auto_apply_security_core: false
   evaluation:
     enabled: true
+    # auto is container-first and never silently falls back to host execution.
+    execution_provider: auto
     benchmark_repetitions: 3
     benchmark_repetitions_by_profile: {lite: 1, balanced: 3, power: 5}
     benchmark_warmup_runs: 1
@@ -184,6 +199,8 @@ self_improvement:
 
   sandbox:
     runtime: auto
+    # Container images are never pulled automatically; pre-pull/change this image.
+    default_image: python:3.11-slim
     lite_enabled: false
     memory_mb: 1024
     cpus: 1.0
@@ -193,6 +210,7 @@ self_improvement:
 
   canary:
     enabled: true
+    default_provider: auto
     observe_seconds_by_profile: {lite: 5, balanced: 15, power: 30}
     startup_timeout_seconds: 30
     min_health_success_pct: 95
@@ -222,6 +240,12 @@ sessions:
   retention_days: 30
   max_context_messages: 12
   redact_secrets: true
+
+databases:
+  # DB_*_URL alone is not enough in production. Each alias must have an explicit
+  # policy under aliases before the model can query it.
+  require_alias_policy: true
+  aliases: {}
 
 connectors:
   enabled: true

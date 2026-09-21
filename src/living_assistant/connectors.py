@@ -6,6 +6,8 @@ import base64
 import json
 import os
 import re
+import secrets
+import threading
 import time
 import urllib.parse
 
@@ -21,6 +23,16 @@ from .storage_utils import atomic_write_json
 
 KINDS={'mail','calendar','files','contacts','messaging','productivity','developer','custom'}
 _SECRET_KEY_RE=re.compile(r'(?i)(password|passwd|pwd|token|secret|api[_-]?key|client[_-]?secret|private[_-]?key)')
+_SECRET_VALUE_RE=re.compile(
+    r'(?i)(?:'
+    r'\bgh[pousr]_[A-Za-z0-9]{20,}\b|'
+    r'\bgithub_pat_[A-Za-z0-9_]{20,}\b|'
+    r'\bxox[baprs]-[A-Za-z0-9-]{10,}\b|'
+    r'\bsk-(?:live-|test-)?[A-Za-z0-9_-]{20,}\b|'
+    r'\bAIza[0-9A-Za-z_-]{20,}\b|'
+    r'\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{12,}'
+    r')'
+)
 
 PROVIDER_ACTIONS: dict[str,dict[str,dict[str,Any]]] = {
  'google': {
@@ -68,6 +80,10 @@ def _safe_settings(settings: dict | None) -> dict:
                 walk(child, f'{path}.{key}')
         elif isinstance(value, list):
             for i, child in enumerate(value): walk(child, f'{path}[{i}]')
+        elif isinstance(value, str):
+            redacted = redact_secrets(value)
+            if redacted != value or _SECRET_VALUE_RE.search(value):
+                raise ValueError(f'Credential/secret values may not be stored in connector settings: {path}')
     walk(settings)
     raw=json.dumps(settings)
     if len(raw)>20000: raise ValueError('Connector settings are too large.')
@@ -121,6 +137,8 @@ class ConnectorManager:
                  client: httpx.Client | None=None, max_external_chars: int=120000):
         self.registry=registry; self.approval=approval; self.credentials=credentials or CredentialStore(); self.client=client
         self.oauth=OAuthManager(self.credentials,client=client); self.max_external_chars=max_external_chars
+        self._device_transactions: dict[str, dict[str, Any]] = {}
+        self._device_transactions_lock = threading.Lock()
 
     def _client(self): return self.client or httpx.Client(timeout=20.0,trust_env=False,follow_redirects=False)
     def _request(self, method: str, url: str, *, headers: dict | None=None, params: dict | None=None, json_body: Any=None, data: Any=None) -> Any:
@@ -158,6 +176,31 @@ class ConnectorManager:
         if c['provider']=='microsoft': scopes=sorted(set(scopes+['offline_access','openid','profile']))
         return scopes
 
+    def _store_device_transaction(self, name: str, device: dict) -> str:
+        transaction_id = secrets.token_urlsafe(24)
+        expires_in = max(1, int(device.get('expires_in', 900) or 900))
+        now = time.monotonic()
+        record = {
+            'name': name,
+            'device': dict(device),
+            'expires_at': now + expires_in,
+        }
+        with self._device_transactions_lock:
+            expired = [key for key, value in self._device_transactions.items() if float(value.get('expires_at', 0)) <= now]
+            for key in expired:
+                self._device_transactions.pop(key, None)
+            self._device_transactions[transaction_id] = record
+        return transaction_id
+
+    def _consume_device_transaction(self, name: str, transaction_id: str) -> dict | None:
+        now = time.monotonic()
+        with self._device_transactions_lock:
+            record = self._device_transactions.pop(str(transaction_id), None)
+        if not record or record.get('name') != name or float(record.get('expires_at', 0)) <= now:
+            return None
+        device = record.get('device')
+        return dict(device) if isinstance(device, dict) else None
+
     def authorize(self,name: str) -> dict:
         c=self.registry.get(name)
         if not c: return {'ok':False,'error':'Unknown connector.'}
@@ -166,20 +209,24 @@ class ConnectorManager:
             if c['provider']=='google': return self.oauth.google_login(c,scopes)
             if c['provider']=='microsoft':
                 device=self.oauth.microsoft_begin_device(c,scopes)
-                return {'ok':True,'pending_device_auth':True,'device':{k:device.get(k) for k in ('user_code','verification_uri','verification_uri_complete','expires_in','interval','message')},'_device_code':device.get('device_code')}
+                transaction_id=self._store_device_transaction(name,device)
+                return {'ok':True,'pending_device_auth':True,'transaction_id':transaction_id,'device':{k:device.get(k) for k in ('user_code','verification_uri','verification_uri_complete','expires_in','interval','message')}}
             if c['provider']=='github':
                 device=self.oauth.github_begin_device(c,scopes)
-                return {'ok':True,'pending_device_auth':True,'device':{k:device.get(k) for k in ('user_code','verification_uri','expires_in','interval')},'_device_code':device.get('device_code')}
+                transaction_id=self._store_device_transaction(name,device)
+                return {'ok':True,'pending_device_auth':True,'transaction_id':transaction_id,'device':{k:device.get(k) for k in ('user_code','verification_uri','expires_in','interval')}}
             return {'ok':False,'error':'This provider uses an environment/keyring token rather than OAuth login.'}
         except Exception as e: return {'ok':False,'error':redact_secrets(e,1000)}
 
-    def finish_device_authorize(self,name: str,device_code: str, expires_in: int=900, interval: int=5) -> dict:
+    def finish_device_authorize(self,name: str,transaction_id: str, expires_in: int=900, interval: int=5) -> dict:
         c=self.registry.get(name)
         if not c: return {'ok':False,'error':'Unknown connector.'}
+        device=self._consume_device_transaction(name, transaction_id)
+        if device is None:
+            return {'ok':False,'error':'Unknown, expired, or already-consumed device authorization transaction.'}
         try:
-            d={'device_code':device_code,'expires_in':expires_in,'interval':interval}
-            if c['provider']=='microsoft': return self.oauth.microsoft_poll_device(c,d)
-            if c['provider']=='github': return self.oauth.github_poll_device(c,d)
+            if c['provider']=='microsoft': return self.oauth.microsoft_poll_device(c,device)
+            if c['provider']=='github': return self.oauth.github_poll_device(c,device)
             return {'ok':False,'error':'Provider does not use device flow.'}
         except Exception as e: return {'ok':False,'error':redact_secrets(e,1000)}
 

@@ -415,8 +415,26 @@ class RansomwareBehaviorDetector:
     def observe(self,file_events: Iterable[dict],now: float|None=None) -> dict:
         now=float(now or time.time())
         for e in file_events:
-            if e.get('kind') not in {'file_added','file_changed','file_removed'}: continue
-            self.events.append((now,e.get('kind'),str(e.get('path') or '')))
+            kind = e.get('kind')
+            if kind == 'file_changes_batched':
+                paths = e.get('paths') if isinstance(e.get('paths'), dict) else {}
+                counts = e.get('counts') if isinstance(e.get('counts'), dict) else {}
+                root = str(e.get('root') or '')
+                for change_kind in ('file_added','file_changed','file_removed'):
+                    sampled = [str(p) for p in (paths.get(change_kind) or []) if p]
+                    for path in sampled:
+                        self.events.append((now, change_kind, path))
+                    missing = max(0, int(counts.get(change_kind, 0) or 0) - len(sampled))
+                    # Preserve burst magnitude even when the watcher truncated its path
+                    # sample. Synthetic unique paths never escape the detector and keep
+                    # mass-change/removal thresholds accurate.
+                    for index in range(min(missing, self.file_threshold + 20)):
+                        synthetic = str(Path(root or '/') / '.debounced' / change_kind / str(index))
+                        self.events.append((now, change_kind, synthetic))
+                continue
+            if kind not in {'file_added','file_changed','file_removed'}:
+                continue
+            self.events.append((now,kind,str(e.get('path') or '')))
         while self.events and now-self.events[0][0]>self.window_seconds: self.events.popleft()
         rows=list(self.events); paths={x[2] for x in rows if x[2]}; dirs={str(Path(p).parent) for p in paths}; kinds=Counter(x[1] for x in rows)
         suffixes=Counter(Path(p).suffix.lower() for p in paths if Path(p).suffix)

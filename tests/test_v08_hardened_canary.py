@@ -23,7 +23,7 @@ def base_stack(tmp_path):
     manager=ApprovalManager(interactive=False,store=approvals)
     improvements=ImprovementEngine(ws,manager,ImprovementStore(tmp_path/'improvements.sqlite3'))
     cfg={'self_improvement':{
-        'evaluation':{'enabled':True,'command_timeout_seconds':5,'max_commands':8,'copy_max_files':100,'copy_max_mb':10},
+        'evaluation':{'enabled':True,'execution_provider':'host','command_timeout_seconds':5,'max_commands':8,'copy_max_files':100,'copy_max_mb':10},
         'sandbox':{'runtime':'auto','memory_mb':512,'cpus':0.5,'pids_limit':64,'read_only_root':True,'tmpfs_mb':32},
         'canary':{'enabled':True,'observe_seconds_by_profile':{'balanced':2},'startup_timeout_seconds':2,'min_health_success_pct':95,'max_latency_regression_pct':20,'max_memory_regression_pct':20},
     }}

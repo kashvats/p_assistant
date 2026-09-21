@@ -106,10 +106,36 @@ class WatchRegistry:
             added = current.keys() - previous.keys()
             removed = previous.keys() - current.keys()
             changed = {p for p in current.keys() & previous.keys() if current[p] != previous[p]}
-            for p in list(sorted(added))[:max_events_per_watch]:
+            total_changes = len(added) + len(changed) + len(removed)
+            threshold = max(1, int(max_events_per_watch))
+            if total_changes > threshold:
+                # Coalesce build-tool bursts into one bounded event rather than flooding
+                # the daemon/UI with hundreds of per-file events. Keep a generous,
+                # bounded sample per change kind so security burst detection still has
+                # representative paths while counts preserve the full magnitude.
+                sample_limit = min(200, max(100, threshold))
+                events.append({
+                    "kind": "file_changes_batched",
+                    "watch": name,
+                    "root": str(root),
+                    "total_changes": total_changes,
+                    "counts": {
+                        "file_added": len(added),
+                        "file_changed": len(changed),
+                        "file_removed": len(removed),
+                    },
+                    "paths": {
+                        "file_added": list(sorted(added))[:sample_limit],
+                        "file_changed": list(sorted(changed))[:sample_limit],
+                        "file_removed": list(sorted(removed))[:sample_limit],
+                    },
+                    "sample_truncated": any(len(items) > sample_limit for items in (added, changed, removed)),
+                })
+                continue
+            for p in sorted(added):
                 events.append({"kind": "file_added", "watch": name, "path": p})
-            for p in list(sorted(changed))[:max_events_per_watch]:
+            for p in sorted(changed):
                 events.append({"kind": "file_changed", "watch": name, "path": p})
-            for p in list(sorted(removed))[:max_events_per_watch]:
+            for p in sorted(removed):
                 events.append({"kind": "file_removed", "watch": name, "path": p})
         return events

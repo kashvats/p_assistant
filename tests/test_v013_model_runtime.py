@@ -293,7 +293,8 @@ def test_model_runtime_api_status_and_controls(monkeypatch):
     fake = SimpleNamespace(profile='balanced', hardware=H(), resources=R(), personal=P(), model_manager=MM())
     monkeypatch.setattr(api, 'runtime', fake)
     monkeypatch.delenv('ASSISTANT_API_TOKEN', raising=False)
-    client = TestClient(api.app)
+    monkeypatch.setenv('ASSISTANT_API_TOKEN', 'test-token')
+    client = TestClient(api.app, headers={'Authorization':'Bearer test-token'})
 
     status = client.get('/status')
     assert status.status_code == 200
@@ -314,3 +315,29 @@ def test_combined_model_sizes_respect_total_vram_budget(monkeypatch):
     ok, reason = rm.can_admit_model(8 * 1024**3, resident_count=1, resident_size_bytes=8 * 1024**3)
     assert not ok
     assert 'VRAM residency budget' in reason
+
+
+def test_lower_priority_background_model_cannot_evict_foreground_model():
+    provider = FakeProvider()
+    mm = ModelManager(provider, FakeResources(policy(1, 1)))
+    mm.admission_timeout_seconds = 0.08
+    mm.activate('orchestrator', priority=100)
+
+    import pytest
+    from living_assistant.model_provider import ModelError
+    with pytest.raises(ModelError):
+        mm.activate('background-specialist', priority=30)
+
+    assert provider.unloaded == []
+    resident = mm.status()['resident_models']
+    assert [item['model'] for item in resident] == ['orchestrator']
+    assert resident[0]['priority'] == 100
+
+
+def test_higher_priority_foreground_model_evicts_lower_priority_background_model():
+    provider = FakeProvider()
+    mm = ModelManager(provider, FakeResources(policy(1, 1)))
+    mm.activate('background-specialist', priority=30)
+    mm.activate('orchestrator', priority=100)
+    assert provider.unloaded == ['background-specialist']
+    assert [item['model'] for item in mm.status()['resident_models']] == ['orchestrator']

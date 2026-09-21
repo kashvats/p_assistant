@@ -25,8 +25,9 @@ CREATE INDEX IF NOT EXISTS approvals_hash_status ON approvals(action_hash, statu
 """
 
 class ApprovalStore:
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, pending_ttl_hours: float = 24.0):
         self.path = path or (data_dir() / "assistant.sqlite3")
+        self.pending_ttl_hours = max(0.0, float(pending_ttl_hours))
         self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
@@ -36,6 +37,21 @@ class ApprovalStore:
     def action_hash(action: str, reason: str, kind: str) -> str:
         raw = json.dumps({"action": action, "reason": reason, "kind": kind}, sort_keys=True).encode()
         return hashlib.sha256(raw).hexdigest()
+
+    def expire_pending(self, *, max_age_hours: float | None = None, now: dt.datetime | None = None) -> int:
+        """Expire stale pending approvals so they cannot block a fresh request forever."""
+        ttl = self.pending_ttl_hours if max_age_hours is None else max(0.0, float(max_age_hours))
+        now = now or dt.datetime.now()
+        cutoff = (now - dt.timedelta(hours=ttl)).isoformat(timespec="seconds")
+        resolved_at = now.isoformat(timespec="seconds")
+        cur = self.conn.execute(
+            """UPDATE approvals
+               SET status='expired', resolved_at=?
+               WHERE status='pending' AND created_at<?""",
+            (resolved_at, cutoff),
+        )
+        self.conn.commit()
+        return int(cur.rowcount or 0)
 
     def consume_preapproval(self, action: str, reason: str, kind: str) -> str | None:
         h = self.action_hash(action, reason, kind)
@@ -54,6 +70,7 @@ class ApprovalStore:
         return str(row["id"]) if row else None
 
     def create(self, action: str, reason: str, kind: str = "execute") -> dict:
+        self.expire_pending()
         h = self.action_hash(action, reason, kind)
         existing = self.conn.execute(
             "SELECT * FROM approvals WHERE action_hash=? AND status='pending' ORDER BY created_at DESC LIMIT 1",
@@ -73,6 +90,8 @@ class ApprovalStore:
         item = dict(self.conn.execute("SELECT * FROM approvals WHERE id=?", (item_id,)).fetchone()); item["_created"] = True; return item
 
     def list(self, status: str | None = "pending", limit: int = 100) -> list[dict]:
+        if status in {None, "pending"}:
+            self.expire_pending()
         if status:
             rows = self.conn.execute(
                 "SELECT * FROM approvals WHERE status=? ORDER BY created_at DESC LIMIT ?", (status, limit)

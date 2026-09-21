@@ -148,7 +148,8 @@ def test_api_exposes_platform_status(monkeypatch):
         def to_dict(self):
             return {'os':'TestOS','symlink_supported':False}
     monkeypatch.setattr(api,'platform_status',lambda:Fake())
-    client=TestClient(api.app)
+    monkeypatch.setenv('ASSISTANT_API_TOKEN','test-token')
+    client=TestClient(api.app,headers={'Authorization':'Bearer test-token'})
     r=client.get('/platform/status')
     assert r.status_code==200
     assert r.json()['os']=='TestOS'
@@ -205,7 +206,7 @@ def test_tree_walker_does_not_descend_link_like_directory(monkeypatch,tmp_path):
     boundary=root/'junction'; boundary.mkdir(); (boundary/'secret.txt').write_text('secret')
     original=ph.is_link_like
     monkeypatch.setattr(ph,'is_link_like',lambda p: Path(p).name=='junction' or original(p))
-    paths=[str(x.relative_to(root)) for x in ph.iter_tree_without_link_traversal(root,True)]
+    paths=[x.relative_to(root).as_posix() for x in ph.iter_tree_without_link_traversal(root,True)]
     assert 'junction' in paths
     assert 'junction/secret.txt' not in paths
     assert 'normal/ok.txt' in paths
