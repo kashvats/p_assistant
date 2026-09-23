@@ -290,7 +290,7 @@ def test_model_runtime_api_status_and_controls(monkeypatch):
         def unload(self, model):
             return {'ok': True, 'model': model, 'action': 'unload'}
 
-    fake = SimpleNamespace(profile='balanced', hardware=H(), resources=R(), personal=P(), model_manager=MM())
+    fake = SimpleNamespace(profile='balanced', hardware=H(), resources=R(), personal=P(), model_manager=MM(), orchestrator=SimpleNamespace(model='a'))
     monkeypatch.setattr(api, 'runtime', fake)
     monkeypatch.delenv('ASSISTANT_API_TOKEN', raising=False)
     monkeypatch.setenv('ASSISTANT_API_TOKEN', 'test-token')

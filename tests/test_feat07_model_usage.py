@@ -219,12 +219,14 @@ def test_dashboard_exposes_model_usage_without_rendering_provider_html():
 
     page = (
         resources.files("living_assistant")
-        .joinpath("webui/index.html")
+        .joinpath("webui/src/main.js")
         .read_text(encoding="utf-8")
     )
-    assert 'id="modelUsageSummary"' in page
-    assert 'id="modelUsageTable"' in page
-    assert "async function loadModelUsage()" in page
-    assert "api('/models/usage?days=30')" in page
-    assert "td.textContent = value;" in page
-    assert "setInterval(loadModelUsage, 10000);" in page
+    # The dashboard is a Vite/React SPA (BROKEN-08); model usage is polled and
+    # rendered through UsageTable rather than hand-built DOM/innerHTML, so no
+    # provider-supplied text is ever assigned as raw HTML.
+    assert "async loadUsage()" in page
+    assert "this.api('/models/usage?days=30')" in page
+    assert "setInterval(() => this.loadUsage(), 10000)" in page
+    assert "function UsageTable({usage})" in page
+    assert "dangerouslySetInnerHTML" not in page

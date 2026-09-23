@@ -208,10 +208,15 @@ def test_dashboard_surfaces_sensor_platform(monkeypatch):
     import living_assistant.api as api
     monkeypatch.delenv('ASSISTANT_API_TOKEN',raising=False)
     monkeypatch.setenv('ASSISTANT_API_TOKEN','test-token')
-    r=TestClient(api.app,headers={'Authorization':'Bearer test-token'}).get('/dashboard')
+    client=TestClient(api.app,headers={'Authorization':'Bearer test-token'})
+    r=client.get('/dashboard')
     assert r.status_code==200
-    assert 'Sensor platform' in r.text
-    assert '/security/sensors/status' in r.text
+    # The dashboard is a Vite/React SPA (BROKEN-08): behavior/text lives in the
+    # bundled main.js rather than inline in index.html.
+    bundle=client.get('/dashboard-assets/src/main.js')
+    assert bundle.status_code==200
+    assert 'Sensor platform' in bundle.text
+    assert '/security/sensors/status' in bundle.text
 
 def test_partial_network_isolation_keeps_restore_state(tmp_path,monkeypatch):
     sp=platform(tmp_path,approval=AllowApproval())

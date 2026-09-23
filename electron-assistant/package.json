@@ -1,0 +1,14 @@
+{
+  "name": "electron-assistant",
+  "version": "0.1.0",
+  "description": "Cute hovering personal assistant (Electron)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^26.0.0"
+  }
+}

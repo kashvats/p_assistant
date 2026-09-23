@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import os
 import shlex
 import statistics
 import subprocess
@@ -57,7 +56,7 @@ def measure_command(command: str, cwd: Path, timeout_seconds: int = 300) -> dict
         'PYTHONDONTWRITEBYTECODE': '1',
     })
     try:
-        argv = shlex.split(command, posix=(os.name != 'nt'))
+        argv = shlex.split(command, posix=True)
     except ValueError as exc:
         return {'ok':False,'blocked':True,'command':command,'returncode':None,'reason':f'Could not parse command safely: {exc}','duration_seconds':0.0,'peak_rss_mb':0.0}
     if not argv:

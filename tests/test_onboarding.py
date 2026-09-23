@@ -8,7 +8,7 @@ from living_assistant.cli import app
 
 
 def seed_config(tmp_path):
-    source=Path('/mnt/data/config_repo/src/living_assistant/default_config.yaml')
+    source=Path(__file__).resolve().parents[1]/'src'/'living_assistant'/'default_config.yaml'
     target=tmp_path/'assistant.yaml'
     target.write_text(source.read_text())
     return target

@@ -11,6 +11,7 @@ venv.bak/
 .env
 dist/
 build/
+node_modules/
 *.egg-info/
 *.egg
 test_qdrant.db

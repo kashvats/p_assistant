@@ -102,7 +102,7 @@ async def local_api_boundary(request: Request, call_next):
 
 
 def _rt() -> Runtime:
-    return get_runtime()
+    return runtime if runtime is not None else get_runtime()
 
 
 def _auth(authorization: str | None) -> None:
@@ -128,6 +128,18 @@ def status(authorization: str | None = Header(default=None)):
     _auth(authorization)
     rt = _rt()
     model_runtime = rt.model_manager.status(refresh=False)
+    provider_info = getattr(rt.model_manager, "provider_info", None)
+    model_provider = (
+        provider_info(rt.model_manager.active_model)
+        if callable(provider_info)
+        else {
+            "id": "unknown",
+            "name": "Provider unavailable",
+            "local": None,
+            "credentials_required": None,
+            "model": rt.model_manager.active_model,
+        }
+    )
     return {
         "profile": rt.profile,
         "hardware": rt.hardware.to_dict(),
@@ -135,6 +147,7 @@ def status(authorization: str | None = Header(default=None)):
         "personal": rt.personal.status(),
         "active_model": rt.model_manager.active_model,
         "model_runtime": model_runtime,
+        "model_provider": model_provider,
     }
 
 

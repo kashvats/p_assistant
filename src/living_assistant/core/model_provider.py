@@ -941,4 +941,50 @@ class ModelManager:
             result["provider_running"] = provider_running
         if provider_error:
             result["provider_error"] = provider_error
+        result["model_provider"] = self.provider_info(self.active_model)
         return result
+
+    def provider_info(self, model: str | None = None) -> dict:
+        """Describe the inference provider without exposing provider credentials."""
+        selected = str(model or self.active_model or "")
+        provider = self.provider
+        if isinstance(provider, CompositeModelProvider):
+            if provider.airllm.is_airllm_model(selected):
+                return {
+                    "id": "airllm",
+                    "name": "AirLLM (local)",
+                    "local": True,
+                    "credentials_required": False,
+                    "model": selected,
+                }
+            return {
+                "id": "ollama",
+                "name": "Ollama (local)",
+                "local": True,
+                "credentials_required": False,
+                "model": selected,
+            }
+        if isinstance(provider, AirLLMProvider):
+            return {
+                "id": "airllm",
+                "name": "AirLLM (local)",
+                "local": True,
+                "credentials_required": False,
+                "model": selected,
+            }
+        if isinstance(provider, OllamaProvider):
+            return {
+                "id": "ollama",
+                "name": "Ollama (local)",
+                "local": True,
+                "credentials_required": False,
+                "model": selected,
+            }
+        name = type(provider).__name__
+        return {
+            "id": name.lower().removesuffix("provider"),
+            "name": name,
+            "local": False,
+            "credentials_required": True,
+            "model": selected,
+        }

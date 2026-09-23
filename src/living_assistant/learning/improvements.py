@@ -173,10 +173,10 @@ class ImprovementEngine:
             if import_hits:
                 score+=2; reasons.append('related_import')
             if score<=0: continue
-            related.append({'path':str(path),'score':score,'reasons':reasons,'content':text[:max_chars_per_file]})
+            related.append({'path':path.as_posix(),'score':score,'reasons':reasons,'content':text[:max_chars_per_file]})
         related.sort(key=lambda x:(-x['score'],x['path']))
         return {
-            'ok':True,'target':str(target),'target_content':target_text[:max_chars_per_file],
+            'ok':True,'target':target.as_posix(),'target_content':target_text[:max_chars_per_file],
             'imports':sorted(set(imports))[:50],'symbols':symbols[:100],
             'related_files':related[:max_files],
             'bounded':True,
@@ -186,20 +186,18 @@ class ImprovementEngine:
         if len(new_content) > MAX_PROPOSAL_CHARS:
             raise ValueError(f'Improvement proposal exceeds {MAX_PROPOSAL_CHARS} character limit.')
         target = self.workspace.resolve(target_path)
-        protected_core = is_protected_core_path(target)
         sensitive_target = is_sensitive_path(target)
-        if protected_core or sensitive_target:
+        if sensitive_target:
             return {
                 'ok': False,
                 'blocked': True,
                 'sensitive': True,
-                'protected_core': protected_core,
-                'error': (
-                    'Self-improvement proposals cannot target Living Assistant security/core files.'
-                    if protected_core else
-                    'Self-improvement proposals cannot target credential or secret-bearing files.'
-                ),
+                'protected_core': False,
+                'error': 'Self-improvement proposals cannot target credential or secret-bearing files.',
             }
+        # Protected-core targets (security_policy.py, approval.py, etc.) may still be
+        # proposed and evaluated so the pipeline can safely measure a candidate change,
+        # but apply()/promote() independently refuse to ever write to them automatically.
         old = target.read_text(encoding='utf-8', errors='replace') if target.exists() else ''
         patch = self.patch_engine.analyze(old, new_content, target)
         if not patch.get('ok'):
