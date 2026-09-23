@@ -66,6 +66,21 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
+def _host_command_argv(command: str, host_port: int) -> list[str]:
+    """Resolve a canary command without relying on a POSIX shell on Windows."""
+    argv = shlex.split(
+        command.replace('{port}', str(host_port)),
+        posix=(os.name != 'nt'),
+    )
+    if os.name == 'nt' and argv and argv[0].lower() == 'sh':
+        if shutil.which('sh') is not None:
+            return argv
+        bash = shutil.which('bash')
+        if bash is not None:
+            argv[0] = bash
+    return argv
+
+
 class CanaryStore:
     def __init__(self, path: Path | None = None):
         self.path = path or (data_dir()/'assistant.sqlite3')
@@ -173,7 +188,7 @@ class CanaryEngine:
         decision=classify_command(command,require_execute_approval=False)
         if not decision.allowed or decision.risk.value in {'PRIVILEGED','DESTRUCTIVE'}:
             return {'ok':False,'error':'Unsafe canary command rejected.'}
-        try: argv=shlex.split(command.replace('{port}',str(host_port)),posix=(os.name!='nt'))
+        try: argv=_host_command_argv(command, host_port)
         except Exception as exc:return {'ok':False,'error':str(exc)}
         env=sanitized_env({'PORT':str(host_port),'LIVING_ASSISTANT_CANARY':'1'})
         log_path=data_dir()/'canary_logs'/f'{uuid.uuid4().hex[:10]}.log'; log_path.parent.mkdir(parents=True,exist_ok=True)

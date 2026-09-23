@@ -8,7 +8,7 @@ from living_assistant.core.memory import MemoryStore
 
 
 def seeded(tmp_path):
-    src=Path('/mnt/data/config_repo/src/living_assistant/default_config.yaml')
+    src=Path(__file__).resolve().parents[1]/'src'/'living_assistant'/'default_config.yaml'
     path=tmp_path/'assistant.yaml'
     path.write_text(src.read_text())
     return path

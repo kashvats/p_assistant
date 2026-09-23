@@ -103,10 +103,14 @@ def test_dashboard_is_bundled_and_no_longer_disabled_by_api_token(monkeypatch):
     r = client.get('/dashboard')
     assert r.status_code == 200
     assert 'Living Assistant' in r.text
-    assert 'chat/stream' in r.text
-    assert 'Resource history' in r.text
-    assert 'API token' in r.text
     assert 'Content-Security-Policy' in r.headers
+    # The dashboard is a Vite/React SPA (BROKEN-08): behavior/text lives in the
+    # bundled main.js rather than inline in index.html.
+    bundle = client.get('/dashboard-assets/src/main.js')
+    assert bundle.status_code == 200
+    assert 'chat/stream' in bundle.text
+    assert 'Resource history' in bundle.text
+    assert 'API token' in bundle.text
 
 
 def test_chat_stream_api_emits_sse(monkeypatch):

@@ -107,7 +107,7 @@
 - [x] **UI-03** · Chat — Code syntax highlighting (highlight.js or Prism).
 - [x] **UI-04** · Chat — Live streaming cursor / token indicator while LLM generates.
 - [x] **UI-05** · Approvals — Toast notifications (non-blocking) when approval needed.
-- [ ] **UI-06** · Dashboard — Replace hand-drawn Canvas chart with Chart.js / Recharts.
+- [x] **UI-06** · Dashboard — Replace hand-drawn Canvas chart with a verified local Plotly component.
 - [x] **UI-07** · Dashboard — New "Model Manager" page (list/pull/delete Ollama models).
 - [x] **UI-08** · Dashboard — Mobile-responsive layout.
 - [x] **UI-09** · Overlay — `Ctrl+Space` global hotkey → Spotlight-style command palette.

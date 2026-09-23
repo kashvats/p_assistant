@@ -32,8 +32,16 @@ def test_api_is_split_into_domain_routers_without_duplicate_routes():
     ]
     assert all(router.routes for router in routers)
 
+    def leaf_routes(routes):
+        for route in routes:
+            nested_router = getattr(route, "original_router", None)
+            if nested_router is not None:
+                yield from leaf_routes(nested_router.routes)
+            else:
+                yield route
+
     route_keys = []
-    for route in api.app.routes:
+    for route in leaf_routes(api.app.routes):
         path = getattr(route, "path", "")
         if path.startswith(("/docs", "/redoc", "/openapi.json")):
             continue

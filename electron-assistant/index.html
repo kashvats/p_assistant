@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Living Assistant</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="assistant" class="assistant">
+    <header class="topbar">
+      <div class="brand" title="Provider status"><span class="status-dot"></span><span>Living Assistant</span></div>
+      <button id="settings-button" class="icon-button" title="Connection settings">⚙</button>
+    </header>
+    <section class="bubble" aria-live="polite">
+      <div class="face">◉‿◉</div>
+      <div>
+        <div id="headline" class="headline">Hi — I’m keeping an eye on your work.</div>
+        <div id="provider-badge" class="provider-badge">Provider: checking…</div>
+        <div id="context" class="context">Connect me to the local assistant to begin.</div>
+      </div>
+    </section>
+    <section id="question-card" class="question-card hidden">
+      <div id="question" class="question"></div>
+      <div class="actions">
+        <button id="ask-button" class="primary">Ask assistant</button>
+        <button id="dismiss-button" class="secondary">Not now</button>
+      </div>
+    </section>
+    <section class="controls">
+      <button id="screen-button" class="secondary">👁 Ask about screen</button>
+      <button id="chat-button" class="secondary">💬 Ask me anything</button>
+    </section>
+    <section id="settings" class="settings hidden">
+      <label for="api-url">Assistant URL</label>
+      <input id="api-url" value="http://127.0.0.1:8787" autocomplete="url">
+      <label for="api-token">Local assistant access token</label>
+      <input id="api-token" type="password" autocomplete="off" placeholder="Only for local dashboard access">
+      <div class="settings-note">This is not a model-provider key. Local Ollama and AirLLM models never require provider credentials.</div>
+      <button id="save-settings" class="primary">Save connection</button>
+      <div id="connection-error" class="error"></div>
+    </section>
+    <footer id="activity" class="activity">Waiting for activity…</footer>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>

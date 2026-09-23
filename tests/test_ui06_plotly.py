@@ -83,6 +83,7 @@ console.log(JSON.stringify({
         ["node", "--input-type=module", "-e", script],
         cwd=ROOT,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
     )

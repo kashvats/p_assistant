@@ -154,7 +154,12 @@ def test_evaluation_subprocess_redacts_common_secret_environment(monkeypatch,tmp
 
 def test_host_canary_timeout_terminates_descendant_processes(tmp_path):
     import psutil
+    import shutil
     import time
+
+    if shutil.which("sh") is None:
+        import pytest
+        pytest.skip("requires a POSIX sh executable for the shell-process-tree fixture")
 
     project, approvals, improvements, evaluations, canaries = base_stack(tmp_path)
     pid_file = project / "child.pid"

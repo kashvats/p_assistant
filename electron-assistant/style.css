@@ -1,0 +1,28 @@
+* { box-sizing: border-box; }
+body { margin: 0; color: #edf2ff; background: transparent; font: 13px "Segoe UI", system-ui, sans-serif; }
+.assistant { min-height: 100vh; padding: 14px; background: linear-gradient(145deg, #111a2b, #0b1020 75%); border: 1px solid #2a3a5c; border-radius: 22px; box-shadow: 0 14px 40px #0008; }
+.topbar, .brand, .controls, .actions { display: flex; align-items: center; }
+.topbar { justify-content: space-between; margin-bottom: 12px; -webkit-app-region: drag; }
+.icon-button, button, input { -webkit-app-region: no-drag; }
+.brand { gap: 7px; color: #a9b8d5; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #55d68b; box-shadow: 0 0 10px #55d68b; }
+.icon-button { border: 0; color: #9babca; background: transparent; cursor: pointer; font-size: 16px; }
+.bubble { display: flex; gap: 12px; align-items: center; padding: 14px; background: #18233a; border: 1px solid #2a3b5e; border-radius: 16px; }
+.face { display: grid; width: 54px; height: 54px; place-items: center; color: #9eb4ff; background: #0c1426; border: 1px solid #42598d; border-radius: 50%; font-size: 22px; }
+.headline { font-weight: 700; line-height: 1.35; }
+.context, .activity { color: #93a3c1; font-size: 12px; line-height: 1.45; }
+.context { margin-top: 5px; }
+.provider-badge { display: inline-block; margin-top: 7px; padding: 3px 7px; color: #8ee8b0; background: #123b2a; border: 1px solid #286f4d; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.provider-badge.external { color: #f4d28e; background: #4a3518; border-color: #9d7435; }
+.question-card, .settings { margin-top: 10px; padding: 12px; background: #1b2942; border: 1px solid #b4863d; border-radius: 12px; }
+.question { color: #f4d28e; line-height: 1.4; }
+.actions, .controls { gap: 8px; margin-top: 10px; }
+button { border: 0; border-radius: 8px; padding: 8px 10px; color: #edf2ff; cursor: pointer; font-weight: 600; }
+.primary { background: #536fc6; } .secondary { background: #253653; } button:hover { filter: brightness(1.15); }
+.controls { flex-wrap: wrap; } .controls button { flex: 1; min-width: 145px; }
+.settings { border-color: #42598d; } label { display: block; margin: 7px 0 4px; color: #a9b8d5; font-size: 11px; }
+input { width: 100%; padding: 8px; border: 1px solid #354a73; border-radius: 7px; color: #edf2ff; background: #0b1324; }
+.settings button { margin-top: 10px; } .error { min-height: 16px; margin-top: 7px; color: #ff8e8e; font-size: 12px; }
+.settings-note { margin-top: 7px; color: #93a3c1; font-size: 11px; line-height: 1.4; }
+.activity { margin-top: 12px; padding-top: 10px; border-top: 1px solid #263653; }
+.hidden { display: none; }
