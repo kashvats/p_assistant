@@ -152,6 +152,12 @@ class EnabledRequest(BaseModel):
     enabled: bool
 
 
+class VoiceAskRequest(BaseModel):
+    max_seconds: float = Field(default=15.0, ge=1.0, le=60.0)
+    language: str | None = Field(default=None, max_length=32)
+    speak: bool = False
+
+
 class DesktopAnalyzeRequest(BaseModel):
     prompt: str = Field(
         default="Describe the visible UI and actionable controls.",

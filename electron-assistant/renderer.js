@@ -275,6 +275,31 @@ $('send-chat').addEventListener('click', () => askAssistant($('chat-input').valu
 $('chat-input').addEventListener('keydown', (event) => {
   if (event.key === 'Enter') $('send-chat').click()
 })
+$('voice-button').addEventListener('click', async () => {
+  const button = $('voice-button')
+  const original = button.innerHTML
+  button.disabled = true
+  button.querySelector('b').textContent = 'Listening…'
+  button.querySelector('small').textContent = 'Speak after approval'
+  setExpression('observing')
+  try {
+    const result = await api('/voice/ask', {
+      method: 'POST',
+      body: JSON.stringify({ max_seconds: 15, speak: false }),
+    })
+    if (!result.ok) throw new Error(result.error || 'Voice command did not complete.')
+    $('headline').textContent = result.answer || 'I heard you.'
+    $('context').textContent = `Heard: “${result.transcript}”`
+    setExpression('learning')
+  } catch (error) {
+    $('connection-error').textContent = error.message
+    $('headline').textContent = 'I could not complete that voice request.'
+    setExpression('confused')
+  } finally {
+    button.innerHTML = original
+    button.disabled = false
+  }
+})
 $('screen-button').addEventListener('click', async () => {
   try {
     $('headline').textContent = 'Taking a careful look…'

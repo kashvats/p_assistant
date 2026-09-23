@@ -37,6 +37,13 @@ The compact face itself is draggable: grab the eyes/avatar and move the
 floating companion anywhere on the desktop. The expanded assistant can be
 moved from its top bar.
 
+Expanded mode also includes **Talk to me**. It uses the backend's existing
+approval-gated local microphone capture, local Whisper transcription, normal
+orchestrator command execution, and optional local TTS response path. The
+voice request validates the selected model before opening the microphone:
+local Ollama/AirLLM models do not require provider credentials; an online
+provider reports only its own required credential or unsupported-adapter error.
+
 The provider badge identifies whether the active model is local or online.
 Ollama and AirLLM models never require a model-provider API key. Explicit online
 model prefixes (`openai:`, `anthropic:`, `claude:`, `google:`, or `gemini:`)

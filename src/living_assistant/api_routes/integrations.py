@@ -9,6 +9,7 @@ from living_assistant.api_routes.schemas import (
     BrowserStartRequest,
     ConnectorCallRequest,
     EnabledRequest,
+    VoiceAskRequest,
 )
 
 router = APIRouter(tags=["integrations"])
@@ -18,10 +19,60 @@ router = APIRouter(tags=["integrations"])
 def voice_status(authorization: str | None = Header(default=None)):
     authorize(authorization)
     rt = runtime()
+    status = rt.voice.status()
+    manager = getattr(rt, "model_manager", None)
+    if manager is not None and hasattr(manager, "provider_info"):
+        status["model_provider"] = manager.provider_info(manager.active_model)
+    return status
+
+
+@router.post("/voice/ask")
+def voice_ask(
+    req: VoiceAskRequest,
+    authorization: str | None = Header(default=None),
+):
+    """Capture one local utterance, transcribe it, and run the normal assistant flow."""
+    authorize(authorization)
+    rt = runtime()
+    validator = getattr(rt.model_manager, "validate_model_selection", None)
+    if validator is not None:
+        validation = validator(rt.model_manager.active_model or rt.orchestrator.model)
+        if not validation["ok"]:
+            return {
+                "ok": False,
+                "stage": "model",
+                "error": validation["error"],
+                "model_provider": validation["provider"],
+            }
+    recording = rt.voice.record_until_silence(
+        "artifacts/voice-input.wav",
+        max_seconds=req.max_seconds,
+    )
+    if not recording.get("ok"):
+        return {"ok": False, "stage": "record", **recording}
+    transcript = rt.voice.transcribe("artifacts/voice-input.wav", req.language)
+    if not transcript.get("ok"):
+        return {"ok": False, "stage": "transcribe", **transcript}
+    text = rt.voice.clean_command_text(str(transcript.get("text", "")))
+    if not text:
+        return {
+            "ok": False,
+            "stage": "transcribe",
+            "error": "No speech was transcribed from the recording.",
+            "transcript": transcript,
+        }
+    answer = rt.orchestrator.run(
+        text,
+        context="The user issued this request by voice.",
+        session_id="voice-companion",
+    )
+    speech = rt.voice.speak(answer) if req.speak else {"ok": False, "skipped": True}
     return {
-        "enabled": rt.voice.enabled(),
-        "profile": rt.profile,
-        "config": rt.config.get("voice", {}),
+        "ok": True,
+        "transcript": text,
+        "answer": answer,
+        "speech": speech,
+        "model_provider": rt.model_manager.provider_info(rt.model_manager.active_model),
     }
 
 
