@@ -135,9 +135,14 @@ def status(authorization: str | None = Header(default=None)):
         else {
             "id": "unknown",
             "name": "Provider unavailable",
+            "mode": "unknown",
             "local": None,
             "credentials_required": None,
+            "credentials_configured": None,
+            "credential_env": None,
+            "credential_label": None,
             "model": rt.model_manager.active_model,
+            "supported": None,
         }
     )
     return {

@@ -26,6 +26,12 @@ def model_select(
     authorization: str | None = Header(default=None),
 ):
     authorize(authorization)
+    manager = runtime().model_manager
+    validator = getattr(manager, "validate_model_selection", None)
+    if validator is not None:
+        validation = validator(req.model)
+        if not validation["ok"]:
+            raise HTTPException(status_code=409, detail=validation["error"])
     if AirLLMProvider.is_airllm_model(req.model):
         raise HTTPException(
             status_code=400,
@@ -49,7 +55,13 @@ def model_preload(
     authorization: str | None = Header(default=None),
 ):
     authorize(authorization)
-    return runtime().model_manager.preload(req.model)
+    manager = runtime().model_manager
+    validator = getattr(manager, "validate_model_selection", None)
+    if validator is not None:
+        validation = validator(req.model)
+        if not validation["ok"]:
+            raise HTTPException(status_code=409, detail=validation["error"])
+    return manager.preload(req.model)
 
 
 @router.post("/models/unload")
@@ -92,4 +104,3 @@ def model_usage(
 ):
     authorize(authorization)
     return runtime().model_usage.summary(session_id=session_id, days=days)
-

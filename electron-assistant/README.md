@@ -20,3 +20,12 @@ provided as environment variables instead.
 The companion observes assistant activity and does not continuously read the
 screen. Screen analysis only runs when the user presses the screen button and
 the backend's existing desktop approval gate allows it.
+
+The provider badge identifies whether the active model is local or online.
+Ollama and AirLLM models never require a model-provider API key. Explicit online
+model prefixes (`openai:`, `anthropic:`, `claude:`, `google:`, or `gemini:`)
+report only the selected provider's missing environment credential
+(`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GOOGLE_API_KEY`). This installation
+does not provide external inference adapters, so online selections are rejected
+before they can be routed to Ollama. Selecting a local model removes the online
+credential prompt.

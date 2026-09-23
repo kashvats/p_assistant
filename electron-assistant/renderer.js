@@ -41,14 +41,32 @@ async function refreshStatus() {
     const project = status.personal?.focus?.label || status.profile || 'your workspace'
     const provider = status.model_provider || status.model_runtime?.model_provider || {}
     const providerName = provider.name || 'Provider unavailable'
-    const local = provider.local === true
+    const local = provider.mode === 'local' || provider.local === true
+    const unknown = provider.mode === 'unknown'
+    const credentialsMissing = provider.mode === 'online' && provider.credentials_required && !provider.credentials_configured
     $('provider-badge').textContent = local
       ? `Local model · ${providerName}`
-      : `External model · ${providerName} · credentials required`
-    $('provider-badge').classList.toggle('external', !local)
+      : unknown
+        ? 'Model not selected'
+        : credentialsMissing
+          ? `Online model · ${providerName} · credentials required`
+          : `Online model · ${providerName}`
+    $('provider-badge').classList.toggle('external', !local && !unknown)
     $('provider-badge').title = local
       ? `${providerName} runs on this machine. No model API key or token is required.`
-      : `${providerName} is an external provider. Credentials are required before use.`
+      : unknown
+        ? 'No model is currently selected.'
+        : credentialsMissing
+          ? `${providerName} is an external provider. ${provider.credential_label} is required before use.`
+          : `${providerName} is configured and selected, but this installation does not provide external inference.`
+    const credentialPrompt = $('provider-credential-prompt')
+    if (provider.mode === 'online' && provider.credentials_required && !provider.credentials_configured) {
+      credentialPrompt.textContent = `${providerName} requires ${provider.credential_label}. Configure ${provider.credential_env} before using this online model. Switching to a local model removes this requirement.`
+      credentialPrompt.classList.remove('hidden')
+    } else {
+      credentialPrompt.textContent = ''
+      credentialPrompt.classList.add('hidden')
+    }
     $('context').textContent = `Watching assistant activity in ${project}. Screen reading stays user-approved.`
     $('connection-error').textContent = ''
   } catch (error) {

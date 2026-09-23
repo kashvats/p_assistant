@@ -15,6 +15,75 @@ from living_assistant.security.security_utils import is_local_model_endpoint, sa
 class ModelError(RuntimeError):
     pass
 
+
+ONLINE_PROVIDER_SPECS = {
+    "openai": {
+        "name": "OpenAI",
+        "prefixes": ("openai:",),
+        "credential_env": "OPENAI_API_KEY",
+        "credential_label": "OpenAI API key",
+    },
+    "anthropic": {
+        "name": "Anthropic / Claude",
+        "prefixes": ("anthropic:", "claude:"),
+        "credential_env": "ANTHROPIC_API_KEY",
+        "credential_label": "Anthropic API key",
+    },
+    "google": {
+        "name": "Google / Gemini",
+        "prefixes": ("google:", "gemini:"),
+        "credential_env": "GOOGLE_API_KEY",
+        "credential_label": "Google AI API key",
+    },
+}
+
+
+def model_provider_info(model: str | None) -> dict:
+    """Classify a model identifier without reading or returning its secret."""
+    selected = str(model or "").strip()
+    if not selected:
+        return {
+            "id": "unknown",
+            "name": "No model selected",
+            "mode": "unknown",
+            "local": None,
+            "credentials_required": None,
+            "credentials_configured": None,
+            "credential_env": None,
+            "credential_label": None,
+            "model": None,
+            "supported": None,
+        }
+    lowered = selected.lower()
+    for provider_id, spec in ONLINE_PROVIDER_SPECS.items():
+        if lowered.startswith(spec["prefixes"]):
+            configured = bool(os.environ.get(spec["credential_env"], "").strip())
+            return {
+                "id": provider_id,
+                "name": spec["name"],
+                "mode": "online",
+                "local": False,
+                "credentials_required": True,
+                "credentials_configured": configured,
+                "credential_env": spec["credential_env"],
+                "credential_label": spec["credential_label"],
+                "model": selected,
+                "supported": False,
+            }
+    return {
+        "id": "ollama",
+        "name": "Ollama (local)",
+        "mode": "local",
+        "local": True,
+        "credentials_required": False,
+        "credentials_configured": False,
+        "credential_env": None,
+        "credential_label": None,
+        "model": selected,
+        "supported": True,
+    }
+
+
 @dataclass
 class OllamaProvider:
     base_url: str = "http://127.0.0.1:11434"
@@ -948,43 +1017,83 @@ class ModelManager:
         """Describe the inference provider without exposing provider credentials."""
         selected = str(model or self.active_model or "")
         provider = self.provider
+        inferred = model_provider_info(selected)
+        if inferred["mode"] == "online":
+            return inferred
         if isinstance(provider, CompositeModelProvider):
             if provider.airllm.is_airllm_model(selected):
                 return {
                     "id": "airllm",
                     "name": "AirLLM (local)",
+                    "mode": "local",
                     "local": True,
                     "credentials_required": False,
+                    "credentials_configured": False,
+                    "credential_env": None,
+                    "credential_label": None,
                     "model": selected,
+                    "supported": True,
                 }
             return {
                 "id": "ollama",
                 "name": "Ollama (local)",
+                "mode": "local",
                 "local": True,
                 "credentials_required": False,
+                "credentials_configured": False,
+                "credential_env": None,
+                "credential_label": None,
                 "model": selected,
+                "supported": True,
             }
         if isinstance(provider, AirLLMProvider):
             return {
                 "id": "airllm",
                 "name": "AirLLM (local)",
+                "mode": "local",
                 "local": True,
                 "credentials_required": False,
+                "credentials_configured": False,
+                "credential_env": None,
+                "credential_label": None,
                 "model": selected,
+                "supported": True,
             }
         if isinstance(provider, OllamaProvider):
-            return {
-                "id": "ollama",
-                "name": "Ollama (local)",
-                "local": True,
-                "credentials_required": False,
-                "model": selected,
-            }
+            return inferred
         name = type(provider).__name__
         return {
             "id": name.lower().removesuffix("provider"),
             "name": name,
+            "mode": "online",
             "local": False,
             "credentials_required": True,
+            "credentials_configured": False,
+            "credential_env": None,
+            "credential_label": "Provider credentials",
             "model": selected,
+            "supported": False,
+        }
+
+    def validate_model_selection(self, model: str) -> dict:
+        info = self.provider_info(model)
+        if info["mode"] == "local":
+            return {"ok": True, "provider": info}
+        if not info["credentials_configured"]:
+            return {
+                "ok": False,
+                "provider": info,
+                "error": (
+                    f"{info['name']} is an online provider and requires "
+                    f"{info['credential_label']} in {info['credential_env']}. "
+                    "Local models never require provider credentials."
+                ),
+            }
+        return {
+            "ok": False,
+            "provider": info,
+            "error": (
+                f"{info['name']} online inference is not configured in this "
+                "installation. Select an Ollama or AirLLM model for local use."
+            ),
         }
