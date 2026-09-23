@@ -55,10 +55,14 @@
     </section>
     <section id="chat-panel" class="chat-panel hidden">
       <div class="chat-heading"><span>Talk to me</span><button id="close-chat" class="close-button" title="Close chat">×</button></div>
-      <div class="chat-row">
-        <input id="chat-input" type="text" maxlength="2000" placeholder="What are you working on?" autocomplete="off">
-        <button id="send-chat" class="primary send-button" title="Send message">↑</button>
+      <div id="chat-history" class="chat-history" role="log" aria-live="polite" aria-label="Conversation history">
+        <div id="chat-empty" class="chat-empty">Your conversation history will appear here.</div>
       </div>
+      <form id="chat-form" class="chat-row">
+        <textarea id="chat-input" rows="1" maxlength="2000" placeholder="What are you working on?" autocomplete="off"></textarea>
+        <button id="send-chat" class="primary send-button" type="submit" title="Send message">↑</button>
+      </form>
+      <div id="chat-status" class="chat-status" role="status"></div>
     </section>
     <section id="settings" class="settings hidden">
       <div class="settings-heading"><span>Connection</span><button id="close-settings" class="close-button" title="Close settings">×</button></div>

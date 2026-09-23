@@ -10,6 +10,8 @@ const state = {
   lastIdle: 0,
   lastSignalAt: 0,
   expanded: false,
+  chatSessionId: 'desktop-companion',
+  sending: false,
 }
 
 async function loadConfig() {
@@ -281,16 +283,82 @@ async function refreshActivity() {
 }
 
 async function askAssistant(message) {
-  if (!message?.trim()) return
-  $('headline').textContent = 'Thinking about that…'
-  $('send-chat').disabled = true
-  const answer = await api('/ask', { method: 'POST', body: JSON.stringify({ message, context: 'The user is working with the hovering desktop companion.', session_id: 'desktop-companion' }) })
-  $('headline').textContent = answer.answer || 'I am ready when you are.'
-  $('chat-input').value = ''
-  $('chat-panel').classList.add('hidden')
-  $('send-chat').disabled = false
-  setConnectionState(true)
-  hideQuestion()
+  const text = message?.trim()
+  if (!text || state.sending) return
+  state.sending = true
+  $('chat-panel').classList.remove('hidden')
+  $('chat-panel').setAttribute('aria-busy', 'true')
+  const input = $('chat-input')
+  const button = $('send-chat')
+  input.value = ''
+  input.style.height = ''
+  button.disabled = true
+  button.textContent = '…'
+  $('chat-status').textContent = 'Sending…'
+  appendChatMessage('user', text)
+  const pending = appendChatMessage('assistant', 'Thinking…', { pending: true })
+  try {
+    const answer = await api('/ask', {
+      method: 'POST',
+      body: JSON.stringify({
+        message: text,
+        context: 'The user is working with the hovering desktop companion.',
+        session_id: state.chatSessionId,
+      }),
+    })
+    pending.remove()
+    appendChatMessage('assistant', answer.answer || 'I am ready when you are.')
+    $('headline').textContent = answer.answer || 'I am ready when you are.'
+    $('chat-status').textContent = 'Message sent'
+    setConnectionState(true)
+    hideQuestion()
+  } catch (error) {
+    pending.classList.add('error')
+    pending.textContent = `Could not send: ${error.message}`
+    $('chat-status').textContent = 'Message failed. Check the connection and try again.'
+    setConnectionState(false, error.message)
+  } finally {
+    state.sending = false
+    $('chat-panel').setAttribute('aria-busy', 'false')
+    button.disabled = false
+    button.textContent = '↑'
+    input.focus()
+  }
+}
+
+function appendChatMessage(role, content, options = {}) {
+  const empty = $('chat-empty')
+  if (empty) empty.remove()
+  const message = document.createElement('article')
+  message.className = `chat-message ${role}${options.pending ? ' pending' : ''}`
+  const meta = document.createElement('div')
+  meta.className = 'chat-meta'
+  meta.textContent = role === 'user' ? 'You' : 'Assistant'
+  const body = document.createElement('div')
+  body.textContent = content
+  message.append(meta, body)
+  $('chat-history').appendChild(message)
+  $('chat-history').scrollTop = $('chat-history').scrollHeight
+  return message
+}
+
+async function loadChatHistory() {
+  try {
+    const result = await api(`/sessions/${encodeURIComponent(state.chatSessionId)}`)
+    $('chat-history').replaceChildren()
+    const messages = (result.messages || []).filter((item) => item.role === 'user' || item.role === 'assistant')
+    if (!messages.length) {
+      const empty = document.createElement('div')
+      empty.id = 'chat-empty'
+      empty.className = 'chat-empty'
+      empty.textContent = 'Your conversation history will appear here.'
+      $('chat-history').appendChild(empty)
+      return
+    }
+    messages.forEach((item) => appendChatMessage(item.role, item.content))
+  } catch (error) {
+    $('chat-status').textContent = `History unavailable: ${error.message}`
+  }
 }
 
 $('settings-button').addEventListener('click', () => $('settings').classList.toggle('hidden'))
@@ -383,15 +451,23 @@ $('dismiss-button').addEventListener('click', hideQuestion)
 $('ask-button').addEventListener('click', () => askAssistant(state.question).catch((error) => { $('connection-error').textContent = error.message }))
 $('chat-button').addEventListener('click', () => {
   $('chat-panel').classList.remove('hidden')
+  loadChatHistory()
   $('chat-input').focus()
 })
 $('close-chat').addEventListener('click', () => $('chat-panel').classList.add('hidden'))
-$('send-chat').addEventListener('click', () => askAssistant($('chat-input').value).catch((error) => {
-  $('send-chat').disabled = false
-  setConnectionState(false, error.message)
-}))
+$('chat-form').addEventListener('submit', (event) => {
+  event.preventDefault()
+  askAssistant($('chat-input').value)
+})
+$('chat-input').addEventListener('input', (event) => {
+  event.target.style.height = 'auto'
+  event.target.style.height = `${Math.min(event.target.scrollHeight, 110)}px`
+})
 $('chat-input').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') $('send-chat').click()
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    $('chat-form').requestSubmit()
+  }
 })
 $('voice-button').addEventListener('click', async () => {
   const button = $('voice-button')
@@ -442,6 +518,7 @@ loadConfig().then(() => {
   refreshVoiceStatus()
   refreshModelCatalog()
   refreshActivity()
+  loadChatHistory()
   setInterval(refreshStatus, 15000)
   setInterval(refreshVoiceStatus, 5000)
   setInterval(refreshModelCatalog, 30000)
