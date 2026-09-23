@@ -24,7 +24,9 @@ def voice_status(authorization: str | None = Header(default=None)):
     status = rt.voice.status()
     manager = getattr(rt, "model_manager", None)
     if manager is not None and hasattr(manager, "provider_info"):
-        status["model_provider"] = manager.provider_info(manager.active_model)
+        status["model_provider"] = manager.provider_info(
+            manager.active_model or rt.orchestrator.model
+        )
     return status
 
 

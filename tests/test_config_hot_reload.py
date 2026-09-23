@@ -48,6 +48,19 @@ def test_invalid_yaml_fails_once_without_mutating_live_config(tmp_path):
     assert reloader.poll()==[]
 
 
+def test_model_preference_persists_per_profile(tmp_path, monkeypatch):
+    from living_assistant.core import config
+
+    monkeypatch.setattr(config, "data_dir", lambda: tmp_path)
+    config.save_model_preference("balanced", "qwen3.5:4b")
+    config.save_model_preference("lite", "qwen2.5:1.5b")
+
+    assert config.load_model_preferences() == {
+        "balanced": "qwen3.5:4b",
+        "lite": "qwen2.5:1.5b",
+    }
+
+
 def test_connector_enabled_requires_restart_but_refresh_window_is_live(tmp_path):
     path=seeded(tmp_path); cfg=load_config(path); reloader=ConfigReloader(cfg,path)
     edited=yaml.safe_load(path.read_text())

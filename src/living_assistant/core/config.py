@@ -2,7 +2,9 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 import os, re, yaml
+import json
 from platformdirs import user_data_dir
+from living_assistant.core.storage_utils import atomic_write_text
 
 ENV_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)(?::([^}]*))?\}")
 
@@ -43,6 +45,31 @@ def data_dir() -> Path:
 
 def user_config_path() -> Path:
     return data_dir() / "assistant.yaml"
+
+
+def model_preferences_path() -> Path:
+    return data_dir() / "model-preferences.json"
+
+
+def load_model_preferences() -> dict:
+    path = model_preferences_path()
+    if not path.exists():
+        return {}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def save_model_preference(profile: str, model: str) -> None:
+    preferences = load_model_preferences()
+    preferences[str(profile)] = str(model)
+    atomic_write_text(
+        model_preferences_path(),
+        json.dumps(preferences, indent=2, sort_keys=True),
+        mode=0o600,
+    )
 
 
 def active_config_path() -> Path | None:

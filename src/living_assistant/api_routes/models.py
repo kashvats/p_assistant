@@ -4,6 +4,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 
 from living_assistant.api_routes.dependencies import authorize, runtime
 from living_assistant.api_routes.schemas import ModelDeleteRequest, ModelRequest
+from living_assistant.core.config import save_model_preference
 from living_assistant.core.model_provider import AirLLMProvider, ModelError
 
 router = APIRouter(tags=["models"])
@@ -47,6 +48,7 @@ def model_select(
     rt.orchestrator.model = req.model
     profile_cfg = rt.config.setdefault("profiles", {}).setdefault(rt.profile, {})
     profile_cfg.setdefault("models", {})["orchestrator"] = req.model
+    save_model_preference(rt.profile, req.model)
     if getattr(rt, "events_bus", None):
         rt.events_bus.publish("model.selected", model=req.model, profile=rt.profile)
     return {"ok": True, "model": req.model, "runtime": loaded.get("runtime", {})}

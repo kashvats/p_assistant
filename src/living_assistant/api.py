@@ -128,9 +128,10 @@ def status(authorization: str | None = Header(default=None)):
     _auth(authorization)
     rt = _rt()
     model_runtime = rt.model_manager.status(refresh=False)
+    selected_model = rt.model_manager.active_model or rt.orchestrator.model
     provider_info = getattr(rt.model_manager, "provider_info", None)
     model_provider = (
-        provider_info(rt.model_manager.active_model)
+        provider_info(selected_model)
         if callable(provider_info)
         else {
             "id": "unknown",
@@ -141,7 +142,7 @@ def status(authorization: str | None = Header(default=None)):
             "credentials_configured": None,
             "credential_env": None,
             "credential_label": None,
-            "model": rt.model_manager.active_model,
+            "model": selected_model,
             "supported": None,
         }
     )
@@ -150,7 +151,7 @@ def status(authorization: str | None = Header(default=None)):
         "hardware": rt.hardware.to_dict(),
         "resources": rt.resources.snapshot(),
         "personal": rt.personal.status(),
-        "active_model": rt.model_manager.active_model,
+        "active_model": selected_model,
         "model_runtime": model_runtime,
         "model_provider": model_provider,
     }

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 from pathlib import Path
 from dotenv import load_dotenv
-from living_assistant.core.config import load_config, project_root
+from living_assistant.core.config import load_config, load_model_preferences, project_root
 from living_assistant.system.hardware import detect_hardware, choose_profile
 from living_assistant.core.workspace import Workspace
 from living_assistant.core.approval import ApprovalManager, ApprovalStore
@@ -132,7 +132,11 @@ def get_runtime(interactive: bool = False) -> Runtime:
 
 def build_runtime(interactive: bool = True) -> Runtime:
     load_dotenv()
-    cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw); pcfg = cfg['profiles'][profile]
+    cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw)
+    saved_model = load_model_preferences().get(profile)
+    if saved_model:
+        cfg.setdefault("profiles", {}).setdefault(profile, {}).setdefault("models", {})["orchestrator"] = saved_model
+    pcfg = cfg['profiles'][profile]
 
     roots=[]
     for r in cfg.get('workspace_roots',['./workspace']):

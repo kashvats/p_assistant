@@ -57,3 +57,8 @@ report only the selected provider's missing environment credential
 does not provide external inference adapters, so online selections are rejected
 before they can be routed to Ollama. Selecting a local model removes the online
 credential prompt.
+
+The expanded settings panel uses the installed Ollama model catalog rather than
+accepting arbitrary model text. Selecting a model is saved per runtime profile
+in the user's Living Assistant data directory, so the same model is restored
+after restarting the backend or launcher.
