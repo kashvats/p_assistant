@@ -164,7 +164,7 @@ async function refreshStatus() {
     const project = status.personal?.focus?.label || status.profile || 'your workspace'
     const provider = status.model_provider || status.model_runtime?.model_provider || {}
     const providerName = provider.name || 'Provider unavailable'
-    if (provider.model) $('model-name').value = provider.model
+    if (provider.model) $('provider-badge').dataset.model = provider.model
     const local = provider.mode === 'local' || provider.local === true
     const unknown = provider.mode === 'unknown'
     const credentialsMissing = provider.mode === 'online' && provider.credentials_required && !provider.credentials_configured
@@ -208,18 +208,45 @@ async function refreshStatus() {
     $('connection-error').textContent = error.message
     $('provider-settings').textContent = 'Provider settings unavailable until the local assistant connects.'
   }
+}
 
-  async function refreshVoiceStatus() {
+async function refreshVoiceStatus() {
     try {
       const voice = await api('/voice/status')
-      const ready = voice.enabled && voice.hands_free_enabled
+      const enabled = Boolean(voice.enabled)
+      const ready = enabled && voice.hands_free_enabled
+      $('voice-enabled-toggle').checked = enabled
       $('hands-free-toggle').checked = Boolean(voice.hands_free_running)
+      $('hands-free-toggle').disabled = !enabled
+      $('voice-button').disabled = !enabled
       $('voice-status').textContent = ready
         ? `Ready for “Hey Jarvis” · ${voice.dependencies?.openwakeword ? 'wake model available' : 'install voice/wakeword extras'}`
         : 'Hands-free voice is disabled in the assistant configuration.'
     } catch (error) {
       $('voice-status').textContent = `Voice unavailable: ${error.message}`
     }
+  }
+
+async function refreshModelCatalog() {
+    try {
+      const catalog = await api('/models/local')
+      const select = $('model-name')
+      const current = select.value
+      select.replaceChildren()
+      for (const model of catalog.models || []) {
+        const option = document.createElement('option')
+        option.value = model.name
+        option.textContent = `${model.name}${model.loaded ? ' · loaded' : ''}`
+        select.appendChild(option)
+      }
+      const active = current || document.querySelector('#provider-badge')?.dataset?.model
+      if (active && [...select.options].some((option) => option.value === active)) select.value = active
+      $('model-catalog-status').textContent = catalog.models?.length
+        ? `${catalog.models.length} local Ollama model${catalog.models.length === 1 ? '' : 's'} available.`
+        : 'No local Ollama models are installed. Pull one with Ollama first.'
+    } catch (error) {
+      $('model-catalog-status').textContent = `Local model catalog unavailable: ${error.message}`
+      $('model-name').replaceChildren(new Option('Ollama unavailable', ''))
   }
 }
 
@@ -305,8 +332,24 @@ $('hands-free-toggle').addEventListener('change', async (event) => {
     setExpression('confused')
   }
 })
+$('voice-enabled-toggle').addEventListener('change', async (event) => {
+  try {
+    const result = await api('/voice/enabled', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: event.target.checked }),
+    })
+    $('hands-free-toggle').disabled = !event.target.checked
+    if (!event.target.checked) $('hands-free-toggle').checked = false
+    $('voice-status').textContent = result.enabled
+      ? 'Voice features enabled. You can start “Hey Jarvis” listening.'
+      : 'Voice features disabled.'
+  } catch (error) {
+    event.target.checked = !event.target.checked
+    $('connection-error').textContent = error.message
+  }
+})
 $('select-model').addEventListener('click', async () => {
-  const model = $('model-name').value.trim()
+  const model = $('model-name').value
   if (!model) return
   try {
     const result = await api('/models/select', {
@@ -316,6 +359,7 @@ $('select-model').addEventListener('click', async () => {
     $('headline').textContent = `Using ${result.model}.`
     await refreshStatus()
     await refreshVoiceStatus()
+    await refreshModelCatalog()
   } catch (error) {
     $('connection-error').textContent = error.message
     setExpression('confused')
@@ -333,6 +377,7 @@ $('save-settings').addEventListener('click', () => {
   $('settings').classList.add('hidden')
   refreshStatus()
   refreshVoiceStatus()
+  refreshModelCatalog()
 })
 $('dismiss-button').addEventListener('click', hideQuestion)
 $('ask-button').addEventListener('click', () => askAssistant(state.question).catch((error) => { $('connection-error').textContent = error.message }))
@@ -394,8 +439,11 @@ loadConfig().then(() => {
   window.assistantDesktop?.onSignal(handleSignal)
   window.setInterval(blink, 5200)
   refreshStatus()
+  refreshVoiceStatus()
+  refreshModelCatalog()
   refreshActivity()
   setInterval(refreshStatus, 15000)
   setInterval(refreshVoiceStatus, 5000)
+  setInterval(refreshModelCatalog, 30000)
   setInterval(refreshActivity, 3000)
 })

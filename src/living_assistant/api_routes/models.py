@@ -4,7 +4,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 
 from living_assistant.api_routes.dependencies import authorize, runtime
 from living_assistant.api_routes.schemas import ModelDeleteRequest, ModelRequest
-from living_assistant.core.model_provider import AirLLMProvider
+from living_assistant.core.model_provider import AirLLMProvider, ModelError
 
 router = APIRouter(tags=["models"])
 
@@ -38,7 +38,10 @@ def model_select(
             detail="AirLLM models cannot be selected as the tool-calling Orchestrator model.",
         )
     rt = runtime()
-    loaded = rt.model_manager.preload(req.model)
+    try:
+        loaded = rt.model_manager.preload(req.model)
+    except ModelError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if not loaded.get("ok", False):
         raise HTTPException(status_code=409, detail=loaded.get("error", "Model preload failed."))
     rt.orchestrator.model = req.model
@@ -76,7 +79,10 @@ def model_unload(
 @router.get("/models/local")
 def model_local_catalog(authorization: str | None = Header(default=None)):
     authorize(authorization)
-    return runtime().model_manager.local_model_catalog()
+    try:
+        return runtime().model_manager.local_model_catalog()
+    except ModelError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/models/pull")

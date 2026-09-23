@@ -77,15 +77,19 @@
       </div>
       <div class="voice-heading">Voice wake word</div>
       <div class="voice-controls">
+        <label class="switch-row"><input id="voice-enabled-toggle" type="checkbox"><span>Enable voice features</span></label>
         <label class="switch-row"><input id="hands-free-toggle" type="checkbox"><span>Listen for “Hey Jarvis”</span></label>
         <span id="voice-status" class="privacy-status">Checking voice readiness…</span>
       </div>
       <div class="provider-heading">Model providers</div>
       <div id="provider-settings" class="provider-settings">Loading provider requirements…</div>
       <div class="model-select-row">
-        <input id="model-name" type="text" placeholder="Local Ollama model, e.g. qwen3.5:4b" autocomplete="off">
+        <select id="model-name" aria-label="Select local Ollama model">
+          <option value="">Loading local Ollama models…</option>
+        </select>
         <button id="select-model" class="secondary compact">Use model</button>
       </div>
+      <div id="model-catalog-status" class="privacy-status"></div>
       <div id="privacy-status" class="privacy-status">Observed: waiting for a local signal.</div>
       <button id="save-settings" class="primary">Save connection</button>
       <div id="connection-error" class="error"></div>
