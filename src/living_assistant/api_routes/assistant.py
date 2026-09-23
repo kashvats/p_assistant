@@ -2,13 +2,25 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
 from living_assistant.api_routes.dependencies import authorize, runtime
 from living_assistant.api_routes.schemas import AskRequest
+from living_assistant.core.model_provider import ModelError
 
 router = APIRouter(tags=["assistant"])
+
+
+def _model_http_error(exc: ModelError) -> HTTPException:
+    detail = str(exc)
+    if "runner has unexpectedly stopped" in detail:
+        detail = (
+            "The local model runner stopped, usually because the selected model "
+            "needs more memory than is currently available. Close other Ollama "
+            "models/apps or select a smaller installed Ollama model, then retry."
+        )
+    return HTTPException(status_code=503, detail=detail)
 
 
 def _sse(
@@ -35,14 +47,15 @@ def ask(
     rt = runtime()
     if req.session_id:
         rt.sessions.ensure(req.session_id)
-    return {
-        "answer": rt.orchestrator.run(
+    try:
+        answer = rt.orchestrator.run(
             req.message,
             req.context,
             session_id=req.session_id,
-        ),
-        "session_id": req.session_id,
-    }
+        )
+    except ModelError as exc:
+        raise _model_http_error(exc) from exc
+    return {"answer": answer, "session_id": req.session_id}
 
 
 @router.get("/activity")
@@ -95,12 +108,19 @@ def chat_stream(
         rt.sessions.ensure(req.session_id)
 
     def generate():
-        for event in rt.orchestrator.run_stream(
-            req.message,
-            req.context,
-            session_id=req.session_id,
-        ):
-            yield _sse(event, event=str(event.get("type", "message")))
+        try:
+            for event in rt.orchestrator.run_stream(
+                req.message,
+                req.context,
+                session_id=req.session_id,
+            ):
+                yield _sse(event, event=str(event.get("type", "message")))
+        except ModelError as exc:
+            error = _model_http_error(exc)
+            yield _sse(
+                {"type": "error", "error": error.detail, "status_code": error.status_code},
+                event="error",
+            )
 
     return StreamingResponse(
         generate(),

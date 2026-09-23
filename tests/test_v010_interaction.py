@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from living_assistant.event_bus import EventBus
 from living_assistant.model_provider import ModelManager
 from living_assistant.orchestrator import Orchestrator
+from living_assistant.core.model_provider import ModelError
 from living_assistant.tools.base import Tool
 
 
@@ -138,6 +139,70 @@ def test_chat_stream_api_emits_sse(monkeypatch):
     assert 'event: token' in body
     assert '"text":"Hi"' in body
     assert 'event: final' in body
+
+
+def test_ask_returns_actionable_service_error_when_local_runner_stops(monkeypatch):
+    import living_assistant.api as api
+
+    class Sessions:
+        def ensure(self, sid):
+            return {"id": sid}
+
+    class Orch:
+        def run(self, message, context="", session_id=None):
+            raise ModelError(
+                'Ollama error 500: {"error":"model runner has unexpectedly stopped"}'
+            )
+
+    monkeypatch.setattr(
+        api,
+        "runtime",
+        SimpleNamespace(sessions=Sessions(), orchestrator=Orch()),
+    )
+    monkeypatch.setattr(api, "_auth", lambda authorization: None)
+    monkeypatch.setenv("ASSISTANT_API_TOKEN", "test-token")
+    response = TestClient(api.app).post(
+        "/ask",
+        headers={"Authorization": "******"},
+        json={"message": "hello", "session_id": "s1"},
+    )
+
+    assert response.status_code == 503
+    assert "needs more memory" in response.json()["detail"]
+
+
+def test_chat_stream_emits_actionable_runner_error(monkeypatch):
+    import living_assistant.api as api
+
+    class Sessions:
+        def ensure(self, sid):
+            return {"id": sid}
+
+    class Orch:
+        def run_stream(self, message, context="", session_id=None):
+            raise ModelError(
+                'Ollama error 500: {"error":"model runner has unexpectedly stopped"}'
+            )
+            yield
+
+    monkeypatch.setattr(
+        api,
+        "runtime",
+        SimpleNamespace(sessions=Sessions(), orchestrator=Orch()),
+    )
+    monkeypatch.setattr(api, "_auth", lambda authorization: None)
+    monkeypatch.setenv("ASSISTANT_API_TOKEN", "test-token")
+    with TestClient(api.app).stream(
+        "POST",
+        "/chat/stream",
+        headers={"Authorization": "******"},
+        json={"message": "hello", "session_id": "s1"},
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert "event: error" in body
+    assert "needs more memory" in body
 
 
 def test_activity_endpoint_is_authenticated_like_other_local_data(monkeypatch):
