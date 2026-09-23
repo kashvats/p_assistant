@@ -1,46 +1,50 @@
 @echo off
 setlocal EnableExtensions
 title Living Assistant
-cd /d "%~dp0"
+set "PROJECT_ROOT=%~dp0"
+cd /d "%PROJECT_ROOT%"
 
 set "HOST=127.0.0.1"
 set "PORT=8787"
 set "URL=http://%HOST%:%PORT%/dashboard"
-set "VENV_DIR=%CD%\.venv"
+set "VENV_DIR=%PROJECT_ROOT%.venv"
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
-set "REQ_FILE=%TEMP%\living_assistant_runtime_requirements.txt"
+set "TEMP_DIR=%TEMP%\LivingAssistant"
+if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%" >nul 2>&1
+set "REQ_FILE=%TEMP_DIR%\requirements-%RANDOM%-%RANDOM%.txt"
+set "TOKEN_FILE=%TEMP_DIR%\api-token-%RANDOM%-%RANDOM%.txt"
 
 echo ========================================================
 echo                 LIVING ASSISTANT
 echo ========================================================
 echo.
 
-if not exist "pyproject.toml" (
+if not exist "%PROJECT_ROOT%pyproject.toml" (
     echo [ERROR] pyproject.toml was not found.
     echo Make sure run.bat is inside the project root directory.
     pause
     exit /b 1
 )
 
-if not exist "src\living_assistant\api.py" (
+if not exist "%PROJECT_ROOT%src\living_assistant\api.py" (
     echo [ERROR] Living Assistant source files were not found.
     pause
     exit /b 1
 )
 
-if not exist "src\living_assistant\webui\index.html" (
+if not exist "%PROJECT_ROOT%src\living_assistant\webui\index.html" (
     echo [ERROR] Dashboard files were not found.
     pause
     exit /b 1
 )
 
-if not exist "src\living_assistant\webui\vendor\plotly.min.js" (
+if not exist "%PROJECT_ROOT%src\living_assistant\webui\vendor\plotly.min.js" (
     echo [ERROR] Plotly dashboard runtime is missing.
     pause
     exit /b 1
 )
 
-if not exist "electron-assistant\package.json" (
+if not exist "%PROJECT_ROOT%electron-assistant\package.json" (
     echo [ERROR] Desktop companion files were not found.
     pause
     exit /b 1
@@ -126,11 +130,10 @@ if errorlevel 1 (
 
 del /q "%REQ_FILE%" >nul 2>&1
 
-set "PYTHONPATH=%CD%\src"
+set "PYTHONPATH=%PROJECT_ROOT%src"
 set "PYTHONUNBUFFERED=1"
 
 if not defined ASSISTANT_API_TOKEN (
-    set "TOKEN_FILE=%TEMP%\living_assistant_api_token.txt"
     "%VENV_PY%" -c "from living_assistant.security.api_auth import get_api_token; print(get_api_token())" > "%TOKEN_FILE%"
     if errorlevel 1 (
         echo [ERROR] Could not create the local assistant access token.
@@ -155,9 +158,9 @@ echo.
 
 start "" powershell.exe -NoProfile -WindowStyle Hidden -Command "$u='%URL%'; for($i=0;$i -lt 60;$i++){try{$r=Invoke-RestMethod -Uri $u -TimeoutSec 1; if($r){Start-Process $u; exit}}catch{}; Start-Sleep -Seconds 1}"
 
-if not exist "electron-assistant\node_modules\electron\dist\electron.exe" (
+if not exist "%PROJECT_ROOT%electron-assistant\node_modules\electron\dist\electron.exe" (
     echo Installing desktop companion dependencies...
-    pushd "electron-assistant"
+    pushd "%PROJECT_ROOT%electron-assistant"
     call npm.cmd install --no-audit --no-fund
     if errorlevel 1 (
         popd
@@ -169,7 +172,7 @@ if not exist "electron-assistant\node_modules\electron\dist\electron.exe" (
 )
 
 echo Starting hovering desktop companion...
-start "" /D "%CD%\electron-assistant" cmd.exe /c "npm.cmd start"
+start "" /D "%PROJECT_ROOT%electron-assistant" cmd.exe /c "npm.cmd start"
 
 "%VENV_PY%" -m uvicorn living_assistant.api:app --host %HOST% --port %PORT%
 
