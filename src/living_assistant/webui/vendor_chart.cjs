@@ -60,7 +60,10 @@ function validateCommittedVendor() {
 
 const packageRoot = path.join(root, 'node_modules', 'plotly.js-dist-min');
 const installedPackage = path.join(packageRoot, 'package.json');
-if (fs.existsSync(installedPackage)) {
+if (validateCommittedVendor()) {
+  // Keep the repository's verified offline asset authoritative. Some registries
+  // republish the same semantic version with different bytes.
+} else if (fs.existsSync(installedPackage)) {
   const installed = require(installedPackage).version;
   if (installed !== declared) {
     throw new Error(`plotly.js-dist-min version mismatch: package.json=${declared}, installed=${installed}`);

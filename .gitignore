@@ -10,6 +10,10 @@ env.bak/
 venv.bak/
 .env
 dist/
+!src/living_assistant/webui/dist/
+!src/living_assistant/webui/dist/app.css
+!src/living_assistant/webui/public/dist/
+!src/living_assistant/webui/public/dist/app.css
 build/
 node_modules/
 *.egg-info/
