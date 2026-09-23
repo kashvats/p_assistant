@@ -16,7 +16,14 @@ async function loadConfig() {
   if (!window.assistantDesktop?.getConfig) return
   const config = await window.assistantDesktop.getConfig()
   if (!localStorage.getItem('assistantUrl') && config.baseUrl) state.baseUrl = config.baseUrl
-  if (!state.token && config.token) state.token = config.token
+  if (config.token) {
+    state.token = config.token
+    localStorage.setItem('assistantToken', config.token)
+  }
+  if (state.token) {
+    $('api-token').placeholder = 'Automatically supplied by run.bat'
+    $('connection-error').textContent = ''
+  }
 }
 
 function headers() {
@@ -25,9 +32,17 @@ function headers() {
   return { Authorization: authorization, 'Content-Type': 'application/json' }
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, retried = false) {
   const response = await fetch(`${state.baseUrl.replace(/\/$/, '')}${path}`, { ...options, headers: { ...headers(), ...(options.headers || {}) } })
   const payload = await response.json().catch(() => ({}))
+  if (response.status === 401 && !retried && window.assistantDesktop?.getConfig) {
+    const config = await window.assistantDesktop.getConfig()
+    if (config.token && config.token !== state.token) {
+      state.token = config.token
+      localStorage.setItem('assistantToken', config.token)
+      return api(path, options, true)
+    }
+  }
   if (!response.ok) throw new Error(payload.detail || `Assistant API returned ${response.status}`)
   return payload
 }

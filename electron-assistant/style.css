@@ -52,6 +52,7 @@ button:hover { filter: brightness(1.16); transform: translateY(-1px); } button:a
 .close-button { padding: 0 3px; color: #9eb1d4; background: transparent; font-size: 20px; line-height: 1; }
 .chat-row { display: flex; gap: 7px; } .chat-row input { flex: 1; } .send-button { width: 37px; padding: 0; font-size: 18px; }
 .settings { border-color: #42598d; } label { display: block; margin: 7px 0 4px; color: #a9b8d5; font-size: 11px; }
+.auto-token-label { color: #55d68b; font-size: 9px; font-weight: 500; }
 input { width: 100%; padding: 9px 10px; border: 1px solid #405b8d; border-radius: 8px; outline: none; color: #edf2ff; background: #0b1324; }
 input:focus { border-color: #7d9ee8; box-shadow: 0 0 0 2px #5978c433; }
 .settings button { margin-top: 10px; } .error { min-height: 16px; margin-top: 7px; color: #ff9a9a; font-size: 12px; }

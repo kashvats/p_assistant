@@ -64,9 +64,9 @@
       <div class="settings-heading"><span>Connection</span><button id="close-settings" class="close-button" title="Close settings">×</button></div>
       <label for="api-url">Local assistant URL</label>
       <input id="api-url" value="http://127.0.0.1:8787" autocomplete="url">
-      <label for="api-token">Local assistant access token</label>
+      <label for="api-token">Local assistant access token <span class="auto-token-label">auto-loaded by run.bat</span></label>
       <input id="api-token" type="password" autocomplete="off" placeholder="Only for local dashboard access">
-      <div class="settings-note">This is not a model-provider key. Local Ollama and AirLLM models never require provider credentials.</div>
+      <div class="settings-note">Ollama and AirLLM run locally and need no provider token. This separate local API token is auto-loaded by run.bat for companion-to-backend access.</div>
       <div id="provider-credential-prompt" class="provider-credential-prompt hidden"></div>
       <div class="privacy-heading">Companion controls</div>
       <div class="privacy-controls">

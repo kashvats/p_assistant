@@ -129,10 +129,24 @@ del /q "%REQ_FILE%" >nul 2>&1
 set "PYTHONPATH=%CD%\src"
 set "PYTHONUNBUFFERED=1"
 
+if not defined ASSISTANT_API_TOKEN (
+    set "TOKEN_FILE=%TEMP%\living_assistant_api_token.txt"
+    "%VENV_PY%" -c "from living_assistant.security.api_auth import get_api_token; print(get_api_token())" > "%TOKEN_FILE%"
+    if errorlevel 1 (
+        echo [ERROR] Could not create the local assistant access token.
+        del /q "%TOKEN_FILE%" >nul 2>&1
+        pause
+        exit /b 1
+    )
+    set /p ASSISTANT_API_TOKEN=<"%TOKEN_FILE%"
+    del /q "%TOKEN_FILE%" >nul 2>&1
+)
+
 echo.
 echo ========================================================
 echo Server:    http://%HOST%:%PORT%
 echo Dashboard: %URL%
+echo Local Ollama: no provider API key required
 echo ========================================================
 echo.
 echo Starting Living Assistant...

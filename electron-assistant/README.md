@@ -17,6 +17,11 @@ stored in the Electron profile so it is not placed in source code.
 For managed launches, `ASSISTANT_API_URL` and `ASSISTANT_API_TOKEN` can be
 provided as environment variables instead.
 
+When started with the repository's `run.bat`, the launcher automatically
+generates/loads the same local API token for Uvicorn and Electron. No manual
+token entry is needed. Ollama and AirLLM remain local, credential-free model
+backends; the automatically supplied token only protects the local HTTP API.
+
 The companion observes assistant activity and does not continuously read the
 screen. Screen analysis only runs when the user presses the screen button and
 the backend's existing desktop approval gate allows it.
