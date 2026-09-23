@@ -9,18 +9,30 @@
 <body>
   <main id="assistant" class="assistant">
     <header class="topbar">
-      <div class="brand" title="Provider status"><span class="status-dot"></span><span>Living Assistant</span></div>
+      <div class="brand" title="Provider status"><span id="status-dot" class="status-dot"></span><span>Living Assistant</span><span class="brand-subtitle">your desktop companion</span></div>
       <button id="settings-button" class="icon-button" title="Connection settings">⚙</button>
     </header>
-    <section class="bubble" aria-live="polite">
-      <div class="face">◉‿◉</div>
-      <div>
+    <section class="hero" aria-live="polite">
+      <div class="avatar-wrap">
+        <div class="avatar"><span class="eye left"></span><span class="eye right"></span><span class="smile"></span></div>
+        <span class="avatar-pulse"></span>
+      </div>
+      <div class="hero-copy">
         <div id="headline" class="headline">Hi — I’m keeping an eye on your work.</div>
         <div id="provider-badge" class="provider-badge">Provider: checking…</div>
         <div id="context" class="context">Connect me to the local assistant to begin.</div>
       </div>
     </section>
+    <section id="connection-card" class="connection-card hidden">
+      <div class="connection-icon">↗</div>
+      <div class="connection-copy">
+        <strong id="connection-title">I’m ready when you are</strong>
+        <span id="connection-message">Connect to the local assistant so I can watch activity and answer you.</span>
+      </div>
+      <button id="connect-button" class="primary compact">Connect</button>
+    </section>
     <section id="question-card" class="question-card hidden">
+      <div class="eyebrow">I noticed something</div>
       <div id="question" class="question"></div>
       <div class="actions">
         <button id="ask-button" class="primary">Ask assistant</button>
@@ -28,11 +40,19 @@
       </div>
     </section>
     <section class="controls">
-      <button id="screen-button" class="secondary">👁 Ask about screen</button>
-      <button id="chat-button" class="secondary">💬 Ask me anything</button>
+      <button id="screen-button" class="action-button"><span>◉</span><b>Ask about screen</b><small>Use an approved snapshot</small></button>
+      <button id="chat-button" class="action-button"><span>✦</span><b>Ask me anything</b><small>Talk through your next step</small></button>
+    </section>
+    <section id="chat-panel" class="chat-panel hidden">
+      <div class="chat-heading"><span>Talk to me</span><button id="close-chat" class="close-button" title="Close chat">×</button></div>
+      <div class="chat-row">
+        <input id="chat-input" type="text" maxlength="2000" placeholder="What are you working on?" autocomplete="off">
+        <button id="send-chat" class="primary send-button" title="Send message">↑</button>
+      </div>
     </section>
     <section id="settings" class="settings hidden">
-      <label for="api-url">Assistant URL</label>
+      <div class="settings-heading"><span>Connection</span><button id="close-settings" class="close-button" title="Close settings">×</button></div>
+      <label for="api-url">Local assistant URL</label>
       <input id="api-url" value="http://127.0.0.1:8787" autocomplete="url">
       <label for="api-token">Local assistant access token</label>
       <input id="api-token" type="password" autocomplete="off" placeholder="Only for local dashboard access">
@@ -41,7 +61,10 @@
       <button id="save-settings" class="primary">Save connection</button>
       <div id="connection-error" class="error"></div>
     </section>
-    <footer id="activity" class="activity">Waiting for activity…</footer>
+    <footer class="activity">
+      <span class="activity-label"><span id="activity-dot" class="activity-dot"></span> Activity</span>
+      <span id="activity">Waiting for activity…</span>
+    </footer>
   </main>
   <script src="renderer.js"></script>
 </body>

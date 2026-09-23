@@ -1,29 +1,49 @@
 * { box-sizing: border-box; }
 body { margin: 0; color: #edf2ff; background: transparent; font: 13px "Segoe UI", system-ui, sans-serif; }
-.assistant { min-height: 100vh; padding: 14px; background: linear-gradient(145deg, #111a2b, #0b1020 75%); border: 1px solid #2a3a5c; border-radius: 22px; box-shadow: 0 14px 40px #0008; }
-.topbar, .brand, .controls, .actions { display: flex; align-items: center; }
-.topbar { justify-content: space-between; margin-bottom: 12px; -webkit-app-region: drag; }
+.assistant { min-height: 100vh; padding: 16px; background: radial-gradient(circle at 8% 0%, #1d345b 0, transparent 38%), linear-gradient(145deg, #111a2b, #090f1e 78%); border: 1px solid #304a77; border-radius: 24px; box-shadow: 0 18px 50px #000a; }
+.topbar, .brand, .controls, .actions, .settings-heading, .chat-heading, .activity, .activity-label { display: flex; align-items: center; }
+.topbar { justify-content: space-between; margin-bottom: 14px; -webkit-app-region: drag; }
 .icon-button, button, input { -webkit-app-region: no-drag; }
-.brand { gap: 7px; color: #a9b8d5; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #55d68b; box-shadow: 0 0 10px #55d68b; }
-.icon-button { border: 0; color: #9babca; background: transparent; cursor: pointer; font-size: 16px; }
-.bubble { display: flex; gap: 12px; align-items: center; padding: 14px; background: #18233a; border: 1px solid #2a3b5e; border-radius: 16px; }
-.face { display: grid; width: 54px; height: 54px; place-items: center; color: #9eb4ff; background: #0c1426; border: 1px solid #42598d; border-radius: 50%; font-size: 22px; }
-.headline { font-weight: 700; line-height: 1.35; }
-.context, .activity { color: #93a3c1; font-size: 12px; line-height: 1.45; }
-.context { margin-top: 5px; }
-.provider-badge { display: inline-block; margin-top: 7px; padding: 3px 7px; color: #8ee8b0; background: #123b2a; border: 1px solid #286f4d; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.brand { gap: 8px; color: #d4def2; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.brand-subtitle { color: #7587aa; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.status-dot, .activity-dot { width: 8px; height: 8px; border-radius: 50%; background: #55d68b; box-shadow: 0 0 12px #55d68b; }
+.status-dot.offline { background: #f08a8a; box-shadow: 0 0 12px #f08a8a; }
+.icon-button { border: 0; color: #a6b8dc; background: transparent; cursor: pointer; font-size: 17px; }
+.hero { display: flex; gap: 14px; align-items: center; min-height: 112px; padding: 18px; background: linear-gradient(135deg, #1b2b49, #17233b); border: 1px solid #385685; border-radius: 20px; }
+.avatar-wrap { position: relative; flex: 0 0 70px; height: 70px; }
+.avatar { position: relative; width: 70px; height: 70px; background: #101b32; border: 1px solid #7695db; border-radius: 50%; box-shadow: inset 0 0 24px #314c8a66, 0 0 18px #5279d533; }
+.eye { position: absolute; top: 25px; width: 17px; height: 17px; background: #a9bcff; border: 3px solid #233968; border-radius: 50%; box-shadow: 0 0 8px #8caaff; }
+.eye.left { left: 12px; } .eye.right { right: 12px; }
+.smile { position: absolute; left: 23px; top: 43px; width: 25px; height: 11px; border-bottom: 2px solid #a9bcff; border-radius: 0 0 50% 50%; }
+.avatar-pulse { position: absolute; right: -2px; bottom: 2px; width: 13px; height: 13px; background: #55d68b; border: 3px solid #182946; border-radius: 50%; }
+.hero-copy { min-width: 0; } .headline { font-size: 15px; font-weight: 750; line-height: 1.35; }
+.context, .activity, .settings-note { color: #93a3c1; font-size: 12px; line-height: 1.45; }
+.context { margin-top: 7px; }
+.provider-badge { display: inline-block; max-width: 100%; margin-top: 8px; padding: 4px 9px; overflow: hidden; color: #8ee8b0; background: #123b2a; border: 1px solid #286f4d; border-radius: 999px; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .provider-badge.external { color: #f4d28e; background: #4a3518; border-color: #9d7435; }
-.question-card, .settings { margin-top: 10px; padding: 12px; background: #1b2942; border: 1px solid #b4863d; border-radius: 12px; }
+.connection-card { display: flex; gap: 10px; align-items: center; margin-top: 11px; padding: 11px 12px; color: #dbe6ff; background: #1a2c4d; border: 1px solid #5577b5; border-radius: 14px; }
+.connection-icon { display: grid; width: 29px; height: 29px; flex: 0 0 29px; place-items: center; color: #a9bcff; background: #273e6c; border-radius: 50%; font-size: 17px; }
+.connection-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.connection-copy strong { font-size: 12px; } .connection-copy span { color: #9eb1d4; font-size: 11px; line-height: 1.35; }
+.question-card, .settings, .chat-panel { margin-top: 11px; padding: 13px; background: #1b2942; border: 1px solid #b4863d; border-radius: 14px; }
+.eyebrow { margin-bottom: 5px; color: #f4d28e; font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
 .question { color: #f4d28e; line-height: 1.4; }
-.actions, .controls { gap: 8px; margin-top: 10px; }
-button { border: 0; border-radius: 8px; padding: 8px 10px; color: #edf2ff; cursor: pointer; font-weight: 600; }
-.primary { background: #536fc6; } .secondary { background: #253653; } button:hover { filter: brightness(1.15); }
-.controls { flex-wrap: wrap; } .controls button { flex: 1; min-width: 145px; }
+.actions, .controls { gap: 8px; margin-top: 11px; }
+button { border: 0; border-radius: 9px; padding: 9px 11px; color: #edf2ff; cursor: pointer; font-weight: 700; transition: filter .15s, transform .15s; }
+button:hover { filter: brightness(1.16); transform: translateY(-1px); } button:active { transform: translateY(0); }
+.primary { background: linear-gradient(135deg, #6684e0, #4c68c1); } .secondary { background: #293e63; }
+.compact { padding: 7px 11px; font-size: 11px; } .controls { align-items: stretch; } .controls button { flex: 1; min-width: 0; }
+.action-button { display: grid; grid-template-columns: 25px 1fr; grid-template-rows: auto auto; column-gap: 7px; text-align: left; background: #263b60; }
+.action-button > span { grid-row: 1 / 3; align-self: center; color: #b7c8ff; font-size: 18px; text-align: center; }
+.action-button b { font-size: 12px; } .action-button small { margin-top: 2px; color: #9fb2d6; font-size: 10px; font-weight: 500; }
+.chat-panel { border-color: #5275b8; } .chat-heading, .settings-heading { justify-content: space-between; margin-bottom: 9px; color: #dce6ff; font-weight: 750; }
+.close-button { padding: 0 3px; color: #9eb1d4; background: transparent; font-size: 20px; line-height: 1; }
+.chat-row { display: flex; gap: 7px; } .chat-row input { flex: 1; } .send-button { width: 37px; padding: 0; font-size: 18px; }
 .settings { border-color: #42598d; } label { display: block; margin: 7px 0 4px; color: #a9b8d5; font-size: 11px; }
-input { width: 100%; padding: 8px; border: 1px solid #354a73; border-radius: 7px; color: #edf2ff; background: #0b1324; }
-.settings button { margin-top: 10px; } .error { min-height: 16px; margin-top: 7px; color: #ff8e8e; font-size: 12px; }
-.settings-note { margin-top: 7px; color: #93a3c1; font-size: 11px; line-height: 1.4; }
-.provider-credential-prompt { margin-top: 10px; padding: 8px; color: #f4d28e; background: #4a3518; border: 1px solid #9d7435; border-radius: 8px; font-size: 11px; line-height: 1.4; }
-.activity { margin-top: 12px; padding-top: 10px; border-top: 1px solid #263653; }
+input { width: 100%; padding: 9px 10px; border: 1px solid #405b8d; border-radius: 8px; outline: none; color: #edf2ff; background: #0b1324; }
+input:focus { border-color: #7d9ee8; box-shadow: 0 0 0 2px #5978c433; }
+.settings button { margin-top: 10px; } .error { min-height: 16px; margin-top: 7px; color: #ff9a9a; font-size: 12px; }
+.settings-note { margin-top: 8px; font-size: 11px; } .provider-credential-prompt { margin-top: 10px; padding: 8px; color: #f4d28e; background: #4a3518; border: 1px solid #9d7435; border-radius: 8px; font-size: 11px; line-height: 1.4; }
+.activity { gap: 7px; justify-content: space-between; margin-top: 13px; padding-top: 11px; border-top: 1px solid #2a3d60; }
+.activity-label { gap: 6px; color: #b5c5e3; font-size: 11px; font-weight: 750; } .activity-dot { width: 6px; height: 6px; box-shadow: 0 0 8px #55d68b; } .activity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hidden { display: none; }
