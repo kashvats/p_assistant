@@ -13,6 +13,8 @@ set "TEMP_DIR=%TEMP%\LivingAssistant"
 if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%" >nul 2>&1
 set "REQ_FILE=%TEMP_DIR%\requirements-%RANDOM%-%RANDOM%.txt"
 set "TOKEN_FILE=%TEMP_DIR%\api-token-%RANDOM%-%RANDOM%.txt"
+set "ELECTRON_RUNTIME_DIR=%TEMP_DIR%\electron-runtime"
+set "ELECTRON_EXE=%ELECTRON_RUNTIME_DIR%\node_modules\electron\dist\electron.exe"
 
 echo ========================================================
 echo                 LIVING ASSISTANT
@@ -158,13 +160,17 @@ echo.
 
 start "" powershell.exe -NoProfile -WindowStyle Hidden -Command "$u='%URL%'; for($i=0;$i -lt 60;$i++){try{$r=Invoke-RestMethod -Uri $u -TimeoutSec 1; if($r){Start-Process $u; exit}}catch{}; Start-Sleep -Seconds 1}"
 
-if not exist "%PROJECT_ROOT%electron-assistant\node_modules\electron\dist\electron.exe" (
-    echo Installing desktop companion dependencies...
-    pushd "%PROJECT_ROOT%electron-assistant"
-    call npm.cmd install --no-audit --no-fund
+if not exist "%ELECTRON_EXE%" (
+    echo Installing desktop companion runtime...
+    if not exist "%ELECTRON_RUNTIME_DIR%" mkdir "%ELECTRON_RUNTIME_DIR%" >nul 2>&1
+    pushd "%ELECTRON_RUNTIME_DIR%"
+    if not exist "package.json" (
+        >package.json echo {"private":true,"dependencies":{"electron":"26.6.10"}}
+    )
+    call npm.cmd install --no-audit --no-fund --package-lock=false
     if errorlevel 1 (
         popd
-        echo [ERROR] Could not install desktop companion dependencies.
+        echo [ERROR] Could not install the desktop companion runtime.
         pause
         exit /b 1
     )
@@ -172,7 +178,7 @@ if not exist "%PROJECT_ROOT%electron-assistant\node_modules\electron\dist\electr
 )
 
 echo Starting hovering desktop companion...
-start "" /D "%PROJECT_ROOT%electron-assistant" cmd.exe /c "npm.cmd start"
+start "" "%ELECTRON_EXE%" "%PROJECT_ROOT%electron-assistant"
 
 "%VENV_PY%" -m uvicorn living_assistant.api:app --host %HOST% --port %PORT%
 
