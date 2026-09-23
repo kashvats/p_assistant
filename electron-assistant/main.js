@@ -52,6 +52,14 @@ ipcMain.handle('companion-size', (_event, expanded) => {
   return true
 })
 
+ipcMain.handle('companion-move', (_event, deltaX, deltaY) => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return false
+  const [x, y] = win.getPosition()
+  win.setPosition(Math.round(x + deltaX), Math.round(y + deltaY), false)
+  return true
+})
+
 app.whenReady().then(() => {
   createWindow()
   globalShortcut.register('CommandOrControl+Shift+Space', () => {

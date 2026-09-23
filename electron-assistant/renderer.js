@@ -12,6 +12,8 @@ const state = {
   expanded: false,
   chatSessionId: 'desktop-companion',
   sending: false,
+  faceDrag: null,
+  suppressFaceClick: false,
 }
 
 async function loadConfig() {
@@ -364,11 +366,49 @@ async function loadChatHistory() {
 $('settings-button').addEventListener('click', () => $('settings').classList.toggle('hidden'))
 $('mode-button').addEventListener('click', () => setExpanded(!state.expanded))
 $('face-toggle').addEventListener('click', () => {
-  if (!state.expanded) setExpanded(true)
+  if (state.suppressFaceClick) {
+    state.suppressFaceClick = false
+    return
+  }
+  if (!state.expanded && !state.faceDrag?.moved) setExpanded(true)
 })
 $('avatar').addEventListener('click', () => {
-  if (!state.expanded) setExpanded(true)
+  if (!state.expanded && !state.suppressFaceClick && !state.faceDrag?.moved) setExpanded(true)
 })
+$('face-toggle').addEventListener('pointerdown', (event) => {
+  if (state.expanded || event.button !== 0) return
+  state.faceDrag = {
+    pointerId: event.pointerId,
+    lastX: event.screenX,
+    lastY: event.screenY,
+    moved: false,
+  }
+  $('face-toggle').setPointerCapture(event.pointerId)
+})
+$('face-toggle').addEventListener('pointermove', (event) => {
+  const drag = state.faceDrag
+  if (state.expanded || !drag || drag.pointerId !== event.pointerId) return
+  const deltaX = event.screenX - drag.lastX
+  const deltaY = event.screenY - drag.lastY
+  if (!drag.moved && Math.hypot(event.screenX - drag.lastX, event.screenY - drag.lastY) >= 4) {
+    drag.moved = true
+    $('face-toggle').classList.add('dragging')
+  }
+  if (!drag.moved) return
+  if (deltaX || deltaY) window.assistantDesktop?.moveWindow(deltaX, deltaY)
+  drag.lastX = event.screenX
+  drag.lastY = event.screenY
+})
+function finishFaceDrag(event) {
+  const drag = state.faceDrag
+  if (!drag || drag.pointerId !== event.pointerId) return
+  if (drag.moved) state.suppressFaceClick = true
+  if ($('face-toggle').hasPointerCapture(event.pointerId)) $('face-toggle').releasePointerCapture(event.pointerId)
+  $('face-toggle').classList.remove('dragging')
+  window.setTimeout(() => { state.faceDrag = null }, 0)
+}
+$('face-toggle').addEventListener('pointerup', finishFaceDrag)
+$('face-toggle').addEventListener('pointercancel', finishFaceDrag)
 $('close-settings').addEventListener('click', () => $('settings').classList.add('hidden'))
 $('connect-button').addEventListener('click', () => {
   $('settings').classList.remove('hidden')
