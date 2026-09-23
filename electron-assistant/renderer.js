@@ -14,7 +14,9 @@ async function loadConfig() {
 }
 
 function headers() {
-  return state.token ? { Authorization: state.token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
+  if (!state.token) return { 'Content-Type': 'application/json' }
+  const authorization = /^Bearer\s+/i.test(state.token) ? state.token : `Bearer ${state.token}`
+  return { Authorization: authorization, 'Content-Type': 'application/json' }
 }
 
 async function api(path, options = {}) {
