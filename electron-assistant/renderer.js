@@ -9,7 +9,7 @@ const state = {
   patterns: JSON.parse(localStorage.getItem('companionPatterns') || '{}'),
   lastIdle: 0,
   lastSignalAt: 0,
-  expanded: localStorage.getItem('companionExpanded') === 'true',
+  expanded: false,
 }
 
 async function loadConfig() {
@@ -231,6 +231,9 @@ async function askAssistant(message) {
 
 $('settings-button').addEventListener('click', () => $('settings').classList.toggle('hidden'))
 $('mode-button').addEventListener('click', () => setExpanded(!state.expanded))
+$('face-toggle').addEventListener('click', () => {
+  if (!state.expanded) setExpanded(true)
+})
 $('close-settings').addEventListener('click', () => $('settings').classList.add('hidden'))
 $('connect-button').addEventListener('click', () => {
   $('settings').classList.remove('hidden')

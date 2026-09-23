@@ -3,8 +3,8 @@ const path = require('path')
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 220,
-    height: 165,
+    width: 112,
+    height: 112,
     x: 50,
     y: 50,
     frame: false,
@@ -48,7 +48,7 @@ ipcMain.handle('companion-show', () => {
 ipcMain.handle('companion-size', (_event, expanded) => {
   const win = BrowserWindow.getAllWindows()[0]
   if (!win) return false
-  win.setSize(expanded ? 410 : 220, expanded ? 650 : 165, true)
+  win.setSize(expanded ? 410 : 112, expanded ? 650 : 112, true)
   return true
 })
 

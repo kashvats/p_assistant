@@ -1,4 +1,5 @@
 * { box-sizing: border-box; }
+html, body { overflow: hidden; }
 body { margin: 0; color: #edf2ff; background: transparent; font: 13px "Segoe UI", system-ui, sans-serif; }
 .assistant { min-height: 100vh; padding: 16px; background: radial-gradient(circle at 8% 0%, #1d345b 0, transparent 38%), linear-gradient(145deg, #111a2b, #090f1e 78%); border: 1px solid #304a77; border-radius: 24px; box-shadow: 0 18px 50px #000a; }
 .topbar, .brand, .controls, .actions, .settings-heading, .chat-heading, .activity, .activity-label { display: flex; align-items: center; }
@@ -61,11 +62,8 @@ input:focus { border-color: #7d9ee8; box-shadow: 0 0 0 2px #5978c433; }
 .activity { gap: 7px; justify-content: space-between; margin-top: 13px; padding-top: 11px; border-top: 1px solid #2a3d60; }
 .activity-label { gap: 6px; color: #b5c5e3; font-size: 11px; font-weight: 750; } .activity-dot { width: 6px; height: 6px; box-shadow: 0 0 8px #55d68b; } .activity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hidden { display: none; }
-.compact-mode .brand-subtitle, .compact-mode .connection-card, .compact-mode .question-card, .compact-mode .controls, .compact-mode .quick-controls, .compact-mode .chat-panel, .compact-mode .settings, .compact-mode .activity, .compact-mode .context { display: none; }
-.assistant.compact-mode { padding: 9px; }
-.compact-mode .topbar { margin-bottom: 7px; }
-.compact-mode .hero { min-height: 112px; padding: 12px 8px; }
-.compact-mode .hero-copy { max-width: 112px; }
-.compact-mode .headline { display: none; }
-.compact-mode .provider-badge { margin-top: 0; max-width: 112px; }
-.compact-mode .avatar-wrap { transform: scale(.92); }
+.compact-mode .topbar, .compact-mode .hero-copy, .compact-mode .connection-card, .compact-mode .question-card, .compact-mode .controls, .compact-mode .quick-controls, .compact-mode .chat-panel, .compact-mode .settings, .compact-mode .activity, .compact-mode .context { display: none; }
+.assistant.compact-mode { min-height: 112px; padding: 9px; background: transparent; border: 0; box-shadow: none; }
+.compact-mode .hero { display: grid; min-height: 94px; padding: 8px; place-items: center; background: transparent; border: 0; }
+.compact-mode .avatar-wrap { transform: scale(1.08); }
+.compact-mode .avatar-pulse { right: -4px; bottom: 0; }
