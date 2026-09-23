@@ -3,7 +3,12 @@ from dataclasses import dataclass
 from typing import Any
 from pathlib import Path
 from dotenv import load_dotenv
-from living_assistant.core.config import load_config, load_model_preferences, project_root
+from living_assistant.core.config import (
+    load_config,
+    load_model_preferences,
+    project_root,
+    save_model_preference,
+)
 from living_assistant.system.hardware import detect_hardware, choose_profile
 from living_assistant.core.workspace import Workspace
 from living_assistant.core.approval import ApprovalManager, ApprovalStore
@@ -221,6 +226,11 @@ def build_runtime(interactive: bool = True) -> Runtime:
     else:
         provider=ollama_provider
     mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
+    configured_model = str(pcfg["models"]["orchestrator"])
+    resolved_model = mm.resolve_local_model(configured_model)
+    if resolved_model and resolved_model != configured_model:
+        pcfg["models"]["orchestrator"] = resolved_model
+        save_model_preference(profile, resolved_model)
     desktop_controller=DesktopController(ws, approval, cfg, provider=provider, model_manager=mm, quiet_provider=personal.is_quiet)
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
     browser_cfg=cfg.get('browser',{})

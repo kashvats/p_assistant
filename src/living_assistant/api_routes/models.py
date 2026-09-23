@@ -28,6 +28,9 @@ def model_select(
 ):
     authorize(authorization)
     manager = runtime().model_manager
+    resolved_model = getattr(manager, "resolve_local_model", lambda model: model)(req.model)
+    if resolved_model != req.model:
+        req.model = resolved_model
     validator = getattr(manager, "validate_model_selection", None)
     if validator is not None:
         validation = validator(req.model)

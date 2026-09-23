@@ -822,6 +822,29 @@ class ModelManager:
             raise ModelError("Local Ollama model management is unavailable for this provider.")
         return candidate
 
+    def resolve_local_model(self, requested: str | None) -> str | None:
+        """Resolve a saved Ollama model name to an installed model.
+
+        Ollama model tags are exact identifiers. A saved shorthand such as
+        ``qwen2.5:7b`` may correspond to an installed quantized/instruct tag.
+        Prefer an exact match, then a tag extension from the same requested
+        name, and otherwise leave the selection unchanged so callers can
+        report a real missing-model error.
+        """
+        if not requested or AirLLMProvider.is_airllm_model(str(requested)):
+            return requested
+        try:
+            names = sorted(self._ollama_provider().model_inventory())
+        except ModelError:
+            return requested
+        if requested in names:
+            return requested
+        prefix_matches = [
+            name for name in names
+            if name.startswith(f"{requested}-") or name.startswith(f"{requested}:")
+        ]
+        return prefix_matches[0] if prefix_matches else requested
+
     def local_model_catalog(self) -> dict:
         """Return installed Ollama models with disk and VRAM information.
 

@@ -77,6 +77,16 @@ def test_local_catalog_reports_disk_and_labeled_vram(provider):
     assert by_name["tiny:latest"]["vram_bytes"] == 80
 
 
+def test_saved_ollama_alias_resolves_to_installed_tag(provider):
+    manager = ModelManager(provider, resource_manager=_Resources())
+    provider.model_inventory = lambda: {
+        "qwen2.5:7b-instruct-q4_K_M": {"name": "qwen2.5:7b-instruct-q4_K_M"}
+    }
+
+    assert manager.resolve_local_model("qwen2.5:7b") == "qwen2.5:7b-instruct-q4_K_M"
+    assert manager.resolve_local_model("missing:1b") == "missing:1b"
+
+
 def test_local_model_pull_uses_existing_ollama_provider(provider, monkeypatch):
     pulled = []
     monkeypatch.setattr(provider, "pull", lambda model: pulled.append(model) or {"status": "success"})
