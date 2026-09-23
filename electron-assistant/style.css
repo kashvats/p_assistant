@@ -14,7 +14,8 @@ body { margin: 0; color: #edf2ff; background: transparent; font: 13px "Segoe UI"
 .top-actions { display: flex; gap: 3px; }
 .hero { display: flex; gap: 14px; align-items: center; min-height: 112px; padding: 18px; background: linear-gradient(135deg, #1b2b49, #17233b); border: 1px solid #385685; border-radius: 20px; }
 .hero > * { -webkit-app-region: no-drag; }
-.compact-mode .hero, .compact-mode .hero > .avatar-wrap, .compact-mode .hero > .avatar-wrap .avatar { -webkit-app-region: drag; cursor: move; }
+.compact-mode .hero { -webkit-app-region: drag; cursor: move; }
+.compact-mode .hero > .avatar-wrap, .compact-mode .hero > .avatar-wrap .avatar { -webkit-app-region: no-drag; cursor: pointer; }
 .compact-mode .hero > .avatar-wrap .avatar-pulse, .compact-mode .hero > .avatar-wrap .avatar .eye { -webkit-app-region: no-drag; cursor: pointer; }
 .avatar-wrap { position: relative; flex: 0 0 70px; height: 70px; }
 .avatar { position: relative; width: 70px; height: 70px; background: #101b32; border: 1px solid #7695db; border-radius: 50%; box-shadow: inset 0 0 24px #314c8a66, 0 0 18px #5279d533; }
@@ -62,6 +63,11 @@ input:focus { border-color: #7d9ee8; box-shadow: 0 0 0 2px #5978c433; }
 .switch-row { display: flex; gap: 8px; align-items: center; margin: 0; color: #b9c9e5; cursor: pointer; font-size: 11px; }
 .switch-row input { width: auto; accent-color: #6684e0; }
 .privacy-status { margin-top: 8px; color: #8195ba; font-size: 10px; line-height: 1.35; }
+.voice-heading, .provider-heading { margin-top: 12px; padding-top: 10px; border-top: 1px solid #2f4268; color: #dce6ff; font-size: 11px; font-weight: 750; }
+.voice-controls { display: grid; gap: 3px; margin-top: 7px; }
+.provider-settings { margin-top: 7px; padding: 8px; color: #9eb1d4; background: #111d33; border-radius: 8px; font-size: 10px; line-height: 1.4; }
+.provider-settings.local { color: #8ee8b0; } .provider-settings.online { color: #f4d28e; }
+.model-select-row { display: flex; gap: 6px; margin-top: 7px; } .model-select-row input { min-width: 0; flex: 1; padding: 7px; } .model-select-row button { margin-top: 0; }
 .activity { gap: 7px; justify-content: space-between; margin-top: 13px; padding-top: 11px; border-top: 1px solid #2a3d60; }
 .activity-label { gap: 6px; color: #b5c5e3; font-size: 11px; font-weight: 750; } .activity-dot { width: 6px; height: 6px; box-shadow: 0 0 8px #55d68b; } .activity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hidden { display: none; }

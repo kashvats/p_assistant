@@ -17,7 +17,7 @@
     </header>
     <section id="face-toggle" class="hero drag-handle" aria-live="polite" title="Open assistant">
       <div class="avatar-wrap">
-        <div class="avatar"><span class="eye left"></span><span class="eye right"></span><span class="smile"></span></div>
+        <div id="avatar" class="avatar"><span class="eye left"></span><span class="eye right"></span><span class="smile"></span></div>
         <span class="avatar-pulse"></span>
       </div>
       <div class="hero-copy">
@@ -74,6 +74,17 @@
         <label class="switch-row"><input id="learning-toggle" type="checkbox" checked><span>Learn repeated patterns</span></label>
         <button id="clear-learning" class="secondary compact">Clear learned behavior</button>
         <button id="hide-assistant" class="secondary compact">Hide floating assistant</button>
+      </div>
+      <div class="voice-heading">Voice wake word</div>
+      <div class="voice-controls">
+        <label class="switch-row"><input id="hands-free-toggle" type="checkbox"><span>Listen for “Hey Jarvis”</span></label>
+        <span id="voice-status" class="privacy-status">Checking voice readiness…</span>
+      </div>
+      <div class="provider-heading">Model providers</div>
+      <div id="provider-settings" class="provider-settings">Loading provider requirements…</div>
+      <div class="model-select-row">
+        <input id="model-name" type="text" placeholder="Local Ollama model, e.g. qwen3.5:4b" autocomplete="off">
+        <button id="select-model" class="secondary compact">Use model</button>
       </div>
       <div id="privacy-status" class="privacy-status">Observed: waiting for a local signal.</div>
       <button id="save-settings" class="primary">Save connection</button>

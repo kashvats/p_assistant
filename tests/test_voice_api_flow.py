@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 class FakeVoice:
     def __init__(self):
         self.recorded = False
+        self.hands_free = False
 
     def status(self):
         return {"enabled": True, "hands_free_enabled": False}
@@ -22,6 +23,15 @@ class FakeVoice:
 
     def speak(self, text):
         return {"ok": True}
+
+    def start_hands_free(self, callback):
+        self.hands_free = True
+        self.callback = callback
+        return {"ok": True, "hands_free_running": True}
+
+    def stop_hands_free(self):
+        self.hands_free = False
+        return {"ok": True, "hands_free_running": False}
 
 
 class FakeModels:
@@ -119,3 +129,65 @@ def test_voice_ask_rejects_unconfigured_online_model_before_microphone(monkeypat
     assert response.json()["stage"] == "model"
     assert "OPENAI_API_KEY" in response.json()["error"]
     assert voice.recorded is False
+
+
+def test_voice_status_exposes_hands_free_readiness(monkeypatch):
+    import living_assistant.api as api
+
+    voice = FakeVoice()
+    voice.status = lambda: {
+        "enabled": True,
+        "hands_free_enabled": True,
+        "hands_free_running": False,
+        "dependencies": {"openwakeword": True},
+    }
+    runtime = SimpleNamespace(
+        voice=voice,
+        model_manager=FakeModels(),
+    )
+    monkeypatch.setattr(api, "runtime", runtime)
+    monkeypatch.setenv("ASSISTANT_API_TOKEN", "voice-status-token")
+    response = TestClient(api.app).get(
+        "/voice/status",
+        headers={"Authorization": "Bearer voice-status-token"},
+    )
+    assert response.status_code == 200
+    assert response.json()["hands_free_enabled"] is True
+    assert response.json()["model_provider"]["mode"] == "local"
+
+
+def test_hands_free_start_and_stop_use_local_model(monkeypatch):
+    import living_assistant.api as api
+
+    voice = FakeVoice()
+    voice.status = lambda: {
+        "enabled": True,
+        "hands_free_enabled": True,
+        "hands_free_running": voice.hands_free,
+    }
+    runtime = SimpleNamespace(
+        voice=voice,
+        model_manager=FakeModels(),
+        orchestrator=SimpleNamespace(model="qwen3.5:4b"),
+        events_bus=None,
+    )
+    monkeypatch.setattr(api, "runtime", runtime)
+    monkeypatch.setattr(api, "_auth", lambda authorization: None)
+    monkeypatch.setenv("ASSISTANT_API_TOKEN", "voice-hands-free-token")
+    client = TestClient(api.app)
+
+    started = client.post(
+        "/voice/hands-free",
+        headers={"Authorization": "******"},
+        json={"enabled": True},
+    )
+    stopped = client.post(
+        "/voice/hands-free",
+        headers={"Authorization": "******"},
+        json={"enabled": False},
+    )
+
+    assert started.status_code == 200
+    assert started.json()["hands_free_running"] is True
+    assert stopped.status_code == 200
+    assert stopped.json()["hands_free_running"] is False

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 from fastapi import APIRouter, Header
 
 from living_assistant.api_routes.dependencies import authorize, runtime
@@ -74,6 +76,48 @@ def voice_ask(
         "speech": speech,
         "model_provider": rt.model_manager.provider_info(rt.model_manager.active_model),
     }
+
+
+@router.post("/voice/hands-free")
+def voice_hands_free(
+    req: EnabledRequest,
+    authorization: str | None = Header(default=None),
+):
+    authorize(authorization)
+    rt = runtime()
+    validator = getattr(rt.model_manager, "validate_model_selection", None)
+    selected = rt.model_manager.active_model or rt.orchestrator.model
+    if req.enabled and validator is not None:
+        validation = validator(selected)
+        if not validation["ok"]:
+            return {
+                "ok": False,
+                "stage": "model",
+                "error": validation["error"],
+                "model_provider": validation["provider"],
+            }
+
+    def handle_command(text: str):
+        try:
+            answer = rt.orchestrator.run(
+                text,
+                context="The user issued this request after saying the configured local wake word.",
+                session_id="voice-hands-free",
+            )
+            if getattr(rt, "events_bus", None):
+                rt.events_bus.publish(
+                    "voice.command.completed",
+                    transcript=text,
+                    answer_preview=str(answer)[:300],
+                )
+        except Exception as exc:
+            if getattr(rt, "events_bus", None):
+                rt.events_bus.publish("voice.command.failed", error=str(exc)[:500])
+
+    result = rt.voice.start_hands_free(handle_command) if req.enabled else rt.voice.stop_hands_free()
+    if getattr(rt, "events_bus", None):
+        rt.events_bus.publish("voice.hands_free_changed", enabled=req.enabled, **result)
+    return {**result, "voice": rt.voice.status()}
 
 
 @router.post("/voice/enabled")

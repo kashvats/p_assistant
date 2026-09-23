@@ -33,6 +33,8 @@ class VoiceEngine:
     _wake_model_key: str | None = field(default=None, init=False, repr=False)
     _approved_audio: set[str] = field(default_factory=set, init=False, repr=False)
     _mic_lease_until: float = field(default=0.0, init=False, repr=False)
+    _hands_free_stop: threading.Event | None = field(default=None, init=False, repr=False)
+    _hands_free_thread: threading.Thread | None = field(default=None, init=False, repr=False)
 
     def _cfg(self) -> dict:
         return self.config.get("voice", {})
@@ -76,7 +78,63 @@ class VoiceEngine:
             "wake_threshold": float(hcfg.get("wake_threshold", 0.5)),
             "barge_in_enabled": bool(hcfg.get("barge_in_enabled", False)),
             "language": cfg.get("language") or "auto",
+            "hands_free_running": bool(self._hands_free_thread and self._hands_free_thread.is_alive()),
         }
+
+    def start_hands_free(self, on_command) -> dict:
+        """Start one local wake-word conversation worker.
+
+        The worker owns microphone capture and invokes ``on_command`` only after a
+        local wake word and successful local transcription. It is intentionally
+        bounded by ``listen_for_command`` and can be stopped without killing the
+        API process.
+        """
+        if not self.hands_free_enabled():
+            return {"ok": False, "error": "Hands-free wake-word mode is disabled or unavailable."}
+        if self._hands_free_thread and self._hands_free_thread.is_alive():
+            return {"ok": True, "running": True}
+        stop = threading.Event()
+        self._hands_free_stop = stop
+
+        def worker():
+            try:
+                while not stop.is_set():
+                    result = self.listen_for_command("artifacts/voice-input.wav", 2.0)
+                    if stop.is_set():
+                        break
+                    if not result.get("ok"):
+                        if result.get("timeout") or result.get("error") == "No speech detected before timeout.":
+                            continue
+                        time.sleep(0.25)
+                        continue
+                    transcript = self.transcribe("artifacts/voice-input.wav")
+                    if not transcript.get("ok"):
+                        continue
+                    text = self.clean_command_text(
+                        str(transcript.get("text", "")),
+                        result.get("wake_word"),
+                    ).strip()
+                    if text:
+                        on_command(text)
+            finally:
+                self._hands_free_stop = None
+
+        self._hands_free_thread = threading.Thread(
+            target=worker, name="living-assistant-wake-word", daemon=True
+        )
+        self._hands_free_thread.start()
+        return {"ok": True, "running": True}
+
+    def stop_hands_free(self) -> dict:
+        stop = self._hands_free_stop
+        if stop:
+            stop.set()
+        thread = self._hands_free_thread
+        if thread and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+        self._hands_free_thread = None
+        self._hands_free_stop = None
+        return {"ok": True, "running": False}
 
     def _ensure_microphone_approval(self, action: str, reason: str, lease_seconds: float = 0.0) -> dict:
         now = time.monotonic()
@@ -608,6 +666,7 @@ class VoiceEngine:
         return {"ok": True, "characters": len(spoken), "interrupted": interrupted}
 
     def sleep(self):
+        self.stop_hands_free()
         self._stt_model = None
         self._stt_model_name = None
         self._wake_model = None

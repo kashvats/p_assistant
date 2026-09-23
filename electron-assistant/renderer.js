@@ -164,6 +164,7 @@ async function refreshStatus() {
     const project = status.personal?.focus?.label || status.profile || 'your workspace'
     const provider = status.model_provider || status.model_runtime?.model_provider || {}
     const providerName = provider.name || 'Provider unavailable'
+    if (provider.model) $('model-name').value = provider.model
     const local = provider.mode === 'local' || provider.local === true
     const unknown = provider.mode === 'unknown'
     const credentialsMissing = provider.mode === 'online' && provider.credentials_required && !provider.credentials_configured
@@ -190,6 +191,13 @@ async function refreshStatus() {
       credentialPrompt.textContent = ''
       credentialPrompt.classList.add('hidden')
     }
+    const providerSettings = $('provider-settings')
+    providerSettings.className = `provider-settings ${provider.mode || ''}`
+    providerSettings.textContent = provider.mode === 'local'
+      ? `${providerName} · Local · no provider key required.`
+      : provider.mode === 'online'
+        ? `${providerName} · Online · ${provider.credentials_configured ? `configured via ${provider.credential_env}` : `requires ${provider.credential_label} (${provider.credential_env})`}.`
+        : 'No model selected.'
     $('context').textContent = `Watching assistant activity in ${project}. Screen reading stays user-approved.`
     $('connection-error').textContent = ''
   } catch (error) {
@@ -198,6 +206,20 @@ async function refreshStatus() {
     $('provider-badge').title = error.message
     $('context').textContent = 'Connect me to the local assistant to begin.'
     $('connection-error').textContent = error.message
+    $('provider-settings').textContent = 'Provider settings unavailable until the local assistant connects.'
+  }
+
+  async function refreshVoiceStatus() {
+    try {
+      const voice = await api('/voice/status')
+      const ready = voice.enabled && voice.hands_free_enabled
+      $('hands-free-toggle').checked = Boolean(voice.hands_free_running)
+      $('voice-status').textContent = ready
+        ? `Ready for “Hey Jarvis” · ${voice.dependencies?.openwakeword ? 'wake model available' : 'install voice/wakeword extras'}`
+        : 'Hands-free voice is disabled in the assistant configuration.'
+    } catch (error) {
+      $('voice-status').textContent = `Voice unavailable: ${error.message}`
+    }
   }
 }
 
@@ -249,6 +271,9 @@ $('mode-button').addEventListener('click', () => setExpanded(!state.expanded))
 $('face-toggle').addEventListener('click', () => {
   if (!state.expanded) setExpanded(true)
 })
+$('avatar').addEventListener('click', () => {
+  if (!state.expanded) setExpanded(true)
+})
 $('close-settings').addEventListener('click', () => $('settings').classList.add('hidden'))
 $('connect-button').addEventListener('click', () => {
   $('settings').classList.remove('hidden')
@@ -264,6 +289,38 @@ $('clear-learning').addEventListener('click', () => {
   clearLearning()
 })
 $('hide-assistant').addEventListener('click', () => window.assistantDesktop?.hide())
+$('hands-free-toggle').addEventListener('change', async (event) => {
+  try {
+    const result = await api('/voice/hands-free', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: event.target.checked }),
+    })
+    if (!result.ok) throw new Error(result.error || 'Hands-free voice could not start.')
+    $('voice-status').textContent = event.target.checked
+      ? 'Listening locally for “Hey Jarvis”…'
+      : 'Wake-word listening stopped.'
+  } catch (error) {
+    event.target.checked = false
+    $('voice-status').textContent = error.message
+    setExpression('confused')
+  }
+})
+$('select-model').addEventListener('click', async () => {
+  const model = $('model-name').value.trim()
+  if (!model) return
+  try {
+    const result = await api('/models/select', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    })
+    $('headline').textContent = `Using ${result.model}.`
+    await refreshStatus()
+    await refreshVoiceStatus()
+  } catch (error) {
+    $('connection-error').textContent = error.message
+    setExpression('confused')
+  }
+})
 $('pause-observation').addEventListener('click', () => setObserving(!state.observing))
 $('toggle-learning').addEventListener('click', () => setLearning(!state.learning))
 $('clear-learning-quick').addEventListener('click', clearLearning)
@@ -275,6 +332,7 @@ $('save-settings').addEventListener('click', () => {
   localStorage.setItem('assistantToken', state.token)
   $('settings').classList.add('hidden')
   refreshStatus()
+  refreshVoiceStatus()
 })
 $('dismiss-button').addEventListener('click', hideQuestion)
 $('ask-button').addEventListener('click', () => askAssistant(state.question).catch((error) => { $('connection-error').textContent = error.message }))
@@ -338,5 +396,6 @@ loadConfig().then(() => {
   refreshStatus()
   refreshActivity()
   setInterval(refreshStatus, 15000)
+  setInterval(refreshVoiceStatus, 5000)
   setInterval(refreshActivity, 3000)
 })
