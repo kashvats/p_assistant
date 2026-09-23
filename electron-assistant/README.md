@@ -33,6 +33,10 @@ Pause observation, disable learning, clear learned behavior, and hide the
 assistant from the visible privacy controls. Hiding can be reversed with
 Ctrl+Shift+Space (Cmd+Shift+Space on macOS).
 
+The compact face itself is draggable: grab the eyes/avatar and move the
+floating companion anywhere on the desktop. The expanded assistant can be
+moved from its top bar.
+
 The provider badge identifies whether the active model is local or online.
 Ollama and AirLLM models never require a model-provider API key. Explicit online
 model prefixes (`openai:`, `anthropic:`, `claude:`, `google:`, or `gemini:`)

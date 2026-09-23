@@ -14,6 +14,8 @@ body { margin: 0; color: #edf2ff; background: transparent; font: 13px "Segoe UI"
 .top-actions { display: flex; gap: 3px; }
 .hero { display: flex; gap: 14px; align-items: center; min-height: 112px; padding: 18px; background: linear-gradient(135deg, #1b2b49, #17233b); border: 1px solid #385685; border-radius: 20px; }
 .hero > * { -webkit-app-region: no-drag; }
+.compact-mode .hero, .compact-mode .hero > .avatar-wrap, .compact-mode .hero > .avatar-wrap .avatar { -webkit-app-region: drag; cursor: move; }
+.compact-mode .hero > .avatar-wrap .avatar-pulse, .compact-mode .hero > .avatar-wrap .avatar .eye { -webkit-app-region: no-drag; cursor: pointer; }
 .avatar-wrap { position: relative; flex: 0 0 70px; height: 70px; }
 .avatar { position: relative; width: 70px; height: 70px; background: #101b32; border: 1px solid #7695db; border-radius: 50%; box-shadow: inset 0 0 24px #314c8a66, 0 0 18px #5279d533; }
 .eye { position: absolute; top: 25px; width: 17px; height: 17px; background: #a9bcff; border: 3px solid #233968; border-radius: 50%; box-shadow: 0 0 8px #8caaff; }
