@@ -1,10 +1,10 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, powerMonitor, globalShortcut } = require('electron')
 const path = require('path')
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 410,
-    height: 650,
+    width: 220,
+    height: 165,
     x: 50,
     y: 50,
     frame: false,
@@ -20,6 +20,17 @@ function createWindow() {
   })
 
   win.loadFile(path.join(__dirname, 'index.html'))
+  const signalTimer = setInterval(() => {
+    if (win.isDestroyed()) return
+    const point = screen.getCursorScreenPoint()
+    win.webContents.send('companion-signal', {
+      cursor: { x: point.x, y: point.y },
+      windowBounds: win.getBounds(),
+      idleSeconds: powerMonitor.getSystemIdleTime(),
+      observedAt: new Date().toISOString(),
+    })
+  }, 120)
+  win.on('closed', () => clearInterval(signalTimer))
 }
 
 ipcMain.handle('assistant-config', () => ({
@@ -28,13 +39,41 @@ ipcMain.handle('assistant-config', () => ({
   platform: process.platform,
 }))
 
+ipcMain.handle('companion-show', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) win.show()
+  return Boolean(win)
+})
+
+ipcMain.handle('companion-size', (_event, expanded) => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return false
+  win.setSize(expanded ? 410 : 220, expanded ? 650 : 165, true)
+  return true
+})
+
 app.whenReady().then(() => {
   createWindow()
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return
+    if (win.isVisible()) win.hide()
+    else {
+      win.show()
+      win.focus()
+    }
+  })
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
 app.on('window-all-closed', function () {
+  globalShortcut.unregisterAll()
   if (process.platform !== 'darwin') app.quit()
+})
+
+ipcMain.on('companion-hide', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) win.hide()
 })

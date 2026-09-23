@@ -21,6 +21,18 @@ The companion observes assistant activity and does not continuously read the
 screen. Screen analysis only runs when the user presses the screen button and
 the backend's existing desktop approval gate allows it.
 
+The eyes receive only local, coarse signals from Electron: cursor position
+relative to the companion window and system idle time. These drive eye tracking
+and observing/idle expressions; they do not include keystrokes, clicks, window
+titles, screen pixels, messages, passwords, tokens, or payment data. Assistant
+activity events may drive learning-state expressions, but only event type names
+and coarse idle/active counts are retained locally. The UI labels these as
+observed or inferred rather than confirmed preferences.
+
+Pause observation, disable learning, clear learned behavior, and hide the
+assistant from the visible privacy controls. Hiding can be reversed with
+Ctrl+Shift+Space (Cmd+Shift+Space on macOS).
+
 The provider badge identifies whether the active model is local or online.
 Ollama and AirLLM models never require a model-provider API key. Explicit online
 model prefixes (`openai:`, `anthropic:`, `claude:`, `google:`, or `gemini:`)

@@ -2,17 +2,24 @@
 body { margin: 0; color: #edf2ff; background: transparent; font: 13px "Segoe UI", system-ui, sans-serif; }
 .assistant { min-height: 100vh; padding: 16px; background: radial-gradient(circle at 8% 0%, #1d345b 0, transparent 38%), linear-gradient(145deg, #111a2b, #090f1e 78%); border: 1px solid #304a77; border-radius: 24px; box-shadow: 0 18px 50px #000a; }
 .topbar, .brand, .controls, .actions, .settings-heading, .chat-heading, .activity, .activity-label { display: flex; align-items: center; }
-.topbar { justify-content: space-between; margin-bottom: 14px; -webkit-app-region: drag; }
+.topbar, .drag-handle { -webkit-app-region: drag; }
+.topbar { justify-content: space-between; margin-bottom: 14px; }
 .icon-button, button, input { -webkit-app-region: no-drag; }
 .brand { gap: 8px; color: #d4def2; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .brand-subtitle { color: #7587aa; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .status-dot, .activity-dot { width: 8px; height: 8px; border-radius: 50%; background: #55d68b; box-shadow: 0 0 12px #55d68b; }
 .status-dot.offline { background: #f08a8a; box-shadow: 0 0 12px #f08a8a; }
 .icon-button { border: 0; color: #a6b8dc; background: transparent; cursor: pointer; font-size: 17px; }
+.top-actions { display: flex; gap: 3px; }
 .hero { display: flex; gap: 14px; align-items: center; min-height: 112px; padding: 18px; background: linear-gradient(135deg, #1b2b49, #17233b); border: 1px solid #385685; border-radius: 20px; }
+.hero > * { -webkit-app-region: no-drag; }
 .avatar-wrap { position: relative; flex: 0 0 70px; height: 70px; }
 .avatar { position: relative; width: 70px; height: 70px; background: #101b32; border: 1px solid #7695db; border-radius: 50%; box-shadow: inset 0 0 24px #314c8a66, 0 0 18px #5279d533; }
 .eye { position: absolute; top: 25px; width: 17px; height: 17px; background: #a9bcff; border: 3px solid #233968; border-radius: 50%; box-shadow: 0 0 8px #8caaff; }
+.eye { transition: transform .22s cubic-bezier(.2,.8,.2,1); }
+.avatar.blink .eye { transform: scaleY(.12) !important; }
+.avatar[data-expression="learning"] { box-shadow: inset 0 0 24px #315d8a88, 0 0 22px #55d68b55; }
+.avatar[data-expression="confused"] .smile { transform: rotate(180deg); top: 40px; }
 .eye.left { left: 12px; } .eye.right { right: 12px; }
 .smile { position: absolute; left: 23px; top: 43px; width: 25px; height: 11px; border-bottom: 2px solid #a9bcff; border-radius: 0 0 50% 50%; }
 .avatar-pulse { position: absolute; right: -2px; bottom: 2px; width: 13px; height: 13px; background: #55d68b; border: 3px solid #182946; border-radius: 50%; }
@@ -36,6 +43,8 @@ button:hover { filter: brightness(1.16); transform: translateY(-1px); } button:a
 .action-button { display: grid; grid-template-columns: 25px 1fr; grid-template-rows: auto auto; column-gap: 7px; text-align: left; background: #263b60; }
 .action-button > span { grid-row: 1 / 3; align-self: center; color: #b7c8ff; font-size: 18px; text-align: center; }
 .action-button b { font-size: 12px; } .action-button small { margin-top: 2px; color: #9fb2d6; font-size: 10px; font-weight: 500; }
+.quick-controls { display: flex; gap: 5px; margin-top: 8px; }
+.quick-control { flex: 1; padding: 6px 4px; color: #a9b9d7; background: #15233b; border: 1px solid #2c4267; border-radius: 7px; font-size: 10px; font-weight: 600; }
 .chat-panel { border-color: #5275b8; } .chat-heading, .settings-heading { justify-content: space-between; margin-bottom: 9px; color: #dce6ff; font-weight: 750; }
 .close-button { padding: 0 3px; color: #9eb1d4; background: transparent; font-size: 20px; line-height: 1; }
 .chat-row { display: flex; gap: 7px; } .chat-row input { flex: 1; } .send-button { width: 37px; padding: 0; font-size: 18px; }
@@ -44,6 +53,19 @@ input { width: 100%; padding: 9px 10px; border: 1px solid #405b8d; border-radius
 input:focus { border-color: #7d9ee8; box-shadow: 0 0 0 2px #5978c433; }
 .settings button { margin-top: 10px; } .error { min-height: 16px; margin-top: 7px; color: #ff9a9a; font-size: 12px; }
 .settings-note { margin-top: 8px; font-size: 11px; } .provider-credential-prompt { margin-top: 10px; padding: 8px; color: #f4d28e; background: #4a3518; border: 1px solid #9d7435; border-radius: 8px; font-size: 11px; line-height: 1.4; }
+.privacy-heading { margin-top: 13px; padding-top: 11px; border-top: 1px solid #2f4268; color: #dce6ff; font-size: 11px; font-weight: 750; }
+.privacy-controls { display: grid; gap: 7px; margin-top: 8px; }
+.switch-row { display: flex; gap: 8px; align-items: center; margin: 0; color: #b9c9e5; cursor: pointer; font-size: 11px; }
+.switch-row input { width: auto; accent-color: #6684e0; }
+.privacy-status { margin-top: 8px; color: #8195ba; font-size: 10px; line-height: 1.35; }
 .activity { gap: 7px; justify-content: space-between; margin-top: 13px; padding-top: 11px; border-top: 1px solid #2a3d60; }
 .activity-label { gap: 6px; color: #b5c5e3; font-size: 11px; font-weight: 750; } .activity-dot { width: 6px; height: 6px; box-shadow: 0 0 8px #55d68b; } .activity > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hidden { display: none; }
+.compact-mode .brand-subtitle, .compact-mode .connection-card, .compact-mode .question-card, .compact-mode .controls, .compact-mode .quick-controls, .compact-mode .chat-panel, .compact-mode .settings, .compact-mode .activity, .compact-mode .context { display: none; }
+.assistant.compact-mode { padding: 9px; }
+.compact-mode .topbar { margin-bottom: 7px; }
+.compact-mode .hero { min-height: 112px; padding: 12px 8px; }
+.compact-mode .hero-copy { max-width: 112px; }
+.compact-mode .headline { display: none; }
+.compact-mode .provider-badge { margin-top: 0; max-width: 112px; }
+.compact-mode .avatar-wrap { transform: scale(.92); }

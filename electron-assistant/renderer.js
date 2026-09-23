@@ -4,6 +4,12 @@ const state = {
   token: localStorage.getItem('assistantToken') || '',
   activityId: Number(localStorage.getItem('assistantActivityId') || 0),
   question: '',
+  observing: localStorage.getItem('companionObserving') !== 'false',
+  learning: localStorage.getItem('companionLearning') !== 'false',
+  patterns: JSON.parse(localStorage.getItem('companionPatterns') || '{}'),
+  lastIdle: 0,
+  lastSignalAt: 0,
+  expanded: localStorage.getItem('companionExpanded') === 'true',
 }
 
 async function loadConfig() {
@@ -35,6 +41,92 @@ function showQuestion(question) {
 function hideQuestion() {
   state.question = ''
   $('question-card').classList.add('hidden')
+}
+
+function setExpression(expression) {
+  const avatar = document.querySelector('.avatar')
+  if (!avatar) return
+  avatar.dataset.expression = expression
+}
+
+function learnPattern(kind) {
+  if (!state.learning || !kind || typeof kind !== 'string') return
+  const safeKind = kind.replace(/[^a-z0-9_.-]/gi, '').slice(0, 60)
+  if (!safeKind) return
+  state.patterns[safeKind] = Math.min(1000, Number(state.patterns[safeKind] || 0) + 1)
+  localStorage.setItem('companionPatterns', JSON.stringify(state.patterns))
+}
+
+function updatePrivacyLabels() {
+  $('pause-observation').textContent = state.observing ? 'Pause observing' : 'Resume observing'
+  $('toggle-learning').textContent = state.learning ? 'Learning on' : 'Learning off'
+  $('observation-toggle').checked = state.observing
+  $('learning-toggle').checked = state.learning
+}
+
+function setObserving(enabled) {
+  state.observing = enabled
+  localStorage.setItem('companionObserving', String(enabled))
+  updatePrivacyLabels()
+  setExpression(enabled ? 'observing' : 'idle')
+  $('privacy-status').textContent = enabled
+    ? 'Observed: local cursor and idle signals enabled. Content is not captured.'
+    : 'Observation paused. No local activity signals are being used.'
+}
+
+function setLearning(enabled) {
+  state.learning = enabled
+  localStorage.setItem('companionLearning', String(enabled))
+  updatePrivacyLabels()
+  $('privacy-status').textContent = enabled
+    ? 'Inferred: repeated activity patterns may be counted locally.'
+    : 'Learning disabled. Existing learned behavior is retained until cleared.'
+}
+
+function clearLearning() {
+  state.patterns = {}
+  localStorage.removeItem('companionPatterns')
+  $('privacy-status').textContent = 'Confirmed: learned behavior was cleared.'
+  setExpression('observing')
+}
+
+function setExpanded(expanded) {
+  state.expanded = expanded
+  localStorage.setItem('companionExpanded', String(expanded))
+  $('assistant').classList.toggle('compact-mode', !expanded)
+  $('mode-button').textContent = expanded ? '↙' : '↗'
+  $('mode-button').title = expanded ? 'Collapse to eyes' : 'Expand assistant'
+  window.assistantDesktop?.setExpanded(expanded)
+}
+
+function handleSignal(signal) {
+  if (!state.observing || !signal?.cursor) return
+  const bounds = signal.windowBounds
+  const eyes = document.querySelectorAll('.eye')
+  if (bounds && eyes.length) {
+    const x = Math.max(0, Math.min(1, (signal.cursor.x - bounds.x) / Math.max(1, bounds.width)))
+    const y = Math.max(0, Math.min(1, (signal.cursor.y - bounds.y) / Math.max(1, bounds.height)))
+    const dx = (x - 0.5) * 7
+    const dy = (y - 0.5) * 4
+    eyes.forEach((eye) => { eye.style.transform = `translate(${dx}px, ${dy}px)` })
+  }
+  const idle = Number(signal.idleSeconds || 0)
+  const now = Date.now()
+  const active = idle < 4
+  if (active !== (state.lastIdle < 4)) learnPattern(active ? 'input.active' : 'input.idle')
+  state.lastIdle = idle
+  state.lastSignalAt = now
+  setExpression(active ? 'observing' : 'idle')
+  $('privacy-status').textContent = active
+    ? 'Observed: recent local activity signal. Content is not captured.'
+    : 'Observed: you appear to be idle. No screen content is captured.'
+}
+
+function blink() {
+  const avatar = document.querySelector('.avatar')
+  if (!avatar || !state.observing) return
+  avatar.classList.add('blink')
+  window.setTimeout(() => avatar.classList.remove('blink'), 160)
 }
 
 function setConnectionState(connected, message = '') {
@@ -111,9 +203,11 @@ async function refreshActivity() {
     $('activity-dot').style.background = '#55d68b'
     for (const event of events) {
       state.activityId = Math.max(state.activityId, Number(event.id))
+      learnPattern(`assistant.${event.type}`)
       const description = describeEvent(event)
       if (description) showQuestion(description)
       $('activity').textContent = `${event.type.replaceAll('.', ' ')} · ${new Date(event.created_at).toLocaleTimeString()}`
+      setExpression(event.type.includes('failed') || event.type.includes('error') ? 'confused' : 'learning')
     }
     localStorage.setItem('assistantActivityId', String(state.activityId))
   } catch (error) {
@@ -136,11 +230,26 @@ async function askAssistant(message) {
 }
 
 $('settings-button').addEventListener('click', () => $('settings').classList.toggle('hidden'))
+$('mode-button').addEventListener('click', () => setExpanded(!state.expanded))
 $('close-settings').addEventListener('click', () => $('settings').classList.add('hidden'))
 $('connect-button').addEventListener('click', () => {
   $('settings').classList.remove('hidden')
   $('api-token').focus()
 })
+$('observation-toggle').addEventListener('change', (event) => {
+  setObserving(event.target.checked)
+})
+$('learning-toggle').addEventListener('change', (event) => {
+  setLearning(event.target.checked)
+})
+$('clear-learning').addEventListener('click', () => {
+  clearLearning()
+})
+$('hide-assistant').addEventListener('click', () => window.assistantDesktop?.hide())
+$('pause-observation').addEventListener('click', () => setObserving(!state.observing))
+$('toggle-learning').addEventListener('click', () => setLearning(!state.learning))
+$('clear-learning-quick').addEventListener('click', clearLearning)
+$('hide-assistant-quick').addEventListener('click', () => window.assistantDesktop?.hide())
 $('save-settings').addEventListener('click', () => {
   state.baseUrl = $('api-url').value.trim() || state.baseUrl
   state.token = $('api-token').value.trim()
@@ -177,6 +286,12 @@ $('screen-button').addEventListener('click', async () => {
 
 loadConfig().then(() => {
   $('api-url').value = state.baseUrl
+  $('observation-toggle').checked = state.observing
+  $('learning-toggle').checked = state.learning
+  updatePrivacyLabels()
+  setExpanded(state.expanded)
+  window.assistantDesktop?.onSignal(handleSignal)
+  window.setInterval(blink, 5200)
   refreshStatus()
   refreshActivity()
   setInterval(refreshStatus, 15000)
