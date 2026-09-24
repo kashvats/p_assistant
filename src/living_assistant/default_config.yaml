@@ -147,6 +147,21 @@ web_search:
   max_calls_per_day: 1000
   serper_timeout_seconds: 15
 
+external_integrations:
+  browser_use: {enabled: false, revision: d8110c5ff87ccba887aaa726cdb780f2f84bef8d, path: ./external-components/browser-use}
+  openviking: {enabled: false, revision: 053ddbbf392a1688fc7043d81529f47ef2cf86c8, path: ./external-components/OpenViking, url: "${OPENVIKING_URL:http://127.0.0.1:1933}", api_key: "${OPENVIKING_API_KEY:}", account: "${OPENVIKING_ACCOUNT:}", user: "${OPENVIKING_USER:}", actor_peer_id: living-assistant, timeout: 30}
+  codebase_memory_mcp: {enabled: false, revision: 85f1f36e6cac63630b988f63d153b16f881a11e9, path: ./external-components/codebase-memory-mcp, command: codebase-memory-mcp, timeout: 30}
+  diagram_design: {enabled: false, revision: 49c6e97775eaa18ba791bebe23162a70ae601c18}
+  cybersecurity_skills: {enabled: false, revision: 54a798831d2266a3ca61ce68a7acb80b81160d57}
+  agency_agents: {enabled: false, revision: 579a0a96dab86857da7daa483aa0281d7dde8a17}
+  openmontage: {enabled: false, revision: dc1ace47b99a419e42d01a03cb6ace5346efa8ae8}
+  graft: {enabled: false, revision: d8110c5ff87ccba887aaa726cdb780f2f84bef8d}
+  agentmemory: {enabled: false, revision: e783f73d752f83b689451e3a7e48061cda1202f7, path: ./external-components/agentmemory, url: "${AGENTMEMORY_URL:http://127.0.0.1:3111}", token: "${AGENTMEMORY_SECRET:}", timeout: 15}
+  edge0: {enabled: false, revision: 36ec2f5602779811ec5d805674f14a864657f3e6}
+  scientific_agent_skills: {enabled: false, revision: e04ba88819c365c9acf9d6661ea802143e728bd6}
+  awesome_harness_engineering: {enabled: false, revision: fb4cd2c49ebe22bb230e1451ecb8fb4957ca62e6}
+  awesome_ai_agent_tools: {enabled: false, revision: 1188e1bee9bfd97258e5014abf0b866a6691cc9b}
+
 downloads:
   quarantine_risky_files: true
   quarantine_all_non_images: false

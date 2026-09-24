@@ -18,6 +18,10 @@ dependencies = [
   "rich>=13,<15",
   "fastapi>=0.115,<1",
   "uvicorn>=0.30,<1",
+  "diskcache>=5.6,<6",
+  "watchdog>=6,<7",
+  "apscheduler>=3.10,<4",
+  "trafilatura>=2,<3",
 ]
 [project.optional-dependencies]
 desktop = [
@@ -46,6 +50,9 @@ airllm = [
 ]
 peers = [
   "zeroconf>=0.136,<1",
+]
+connectors = [
+  "keyring>=24,<26",
 ]
 dev = [
   "pytest>=8,<10",

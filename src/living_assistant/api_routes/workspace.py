@@ -31,13 +31,8 @@ def watches(authorization: str | None = Header(default=None)):
     return runtime().watches.list()
 
 
-@router.get("/skills")
-def skills(authorization: str | None = Header(default=None)):
-    authorize(authorization)
-    return runtime().skills.list()
-
-
 @router.get("/routines")
 def routines(authorization: str | None = Header(default=None)):
     authorize(authorization)
     return runtime().routines.list()
+

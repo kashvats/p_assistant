@@ -18,11 +18,11 @@ class NervousSystem:
     def __init__(self, config: dict, memory: MemoryStore, processes: ProcessRegistry | None = None,
                  watches: WatchRegistry | None = None, notifier: Notifier | None = None,
                  routines: RoutineRegistry | None = None, orchestrator=None, model_manager=None,
-                 briefings=None, sessions=None, guardian=None, security_sensors=None, experiences=None, group_controller=None, connector_manager=None, mobile_bridge=None, peers=None):
+                 briefings=None, sessions=None, guardian=None, security_sensors=None, experiences=None, group_controller=None, connector_manager=None, mobile_bridge=None, peers=None, scheduler=None):
         self.config=config; self.cfg=config.get('daemon',{}); self.memory=memory
         self.processes=processes or ProcessRegistry(); self.watches=watches or WatchRegistry()
         self.notifier=notifier or Notifier(); self.routines=routines or RoutineRegistry()
-        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.security_sensors=security_sensors; self.experiences=experiences; self.group_controller=group_controller; self.connector_manager=connector_manager; self.mobile_bridge=mobile_bridge; self.peers=peers
+        self.orchestrator=orchestrator; self.model_manager=model_manager; self.briefings=briefings; self.sessions=sessions; self.guardian=guardian; self.security_sensors=security_sensors; self.experiences=experiences; self.group_controller=group_controller; self.connector_manager=connector_manager; self.mobile_bridge=mobile_bridge; self.peers=peers; self.scheduler=scheduler
         self.last_ports=set(); self.previous_running={}; self.health_failures={}; self.restart_exhausted_notified=set(); self.previous_group_health={}
         self.last_maintenance=0.0; self.last_security_scan=0.0; self.last_security_posture_scan=0.0; self.last_sensor_scan=0.0; self.last_connector_refresh=0.0
         resume_gap=max(float(self.cfg.get('resume_gap_seconds',60)), float(self.cfg.get('poll_seconds',15))*3.0)
@@ -108,6 +108,12 @@ class NervousSystem:
                 watch_state={'error':str(exc)}
             if self.model_manager is not None:
                 try: self.model_manager.sync_running_models()
+                except Exception: pass
+            if self.scheduler is not None:
+                try:
+                    recovered = self.scheduler.recover_missed_tasks()
+                    if recovered:
+                        events.append({'kind':'scheduler_missed_tasks_recovered','recovered':recovered})
                 except Exception: pass
             events.append({'kind':'system_resume_detected', **power, 'watch_rebaseline':watch_state})
         try:
@@ -234,6 +240,21 @@ class NervousSystem:
                     if ex.get('episodes_pruned'): self.memory.add_event('experience_episodes_pruned',ex)
                     if ex.get('lessons_demoted') or ex.get('lessons_expired'):
                         self.memory.add_event('experience_confidence_maintenance',ex)
+                    # Jev semantic GC: score remaining active lessons for knowledge value.
+                    # Replaces brittle timestamp-only logic for stale knowledge retirement.
+                    try:
+                        from living_assistant.core.typesafe import JevClient
+                        jev = JevClient()
+                        jev_retired = []
+                        for lesson in self.experiences.list(status='active', limit=200):
+                            level, conf = jev.score_knowledge_value(lesson)
+                            if level == 'Obsolete/Wrong' and conf >= 0.75 and not lesson.get('user_confirmed'):
+                                self.experiences.reject(lesson['id'], reason='Jev GC: scored Obsolete/Wrong')
+                                jev_retired.append(lesson['id'])
+                        if jev_retired:
+                            self.memory.add_event('jev_gc_retired', {'count': len(jev_retired), 'ids': jev_retired[:10]})
+                    except Exception:
+                        pass
                 except Exception: pass
             self.last_maintenance=now
         return events

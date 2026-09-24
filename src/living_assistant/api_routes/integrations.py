@@ -68,7 +68,7 @@ def voice_ask(
     answer = rt.orchestrator.run(
         text,
         context="The user issued this request by voice.",
-        session_id="voice-companion",
+        session_id="desktop-companion",
     )
     speech = rt.voice.speak(answer) if req.speak else {"ok": False, "skipped": True}
     return {
@@ -104,7 +104,7 @@ def voice_hands_free(
             answer = rt.orchestrator.run(
                 text,
                 context="The user issued this request after saying the configured local wake word.",
-                session_id="voice-hands-free",
+                session_id="desktop-companion",
             )
             if getattr(rt, "events_bus", None):
                 rt.events_bus.publish(

@@ -97,6 +97,8 @@
 - [x] **FEAT-16** · **Peer Agent Discovery** — Added lazy optional zeroconf/mDNS discovery with stable peer IDs, explicit trust allowlists, HTTPS-only delegation using a separate peer token, resource-aware best-peer selection, daemon discovery lifecycle, peer API/tool surfaces, and tool-free specialist execution on the receiving machine.
 - [x] **FEAT-17** · **Approval Notification Sound** — New approval gates now request a cross-platform audible alert through the existing notifier; duplicate pending requests/preapproved retries do not replay it, quiet mode suppresses it, and `notifications.approval_sound` can disable it.
 - [x] **FEAT-18** · **Hot-Reload Config** — Watch `assistant.yaml` for changes and apply without a full daemon restart.
+- [x] **FEAT-19** · **Custom Skill Creation and Execution System** — End-to-end versioned skill creation, manifest schemas, out-of-model permission guard, SQLite lifecycle & immutable rollback, portable tool adapters with real dry-run, invoice document extraction, WebUI Skills section, 3 reference skills (Daily Briefing, Downloads Organizer, Invoice Organizer), and external collections integration.
+- [x] **FEAT-20** · **Custom Agent Creation and Management** — End-to-end versioned custom agent packages (`agents/<id>/` with `AGENT.md` & `manifest.json`), schema validation, natural-language & form creation, lifecycle in SQLite, execution via existing orchestrator runtime, bounded steps, loop detection, shared inference resource coordination, controlled delegation, scoped memory namespaces, UI Agents section, reference agents (Research, File Assistant, Planner), and Agency Agents integration.
 
 ---
 
@@ -139,14 +141,16 @@ Last → UI-01 to UI-14          Rebuild the interface after backend is solid
 - [x] **BUG-19** � sessions.py � session_search() uses SQL LIKE '%query%' � full table scan on every search. No FTS5 (Full-Text Search) index. Becomes unusably slow after hundreds of sessions.
 - [x] **BUG-20** � memory.py � search() also uses a plain LIKE query against the memories table. Same full-table-scan problem. No SQLite FTS index. Degrades with memory growth.
 - [x] **BUG-21** � event_bus.py � EventBus is a pure in-memory deque (maxlen=500). On daemon restart, the entire activity history is lost. The WebUI "Activity" tab shows zero events after a restart.
-- [x] **BUG-22** � 
+- [x] **BUG-22** �
 otifications.py � _send_now() on Windows calls nothing � there is no Windows toast notification implementation. Only macOS (osascript) is implemented. Windows users get silent notifications with no visual or audio feedback.
 - [x] **BUG-23** � watchers.py � poll() snapshots file mtimes but does NOT use debouncing. Any build tool that writes 100 files in 1 second triggers 100 individual file-change events flooding the daemon loop.
-- [x] **BUG-24** � 	ools/voicetools.py � uild_voice_tools() returns [] when oice.enabled() is False. This means if voice is disabled in config, the LLM cannot call oice_record even for a one-shot transcription task. Should decouple 
+- [x] **BUG-24** � 	ools/voicetools.py � uild_voice_tools() returns [] when
+oice.enabled() is False. This means if voice is disabled in config, the LLM cannot call
+oice_record even for a one-shot transcription task. Should decouple
 ecord/	ranscribe availability from hands-free being enabled.
-- [x] **BUG-25** � 	ools/shell.py � 
+- [x] **BUG-25** � 	ools/shell.py �
 un_command has no output size cap in the tool-callable wrapper. A command that writes 500MB to stdout will buffer the entire thing in memory before returning. Only measure_command() in evaluation.py has the 30KB cap.
-- [x] **BUG-26** � 
+- [x] **BUG-26** �
 esource_manager.py � _evict_one_locked() uses pure LRU with no priority. The active Orchestrator model can be evicted by a background specialist model that was just loaded. Once evicted, the next Orchestrator turn reloads it � causing unnecessary stutter.
 - [x] **BUG-27** � gents.py � SpecialistRouter.delegate() has no timeout. If a specialist model hangs generating a response, the entire calling Orchestrator turn hangs indefinitely.
 - [x] **BUG-28** � security_policy.py � is_read_only_sql() does not handle SQL comments (e.g. -- DROP TABLE users or /* DROP */ SELECT 1). A cleverly commented SQL string can bypass the allowlist check.
@@ -158,7 +162,7 @@ esource_manager.py � _evict_one_locked() uses pure LRU with no priority. The a
 - [x] **BROKEN-11** � pproval.py � Pre-approvals use SHA-256 of action+reason+kind. The hash must match **exactly** � a single space difference (e.g. trailing whitespace in a dynamic path string) silently creates a new pending approval instead of consuming the pre-approval. This is the root cause of voice wake-word approval mismatches.
 - [x] **BROKEN-12** � daemon.py � experiences.maintenance() is called in the daemon tick, but maintenance() only prunes episodes and merges duplicates � it does NOT call experience.decay(). The decay method exists but is never reached from any code path.
 - [x] **BROKEN-13** � canary.py � CanaryEngine._run_host_service() starts the candidate service as a background process but does not clean it up if the health check times out. Orphan processes are left running on the host.
-- [x] **BROKEN-14** � 
+- [x] **BROKEN-14** �
 esource_manager.py � can_start_model() checks available RAM but not available VRAM when GPU is present. You can start loading a 13B model into a 4GB VRAM GPU even if 12GB are already committed, then Ollama silently falls back to CPU � killing performance without any warning.
 - [x] **BROKEN-15** � connector_oauth.py � Token refresh only triggers when expires_at <= now + 30s. But refresh is called inline during call(). If the refresh HTTP request takes >30s (slow network), the token expires mid-request and the API call fails with a 401.
 
@@ -169,9 +173,45 @@ esource_manager.py � can_start_model() checks available RAM but not available 
 - [x] **INCOMPLETE-12** � daemon.py � Sleep/resume detection (SleepResumeMonitor) fires a resume event correctly but the daemon does NOT re-sync process health checks or watcher baselines after a resume. A laptop that sleeps for 8 hours wakes up with stale health status.
 - [x] **INCOMPLETE-13** � riefing.py � Briefings have no content caching. If the LLM is sleeping/unavailable, calling GET /briefing/morning waits for model load and generation every time with no fallback or cached last result.
 - [x] **INCOMPLETE-14** � groups.py � GroupOrchestrator.start() starts all group projects sequentially. For large groups this is slow. There is no parallel startup option, and no dependency ordering within the group.
-- [x] **INCOMPLETE-15** � sessions.py � prune() deletes old sessions but does NOT archive them. Chat history older than 
+- [x] **INCOMPLETE-15** � sessions.py � prune() deletes old sessions but does NOT archive them. Chat history older than
 etention_days is permanently deleted with no export path.
-- [x] **INCOMPLETE-16** � improvements.py � 
+- [x] **INCOMPLETE-16** � improvements.py �
 ollback() restores the original file from backup but does NOT check if the file was modified again after the proposal was applied. Rolling back may overwrite legitimate subsequent edits.
 - [x] **INCOMPLETE-17** � 	ools/filesystem.py � search_files() uses simple substring matching on file content. No regex support, no file-type filtering, no binary file detection. Searching a binary file returns garbage bytes.
 - [x] **INCOMPLETE-18** � 	ools/projects.py � Project registration exists (name, path, start_command) but there is no per-project environment variable management. You cannot set PORT=3000 for project A and PORT=4000 for project B separately.
+
+
+---
+
+## 🧩 EXTERNAL COMPONENTS & FOUNDATIONAL SYSTEM INTEGRATIONS
+
+### Cloned Components (`external-components/`)
+- [x] **EXT-01** · `browser-use` — Full web agent adapter (`BrowserUseAdapter`), browser tool exposure (`browser_use_task`), lazy import, sandboxed execution.
+- [x] **EXT-02** · `OpenViking` — Hierarchical context & repository indexing adapter (`OpenVikingAdapter`), tools (`viking_index_repository`, `viking_query_graph`, `viking_find_callers`, `viking_find_callees`, `viking_manage_adr`).
+- [x] **EXT-03** · `agentmemory` — Persistent key-value memory layer adapter (`AgentMemoryAdapter`), tool suite (`agent_memory_create`, `agent_memory_retrieve`, `agent_memory_search`, `agent_memory_delete`).
+- [x] **EXT-04** · `codebase-memory-mcp` — Knowledge graph memory adapter (`CodebaseMemoryMCPAdapter`), tool suite (`codebase_memory_get_architecture`, `codebase_memory_index`, `codebase_memory_query_graph`, `codebase_memory_find_callers`, `codebase_memory_find_callees`, `codebase_memory_manage_adr`).
+- [x] **EXT-05** · `diagram-design` — Editorial diagram engine adapter (`DiagramDesignAdapter`), 41 visual types, deterministic IR extraction (`mermaid_extract`, `drawio_extract`, `excalidraw_extract`), accessible SVG/HTML generation, single-file safety self-checks, and diagram tool suite (`diagram_list_types`, `diagram_parse_mermaid`, `diagram_parse_drawio`, `diagram_parse_excalidraw`, `diagram_validate`, `diagram_generate`, `diagram_export_svg`).
+- [x] **EXT-06** · `Anthropic-Cybersecurity-Skills` — Defensive cybersecurity skills adapter (`CybersecuritySkillsAdapter`), indexed search across 800+ skills, frontmatter & instruction retrieval, multi-layered OWASP prompt injection auditing (`RegexDetector` + `HeuristicScorer`), threat modeling component mapping, and tool suite (`security_search_skills`, `security_get_skill`, `security_audit_prompt`, `security_threat_model`).
+- [x] **EXT-07** · `Graft` — Persistent local agent memory adapter (`GraftAdapter`), verified recall (`STRONG`/`WEAK`/`MISS`), hybrid retrieval (FTS5 + keywords), graph exploration, embedded SQLite fallback engine, and tool suite (`graft_query`, `graft_retrieve`, `graft_insert`, `graft_explore`, `graft_list`, `graft_delete`, `graft_stats`).
+- [x] **EXT-08** · `openmontage` — Multi-modal asset orchestration and media processing bindings.
+- [x] **EXT-09** · `Edge0` — Local-first edge model execution pipelines and quantized model fallback.
+- [x] **EXT-10** · `agency-agents` — Multi-agent persona definitions and specialized agent workflow execution.
+- [x] **EXT-11** · `scientific-agent-skills` — Analytical and data synthesis specialist tooling.
+- [x] **EXT-12** · `awesome-harness-engineering` — Agent evaluation harnesses, stress test fixtures, and safety verification benches.
+- [x] **EXT-13** · `awesome-ai-agent-tools` — Curated tool catalog and dynamic capability registry.
+
+### Foundational System & Utility Integrations
+- [x] **SYS-01** · `psutil` & GPU Resource Governor — Process RSS/VMS/CPU snapshots, system load average, unified GPU interface (`NvidiaSmiBackend`, `AppleMlxBackend`, `FallbackGPUBackend`), and dynamic background indexing throttling during voice/chat interactive sessions.
+- [x] **SYS-02** · `platformdirs` + `uv` — Unified OS-standard data/cache/config directories across Windows/Linux/macOS with atomic migration and isolated virtual environment management.
+- [x] **SYS-03** · `keyring` — OS Credential Manager / SecretService integration with fallback credential vault.
+- [x] **SYS-04** · `DiskCache` — Persistent SQLite-backed caching for embeddings, document parsing, and expensive read-only tool calls.
+- [x] **SYS-05** · `Watchdog` — Debounced real-time filesystem events for workspace hot-reloading and codebase index updates.
+- [x] **SYS-06** · `APScheduler` — Persistent reminders, cron tasks, daily briefings, and missed-run recovery.
+- [x] **SYS-07** · `Trafilatura` — Fast, robust article and documentation text extraction with boilerplate removal, metadata extraction, and disk caching.
+
+---
+
+## 🚀 CUSTOM CAPABILITIES
+
+- [x] **FEAT-19** · Custom Skills System (`skills/`) · End-to-end versioned declarative workflow creation, out-of-model permission guard, immutable snapshots & hashes, crash recovery & durable SQLite action logging, conflict-aware undo, Docling extraction fallback, CLI & Web UI.
+- [x] **FEAT-20** · Custom Agents System (`agents/custom/`) · Versioned agent manifest schema, natural-language creation, SQLite lifecycle, execution via existing orchestrator runtime, bounded steps, loop detection, shared inference resource coordination, controlled delegation, scoped memory namespaces, UI/CLI/API integration, reference agents.

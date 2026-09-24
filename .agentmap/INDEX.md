@@ -36,7 +36,7 @@
 - [HTTP/API routes](ROUTES.md)
 - [Execution flows](FLOWS.md)
 - [Durable issue knowledge](ISSUES.md)
-- [Architecture decisions](DECISIONS.md)
+- [Architecture decisions](DECISIONS.md) ← **Read ADR-001 (Jev+AirLLM) before touching orchestrator/memory/daemon**
 
 ## Navigation Rule
 

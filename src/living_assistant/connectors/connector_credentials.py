@@ -17,11 +17,17 @@ def _norm(name: str) -> str:
 
 @dataclass
 class CredentialStore:
-    """Resolve connector secrets from environment or the OS keyring.
+    """Resolve connector secrets from environment, the OS keyring, or encrypted vault fallback.
 
-    Secrets are never persisted in Living Assistant JSON/SQLite state.
+    Secrets are never persisted in Living Assistant plain JSON/SQLite state.
     """
     use_keyring: bool = True
+    vault: Any = None
+
+    def __post_init__(self) -> None:
+        if self.vault is None:
+            from living_assistant.security.keyring_vault import KeyringVault
+            self.vault = KeyringVault(mode="auto" if self.use_keyring else "memory")
 
     def prefix_for(self, connector: dict) -> str:
         return _norm(connector.get('env_prefix') or connector.get('name') or connector.get('provider') or 'CONNECTOR')
@@ -33,18 +39,11 @@ class CredentialStore:
     def _keyring(self):
         if not self.use_keyring:
             return None
-        try:
-            import keyring  # type: ignore
-            return keyring
-        except Exception:
-            return None
+        return getattr(self.vault, "_keyring_mod", None)
 
     def load_bundle(self, connector: dict) -> dict[str, Any]:
-        kr = self._keyring()
-        if kr is None:
-            return {}
         try:
-            raw = kr.get_password(_SERVICE, f"connector:{connector['name']}")
+            raw = self.vault.get_password(_SERVICE, f"connector:{connector['name']}")
             if not raw:
                 return {}
             data = json.loads(raw)
@@ -53,20 +52,13 @@ class CredentialStore:
             return {}
 
     def save_bundle(self, connector: dict, data: dict[str, Any]) -> None:
-        kr = self._keyring()
-        if kr is None:
-            raise RuntimeError('OS keyring support is unavailable. Install the connectors extra or provide tokens through environment variables.')
-        # Keep only token/auth fields. Never store arbitrary provider payloads.
         allowed = {'access_token','refresh_token','expires_at','token_type','scope','provider','created_at'}
         payload = {k:v for k,v in data.items() if k in allowed and v is not None}
-        kr.set_password(_SERVICE, f"connector:{connector['name']}", json.dumps(payload, separators=(',',':')))
+        self.vault.set_password(_SERVICE, f"connector:{connector['name']}", json.dumps(payload, separators=(',',':')))
 
     def delete_bundle(self, connector: dict) -> None:
-        kr = self._keyring()
-        if kr is None:
-            return
         try:
-            kr.delete_password(_SERVICE, f"connector:{connector['name']}")
+            self.vault.delete_password(_SERVICE, f"connector:{connector['name']}")
         except Exception:
             pass
 
@@ -77,7 +69,7 @@ class CredentialStore:
                 return value
         bundle = self.load_bundle(connector)
         for key in keys:
-            value = bundle.get(key)
+            value = bundle.get(key) or bundle.get(key.lower()) or bundle.get(key.upper())
             if isinstance(value, str) and value:
                 return value
         return None
@@ -94,7 +86,8 @@ class CredentialStore:
         return {
             'env_prefix': prefix,
             'configured': sorted(set(configured)),
-            'keyring_available': self._keyring() is not None,
+            'keyring_available': self.vault.backend_type == "os_keyring" if self.use_keyring else False,
+            'vault_backend': self.vault.backend_type,
         }
 
     @staticmethod

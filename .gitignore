@@ -14,6 +14,8 @@ dist/
 !src/living_assistant/webui/dist/app.css
 !src/living_assistant/webui/public/dist/
 !src/living_assistant/webui/public/dist/app.css
+src/living_assistant/webui/vite-dist/
+external-components/
 build/
 node_modules/
 *.egg-info/

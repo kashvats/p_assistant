@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from collections import deque
 import datetime as dt
+import hashlib
 import os
 import sqlite3
 import threading
@@ -152,7 +153,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             return response, current
         raise ValueError(f'Too many redirects (>{MAX_REDIRECTS}).')
 
-    def web_fetch(url: str):
+    def web_fetch(url: str, extract_main_text: bool = False):
         try:
             with httpx.Client(timeout=20.0, headers={'User-Agent':f'LivingAssistant/{__version__}'}, trust_env=False) as c:
                 r, _current = _open_stream(c, url, 'Fetch')
@@ -172,7 +173,49 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         if not any(x in ctype for x in ('text','json','xml','html')):
             return {'ok':False,'error':f'Non-text content type {ctype}; use download_url.'}
         text = bytes(buf).decode(encoding, errors='replace')
+        if extract_main_text and any(x in ctype for x in ('html', 'htm')):
+            try:
+                from living_assistant.system.article_extractor import get_article_extractor
+                ext_res = get_article_extractor().extract(text, url=final_url, max_text_chars=max_text)
+                if ext_res.get('ok') and ext_res.get('text'):
+                    return {
+                        'ok': True,
+                        'url': final_url,
+                        'content_type': ctype,
+                        'content': ext_res['text'],
+                        'title': ext_res.get('title'),
+                        'metadata': ext_res.get('metadata'),
+                    }
+            except Exception:
+                pass
         return {'ok':True,'url':final_url,'content_type':ctype,'content':sanitize_external_observation(text, max_text)}
+
+    def web_extract_article(url: str, output_format: str = "txt", include_comments: bool = False):
+        try:
+            with httpx.Client(timeout=20.0, headers={'User-Agent':f'LivingAssistant/{__version__}'}, trust_env=False) as c:
+                r, _current = _open_stream(c, url, 'ExtractArticle')
+                try:
+                    r.raise_for_status(); ctype = r.headers.get('content-type',''); buf = bytearray()
+                    for chunk in r.iter_bytes():
+                        buf += chunk
+                        if len(buf) > max_bytes:
+                            return {'ok':False,'error':f'Response exceeded {max_mb} MB limit.'}
+                    final_url = str(r.url); encoding = r.encoding or 'utf-8'
+                finally:
+                    r.close()
+        except _NetworkGate as gate:
+            return gate.result
+        except Exception as e:
+            return {'ok': False, 'error': redact_secrets(e, 1000)}
+        text = bytes(buf).decode(encoding, errors='replace')
+        from living_assistant.system.article_extractor import get_article_extractor
+        return get_article_extractor().extract(
+            text,
+            url=final_url,
+            include_comments=include_comments,
+            output_format=output_format,
+            max_text_chars=max_text,
+        )
 
     def _stream_download(url: str, dest: Path) -> tuple[int,str,str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -453,7 +496,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             })
         return {'ok': True, 'provider': str(result.get('provider') or 'browser'), 'results': cleaned}
 
-    def web_search(query: str, num: int = 5):
+    def web_search(query: str, num: int = 5, use_cache: bool | None = None):
         query = (query or '').strip()
         if not query:
             return {'ok': False, 'error': 'Search query must not be empty.'}
@@ -468,6 +511,19 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         except (TypeError, ValueError):
             return {'ok': False, 'error': 'Search result limits must be integers.'}
         limit = max(1, min(requested, max(1, min(configured_max, 10))))
+
+        enable_cache = bool(scfg.get('cache_results', False)) or (use_cache is True)
+        cache_key = f"{provider}:{limit}:{hashlib.sha256(query.encode('utf-8')).hexdigest()[:20]}"
+        disk_cache = None
+        if enable_cache:
+            try:
+                from living_assistant.system.disk_cache import get_disk_cache
+                disk_cache = get_disk_cache()
+                cached_res = disk_cache.get("web_queries", cache_key)
+                if cached_res is not None and isinstance(cached_res, dict) and cached_res.get('ok'):
+                    return cached_res
+            except Exception:
+                disk_cache = None
 
         key = os.environ.get('SERPER_API_KEY')
         searxng_url, searxng_config_error = _searxng_endpoint()
@@ -485,11 +541,19 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         if budget_error:
             return budget_error
 
+        def _return_and_cache(res: dict) -> dict:
+            if enable_cache and disk_cache is not None and res.get('ok'):
+                try:
+                    disk_cache.set("web_queries", cache_key, res, expire=3600.0)
+                except Exception:
+                    pass
+            return res
+
         searxng_error = None
         if provider in {'auto', 'searxng'} and searxng_url:
             result = _searxng_search(query, limit, images=False)
             if result.get('ok'):
-                return result
+                return _return_and_cache(result)
             searxng_error = str(result.get('error') or 'SearXNG search failed.')
             if provider == 'searxng':
                 return result
@@ -512,7 +576,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
                             'link': str(item.get('link') or ''),
                             'snippet': sanitize_external_observation(str(item.get('snippet') or ''), 8000),
                         })
-                    return {'ok': True, 'provider': 'serper', 'results': results}
+                    return _return_and_cache({'ok': True, 'provider': 'serper', 'results': results})
             except Exception as exc:
                 serper_error = redact_secrets(exc, 1000)
                 if provider == 'serper':
@@ -551,7 +615,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
                 'link': str(item.get('link') or ''),
                 'snippet': sanitize_external_observation(str(item.get('snippet') or ''), 8000),
             })
-        return {'ok': True, 'provider': str(result.get('provider') or 'browser'), 'results': cleaned}
+        return _return_and_cache({'ok': True, 'provider': str(result.get('provider') or 'browser'), 'results': cleaned})
 
     return [
         Tool('web_fetch','Fetch a web page as untrusted observation text with size/time limits. Private/local targets require explicit approval, including redirects.',{'type':'object','properties':{'url':{'type':'string'}},'required':['url']},web_fetch),
@@ -561,4 +625,5 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         Tool('quarantine_release','Release a quarantined file into the approved workspace. Requires explicit approval.',{'type':'object','properties':{'item_id':{'type':'string'},'destination':{'type':'string'}},'required':['item_id','destination']},quarantine_release),
         Tool('image_search','Search the web for image URLs using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},image_search),
         Tool('web_search','Search the web using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},web_search),
+        Tool('web_extract_article','Fetch and extract clean article/documentation text, headline, author, and metadata from a web page using Trafilatura, stripping boilerplate, ads, and navigation bars.',{'type':'object','properties':{'url':{'type':'string'},'output_format':{'type':'string','enum':['txt','markdown','xml','csv'],'default':'txt'},'include_comments':{'type':'boolean','default':False}},'required':['url']},web_extract_article),
     ]

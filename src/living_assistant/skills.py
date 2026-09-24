@@ -1,5 +1,2 @@
-"""Backward-compatible import alias. Implementation moved to living_assistant.core.skills."""
-import importlib as _importlib
-import sys as _sys
-_impl = _importlib.import_module("living_assistant.core.skills")
-_sys.modules[__name__] = _impl
+"""Backward-compatible import alias for living_assistant.skills package."""
+from living_assistant.skills import *

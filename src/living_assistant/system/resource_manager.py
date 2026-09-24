@@ -7,6 +7,68 @@ from living_assistant.system.hardware import HardwareInfo, detect_hardware
 
 GIB = 1024 ** 3
 
+
+class GPUVendorInterface:
+    """Pluggable vendor backend for GPU VRAM and temperature metrics."""
+
+    def query_runtime(self) -> tuple[float | None, float | None]:
+        """Returns (free_vram_gb, temperature_c)."""
+        raise NotImplementedError
+
+
+class NvidiaSmiBackend(GPUVendorInterface):
+    """NVIDIA GPU backend querying nvidia-smi."""
+
+    def __init__(self, fallback_free_gb: float | None = None) -> None:
+        self.fallback_free_gb = fallback_free_gb
+
+    def query_runtime(self) -> tuple[float | None, float | None]:
+        if not shutil.which("nvidia-smi"):
+            return self.fallback_free_gb, None
+        try:
+            out = subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=memory.free,temperature.gpu", "--format=csv,noheader,nounits"],
+                text=True,
+                timeout=3,
+                stderr=subprocess.DEVNULL,
+            ).strip().splitlines()
+            rows = []
+            for line in out:
+                free, temp = [x.strip() for x in line.rsplit(",", 1)]
+                rows.append((float(free) / 1024, float(temp)))
+            if not rows:
+                return self.fallback_free_gb, None
+            free, temp = max(rows, key=lambda row: row[0])
+            return round(free, 2), round(temp, 1)
+        except Exception:
+            return self.fallback_free_gb, None
+
+
+class AppleMlxBackend(GPUVendorInterface):
+    """Apple Silicon unified memory interface."""
+
+    def __init__(self, unified_ram_gb: float | None = None) -> None:
+        self.unified_ram_gb = unified_ram_gb
+
+    def query_runtime(self) -> tuple[float | None, float | None]:
+        try:
+            vm = psutil.virtual_memory()
+            free_gb = round(vm.available / GIB, 2)
+            return free_gb, None
+        except Exception:
+            return self.unified_ram_gb, None
+
+
+class FallbackGPUBackend(GPUVendorInterface):
+    """Fallback backend for CPU or unsupported GPUs."""
+
+    def __init__(self, static_free_gb: float | None = None) -> None:
+        self.static_free_gb = static_free_gb
+
+    def query_runtime(self) -> tuple[float | None, float | None]:
+        return self.static_free_gb, None
+
+
 @dataclass(frozen=True)
 class ModelRuntimePolicy:
     mode: str
@@ -18,6 +80,7 @@ class ModelRuntimePolicy:
     reserve_ram_gb: float
     reserve_vram_gb: float
     reason: str
+    recommended_context_tokens: int = 4096
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -28,27 +91,19 @@ class ResourceManager:
         self.profile = profile
         self.config = config
         self.hardware = hardware or detect_hardware()
+        self.gpu_backend = self._init_gpu_backend()
+        self._interactive_modes: set[str] = set()
         self.model_policy = self._select_model_policy()
 
+    def _init_gpu_backend(self) -> GPUVendorInterface:
+        if self.hardware.apple_silicon or self.hardware.unified_memory:
+            return AppleMlxBackend(self.hardware.gpu_vram_free_gb)
+        if shutil.which("nvidia-smi"):
+            return NvidiaSmiBackend(self.hardware.gpu_vram_free_gb)
+        return FallbackGPUBackend(self.hardware.gpu_vram_free_gb)
+
     def _nvidia_runtime(self) -> tuple[float | None, float | None]:
-        if not shutil.which("nvidia-smi"):
-            return self.hardware.gpu_vram_free_gb, None
-        try:
-            out = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=memory.free,temperature.gpu", "--format=csv,noheader,nounits"],
-                text=True, timeout=3, stderr=subprocess.DEVNULL,
-            ).strip().splitlines()
-            rows = []
-            for line in out:
-                free, temp = [x.strip() for x in line.rsplit(",", 1)]
-                rows.append((float(free) / 1024, float(temp)))
-            if not rows:
-                return self.hardware.gpu_vram_free_gb, None
-            # Match the runtime admission logic to the GPU with the most free VRAM.
-            free, temp = max(rows, key=lambda row: row[0])
-            return round(free, 2), round(temp, 1)
-        except Exception:
-            return self.hardware.gpu_vram_free_gb, None
+        return self.gpu_backend.query_runtime()
 
     def _cpu_temperature_c(self) -> float | None:
         try:
@@ -63,12 +118,101 @@ class ResourceManager:
                     values.append(float(current))
         return round(max(values), 1) if values else None
 
+    # ------------------------------------------------------------------
+    # Process & System Telemetry (psutil)
+    # ------------------------------------------------------------------
+
+    def process_resource_snapshot(self, pid: int | None = None) -> dict[str, Any]:
+        """Deep process metrics: memory RSS/VMS, CPU %, open files, thread count."""
+        try:
+            proc = psutil.Process(pid) if pid else psutil.Process()
+            mem = proc.memory_info()
+            num_files = 0
+            try:
+                num_files = len(proc.open_files())
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "pid": proc.pid,
+                "name": proc.name(),
+                "status": proc.status(),
+                "rss_mb": round(mem.rss / (1024 * 1024), 2),
+                "vms_mb": round(mem.vms / (1024 * 1024), 2),
+                "cpu_percent": proc.cpu_percent(interval=None),
+                "threads": proc.num_threads(),
+                "open_files": num_files,
+            }
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def system_load_snapshot(self) -> dict[str, Any]:
+        """System load metrics across CPU, RAM, and load averages."""
+        vm = psutil.virtual_memory()
+        load_1, load_5, load_15 = (None, None, None)
+        if hasattr(psutil, "getloadavg"):
+            try:
+                load_1, load_5, load_15 = psutil.getloadavg()
+            except Exception:
+                pass
+        return {
+            "cpu_percent": psutil.cpu_percent(interval=0.05),
+            "ram_percent": vm.percent,
+            "available_ram_gb": round(vm.available / GIB, 2),
+            "total_ram_gb": round(vm.total / GIB, 2),
+            "load_average": [load_1, load_5, load_15] if load_1 is not None else None,
+        }
+
+    # ------------------------------------------------------------------
+    # Dynamic Job Scheduling & Throttling
+    # ------------------------------------------------------------------
+
+    def set_interactive_mode(self, active: bool, source: str = "chat") -> None:
+        """Register that a foreground user activity (voice, chat) is active."""
+        if active:
+            self._interactive_modes.add(source)
+        else:
+            self._interactive_modes.discard(source)
+
+    def is_interactive_active(self) -> bool:
+        """True if user is actively engaged in voice, chat, or interactive sessions."""
+        return len(self._interactive_modes) > 0
+
+    def should_throttle_background_tasks(
+        self,
+        active_interactive: bool | None = None,
+        max_cpu_percent: float = 85.0,
+        min_available_ram_gb: float = 1.0,
+    ) -> tuple[bool, str]:
+        """Evaluate whether heavy background indexing or tasks must pause."""
+        is_interactive = (
+            self.is_interactive_active() if active_interactive is None else active_interactive
+        )
+        if is_interactive:
+            return True, f"interactive foreground session active ({','.join(self._interactive_modes) or 'user'})"
+
+        s = self.snapshot()
+        cpu = s.get("cpu_percent", 0.0)
+        if cpu >= max_cpu_percent:
+            return True, f"high system CPU usage ({cpu}% >= {max_cpu_percent}%)"
+
+        avail_ram = s.get("available_ram_gb", 0.0)
+        if avail_ram < min_available_ram_gb:
+            return True, f"low available RAM ({avail_ram} GB < {min_available_ram_gb} GB)"
+
+        hot, reason = self.thermal_pressure()
+        if hot:
+            return True, f"thermal throttle active ({reason})"
+
+        return False, "ok"
+
     def snapshot(self) -> dict:
         vm = psutil.virtual_memory()
         result = {
             "cpu_percent": psutil.cpu_percent(interval=0.05),
             "ram_percent": vm.percent,
             "available_ram_gb": round(vm.available / GIB, 2),
+            "interactive_active": self.is_interactive_active(),
         }
         gpu_free, gpu_temp = self._nvidia_runtime()
         if gpu_free is not None:
@@ -164,6 +308,18 @@ class ResourceManager:
             max_concurrent = 1
             per_model = 1
 
+        configured_context = max(1024, int(cfg.get("default_context_tokens", 8192)))
+        if self.hardware.gpu_vram_gb is not None and not self.hardware.unified_memory:
+            if self.hardware.gpu_vram_gb <= 4:
+                context_cap = int(cfg.get("context_tokens_4gb_vram", 4096))
+            elif self.hardware.gpu_vram_gb < 8:
+                context_cap = int(cfg.get("context_tokens_under_8gb_vram", 6144))
+            else:
+                context_cap = configured_context
+        else:
+            context_cap = configured_context
+        recommended_context = max(1024, min(configured_context, context_cap))
+
         return ModelRuntimePolicy(
             mode="single" if max_resident == 1 else "multi",
             max_resident_models=max_resident,
@@ -174,6 +330,7 @@ class ResourceManager:
             reserve_ram_gb=reserve_ram,
             reserve_vram_gb=reserve_vram,
             reason=reason,
+            recommended_context_tokens=recommended_context,
         )
 
     def can_start_model(self, size_bytes: int | None = None) -> tuple[bool, str]:

@@ -37,6 +37,7 @@ from .helpers import (
     approval_app,
     watch_app,
     skill_app,
+    agent_app,
     todo_app,
     quarantine_app,
     git_app,
@@ -433,10 +434,180 @@ def skill_add(name: str,description: str,triggers: str,instructions_file: str):
     console.print(rt.skills.add(name,description,[x.strip() for x in triggers.split(',')],instructions))
 
 @skill_app.command('list')
-def skill_list(): console.print(build_runtime(interactive=False).skills.list())
+def skill_list():
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if mgr:
+        console.print(mgr.list_skills())
+    else:
+        console.print(rt.skills.list())
 
 @skill_app.command('remove')
 def skill_remove(name: str): console.print({'ok':build_runtime(interactive=False).skills.remove(name)})
+
+@skill_app.command('create')
+def skill_create(prompt: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    pkg = mgr.create_draft(prompt)
+    console.print({'ok': True, 'skill_id': pkg.manifest.id, 'name': pkg.manifest.name, 'state': 'DRAFT'})
+
+@skill_app.command('activate')
+def skill_activate(skill_id: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    console.print(mgr.activate_skill(skill_id))
+
+@skill_app.command('disable')
+def skill_disable(skill_id: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    console.print({'ok': mgr.disable_skill(skill_id), 'state': 'DISABLED'})
+
+@skill_app.command('test')
+def skill_test(skill_id: str, dry_run: bool = True):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    console.print(mgr.execute_skill(skill_id, dry_run=dry_run, trigger="cli_test"))
+
+@skill_app.command('run')
+def skill_run(skill_id: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    console.print(mgr.execute_skill(skill_id, dry_run=False, trigger="cli_run"))
+
+@skill_app.command('rollback')
+def skill_rollback(skill_id: str, version: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    pkg = mgr.rollback_skill(skill_id, version)
+    console.print({'ok': True, 'skill_id': pkg.manifest.id, 'rolled_back_to': version})
+
+@skill_app.command('export')
+def skill_export(skill_id: str, output_path: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    data = mgr.export_skill(skill_id)
+    out = Path(output_path).expanduser()
+    out.write_bytes(data)
+    console.print({'ok': True, 'exported_to': str(out), 'bytes': len(data)})
+
+@skill_app.command('import')
+def skill_import(archive_path: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "skill_manager", None) or getattr(rt.skills, "manager", None)
+    if not mgr:
+        console.print({'error': 'SkillManager not available'})
+        return
+    raw = Path(archive_path).expanduser().read_bytes()
+    pkg = mgr.import_skill_archive(raw)
+    console.print({'ok': True, 'imported_skill_id': pkg.manifest.id, 'state': 'DRAFT'})
+
+@agent_app.command('list')
+def agent_list(state: str | None = None):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    console.print(mgr.list_agents(state=state))
+
+@agent_app.command('info')
+def agent_info(agent_id: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    console.print(mgr.get_agent(agent_id))
+
+@agent_app.command('draft')
+def agent_draft(prompt: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    pkg = mgr.create_draft(prompt)
+    console.print({'ok': True, 'agent_id': pkg.manifest.id, 'name': pkg.manifest.name, 'role': pkg.manifest.role, 'state': 'DRAFT'})
+
+@agent_app.command('activate')
+def agent_activate(agent_id: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    console.print(mgr.activate_agent(agent_id))
+
+@agent_app.command('disable')
+def agent_disable(agent_id: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    console.print(mgr.disable_agent(agent_id))
+
+@agent_app.command('test')
+def agent_test(agent_id: str, task: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    console.print(mgr.execute_agent(agent_id, task=task, dry_run=True))
+
+@agent_app.command('run')
+def agent_run(agent_id: str, task: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    console.print(mgr.execute_agent(agent_id, task=task, dry_run=False))
+
+@agent_app.command('export')
+def agent_export(agent_id: str, output_path: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    target = Path(output_path).expanduser()
+    mgr.export_agent(agent_id, target)
+    console.print({'ok': True, 'exported_to': str(target)})
+
+@agent_app.command('import')
+def agent_import(archive_path: str):
+    rt = build_runtime(interactive=False)
+    mgr = getattr(rt, "agent_manager", None)
+    if not mgr:
+        console.print({'error': 'AgentManager not available'})
+        return
+    pkg = mgr.import_agent(Path(archive_path).expanduser())
+    console.print({'ok': True, 'imported_agent_id': pkg.manifest.id, 'state': 'DRAFT'})
 
 @todo_app.command('add')
 def todo_add(title: str, due_at: str | None = None):

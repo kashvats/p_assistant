@@ -3,7 +3,13 @@ from importlib import resources
 from pathlib import Path
 import os, re, yaml
 import json
-from platformdirs import user_data_dir
+from platformdirs import (
+    user_data_dir,
+    user_config_dir,
+    user_cache_dir,
+    user_log_dir,
+    user_state_dir,
+)
 from living_assistant.core.storage_utils import atomic_write_text
 
 ENV_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)(?::([^}]*))?\}")
@@ -39,6 +45,41 @@ def data_dir() -> Path:
             p.chmod(0o700)
         except OSError:
             pass
+    return p
+
+
+def config_dir() -> Path:
+    p = Path(user_config_dir("LivingAssistant", "LivingAssistant"))
+    p.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        try:
+            p.chmod(0o700)
+        except OSError:
+            pass
+    return p
+
+
+def cache_dir() -> Path:
+    p = Path(user_cache_dir("LivingAssistant", "LivingAssistant"))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def log_dir() -> Path:
+    p = Path(user_log_dir("LivingAssistant", "LivingAssistant"))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def state_dir() -> Path:
+    p = Path(user_state_dir("LivingAssistant", "LivingAssistant"))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def venvs_dir() -> Path:
+    p = cache_dir() / "venvs"
+    p.mkdir(parents=True, exist_ok=True)
     return p
 
 

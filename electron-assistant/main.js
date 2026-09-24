@@ -1,5 +1,32 @@
-const { app, BrowserWindow, ipcMain, screen, powerMonitor, globalShortcut } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, powerMonitor, globalShortcut, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
+
+let tray = null
+
+function showAssistant() {
+ const win = BrowserWindow.getAllWindows()[0]
+ if (win) { win.show(); win.focus() }
+}
+
+function hideAssistant() {
+ const win = BrowserWindow.getAllWindows()[0]
+ if (win) win.hide()
+}
+
+function createTray() {
+ if (tray) return
+ const image = nativeImage.createFromPath(path.join(__dirname, '..', 'passistant.png'))
+ tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
+ tray.setToolTip('Living Assistant')
+ tray.setContextMenu(Menu.buildFromTemplate([
+   { label: 'Show Assistant', click: showAssistant },
+   { label: 'Hide Assistant', click: hideAssistant },
+   { label: 'Settings', click: () => { showAssistant(); BrowserWindow.getAllWindows()[0]?.webContents.send('open-settings') } },
+   { type: 'separator' },
+   { label: 'Quit', click: () => app.quit() },
+ ]))
+ tray.on('click', showAssistant)
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -40,9 +67,8 @@ ipcMain.handle('assistant-config', () => ({
 }))
 
 ipcMain.handle('companion-show', () => {
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win) win.show()
-  return Boolean(win)
+  showAssistant()
+  return Boolean(BrowserWindow.getAllWindows()[0])
 })
 
 ipcMain.handle('companion-size', (_event, expanded) => {
@@ -62,6 +88,7 @@ ipcMain.handle('companion-move', (_event, deltaX, deltaY) => {
 
 app.whenReady().then(() => {
   createWindow()
+  createTray()
   globalShortcut.register('CommandOrControl+Shift+Space', () => {
     const win = BrowserWindow.getAllWindows()[0]
     if (!win) return
@@ -82,6 +109,5 @@ app.on('window-all-closed', function () {
 })
 
 ipcMain.on('companion-hide', () => {
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win) win.hide()
+  hideAssistant()
 })

@@ -12,6 +12,8 @@ from living_assistant.api_routes import (
     personal,
     peers,
     security,
+    skills,
+    agents,
     ui,
     workspace,
 )
@@ -27,6 +29,8 @@ def test_api_is_split_into_domain_routers_without_duplicate_routes():
         personal.router,
         peers.router,
         security.router,
+        skills.router,
+        agents.router,
         ui.router,
         workspace.router,
     ]
@@ -48,7 +52,7 @@ def test_api_is_split_into_domain_routers_without_duplicate_routes():
         methods = tuple(sorted(getattr(route, "methods", ()) or ()))
         route_keys.append((path, methods))
 
-    assert len(route_keys) == 125
+    assert len(route_keys) == 149
     assert len(route_keys) == len(set(route_keys))
 
 

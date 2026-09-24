@@ -7,7 +7,7 @@ const Prism = globalThis.Prism;
 const h = React.createElement;
 
 const NAV = [
-  ['overview', 'Overview'], ['models', 'Models'], ['chat', 'Chat'], ['approvals', 'Approvals'],
+  ['overview', 'Overview'], ['models', 'Models'], ['chat', 'Chat'], ['skills', 'Skills'], ['agents', 'Agents'], ['approvals', 'Approvals'],
   ['organize', 'Calendar & Todos'], ['security', 'Security'], ['activity', 'Activity'],
 ];
 
@@ -115,6 +115,8 @@ class App extends React.Component {
       security: {summary: null, findings: [], sensors: null}, activity: [], lastEvent: 0,
       messages: [], chatInput: '', streaming: false, chatTools: [], resourceHistory: [],
       todoTitle: '', todoDue: '', calTitle: '', calStart: '', modelPullName: '', modelBusy: false,
+      skills: [], selectedSkill: null, skillDraftPrompt: '', skillSearch: '', skillBusy: false, skillTrace: null, skillDryRun: true, skillCollections: null,
+      agents: [], selectedAgent: null, agentDraftPrompt: '', agentSearch: '', agentBusy: false, agentTrace: null, agentDryRun: true,
       toast: '', error: '',
     };
     this.pollers = []; this.activityController = null; this.approvalSeen = new Set();
@@ -173,7 +175,146 @@ class App extends React.Component {
       this.setState({activity, lastEvent});
     } catch (_) {}
   }
-  async refreshAll() { await Promise.allSettled([this.loadStatus(), this.loadUsage(), this.loadModels(), this.loadApprovals(), this.loadTodos(), this.loadCalendar(), this.loadSecurity(), this.loadActivity()]); }
+  async loadSkills() {
+    try {
+      const res = await this.api('/skills');
+      this.setState({skills: res.skills || []});
+    } catch (_) {}
+  }
+  async createSkillDraft() {
+    if (!this.state.skillDraftPrompt.trim()) return;
+    this.setState({skillBusy: true});
+    try {
+      const res = await this.api('/skills/draft', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({description: this.state.skillDraftPrompt})});
+      this.notify(`Draft skill '${res.manifest.name}' created!`);
+      this.setState({skillDraftPrompt: '', selectedSkill: res});
+      await this.loadSkills();
+    } catch (e) { this.notify(`Draft failed: ${e.message}`, true); }
+    finally { this.setState({skillBusy: false}); }
+  }
+  async activateSkill(id) {
+    try {
+      await this.api(`/skills/${id}/activate`, {method: 'POST'});
+      this.notify(`Skill '${id}' activated!`);
+      await this.loadSkills();
+      if (this.state.selectedSkill?.lifecycle?.skill_id === id) {
+        this.selectSkill(id);
+      }
+    } catch (e) { this.notify(`Activation failed: ${e.message}`, true); }
+  }
+  async disableSkill(id) {
+    try {
+      await this.api(`/skills/${id}/disable`, {method: 'POST'});
+      this.notify(`Skill '${id}' disabled.`);
+      await this.loadSkills();
+    } catch (e) { this.notify(`Disable failed: ${e.message}`, true); }
+  }
+  async testSkill(id) {
+    this.setState({skillBusy: true, skillTrace: null});
+    try {
+      const res = await this.api(`/skills/${id}/execute`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({inputs: {}, dry_run: this.state.skillDryRun}),
+      });
+      this.setState({skillTrace: res});
+      this.notify(`Test finished (${res.status})`);
+    } catch (e) { this.notify(`Test failed: ${e.message}`, true); }
+    finally { this.setState({skillBusy: false}); }
+  }
+  async rollbackSkill(id, version) {
+    try {
+      await this.api(`/skills/${id}/rollback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({version}),
+      });
+      this.notify(`Skill rolled back to ${version}!`);
+      await this.loadSkills();
+      await this.selectSkill(id);
+    } catch (e) { this.notify(`Rollback failed: ${e.message}`, true); }
+  }
+  async selectSkill(id) {
+    try {
+      const res = await this.api(`/skills/${id}`);
+      this.setState({selectedSkill: res, skillTrace: null});
+    } catch (e) { this.notify(`Failed to load skill: ${e.message}`, true); }
+  }
+  async loadSkillCollections() {
+    try {
+      const res = await this.api('/skills/collections/browse');
+      this.setState({skillCollections: res});
+    } catch (e) { this.notify(`Collections browse failed: ${e.message}`, true); }
+  }
+  async importCollectionSkill(col, folder) {
+    try {
+      const res = await this.api('/skills/collections/import', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({collection: col, folder}),
+      });
+      this.notify(`Imported '${folder}' as draft!`);
+      await this.loadSkills();
+    } catch (e) { this.notify(`Import failed: ${e.message}`, true); }
+  }
+  async loadAgents() {
+    try {
+      const res = await this.api('/agents');
+      this.setState({agents: res.agents || []});
+    } catch (_) {}
+  }
+  async selectAgent(id) {
+    try {
+      const res = await this.api(`/agents/${id}`);
+      this.setState({selectedAgent: res, agentTrace: null});
+    } catch (e) { this.notify(`Failed to load agent: ${e.message}`, true); }
+  }
+  async createAgentDraft() {
+    if (!this.state.agentDraftPrompt.trim()) return;
+    this.setState({agentBusy: true});
+    try {
+      const res = await this.api('/agents/draft', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({description: this.state.agentDraftPrompt}),
+      });
+      this.notify(`Draft agent '${res.manifest.name}' created!`);
+      this.setState({agentDraftPrompt: '', selectedAgent: res});
+      await this.loadAgents();
+    } catch (e) { this.notify(`Agent draft failed: ${e.message}`, true); }
+    finally { this.setState({agentBusy: false}); }
+  }
+  async activateAgent(id) {
+    try {
+      const res = await this.api(`/agents/${id}/activate`, {method: 'POST'});
+      if (res.ok) {
+        this.notify(`Agent '${id}' activated!`);
+        await this.loadAgents();
+        this.selectAgent(id);
+      }
+    } catch (e) { this.notify(`Activation failed: ${e.message}`, true); }
+  }
+  async disableAgent(id) {
+    try {
+      await this.api(`/agents/${id}/disable`, {method: 'POST'});
+      this.notify(`Agent '${id}' disabled.`);
+      await this.loadAgents();
+    } catch (e) { this.notify(`Disable failed: ${e.message}`, true); }
+  }
+  async testAgent(id) {
+    this.setState({agentBusy: true, agentTrace: null});
+    try {
+      const res = await this.api(`/agents/${id}/execute`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({task: `Execute verification run for ${id}`, dry_run: this.state.agentDryRun}),
+      });
+      this.setState({agentTrace: res});
+      this.notify(`Test finished (${res.status})`);
+    } catch (e) { this.notify(`Test failed: ${e.message}`, true); }
+    finally { this.setState({agentBusy: false}); }
+  }
+  async refreshAll() { await Promise.allSettled([this.loadStatus(), this.loadUsage(), this.loadModels(), this.loadSkills(), this.loadAgents(), this.loadApprovals(), this.loadTodos(), this.loadCalendar(), this.loadSecurity(), this.loadActivity()]); }
   async startActivityStream() {
     if (this.activityController) this.activityController.abort();
     const controller = new AbortController(); this.activityController = controller;
@@ -240,8 +381,287 @@ class App extends React.Component {
       this.state.toast ? h('div',{className:'fixed right-4 bottom-4 z-50 max-w-sm rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 shadow-xl text-sm'},this.state.toast):null);
   }
   render() {
-    const pages={overview:this.renderOverview(),models:this.renderModels(),chat:this.renderChat(),approvals:this.renderApprovals(),organize:this.renderOrganize(),security:this.renderSecurity(),activity:this.renderActivity()};
+    const pages={overview:this.renderOverview(),models:this.renderModels(),chat:this.renderChat(),skills:this.renderSkills(),agents:this.renderAgents(),approvals:this.renderApprovals(),organize:this.renderOrganize(),security:this.renderSecurity(),activity:this.renderActivity()};
     return this.renderShell(pages[this.state.page]||pages.overview);
+  }
+  renderSkills() {
+    const sel = this.state.selectedSkill;
+    const m = sel?.manifest || {};
+    const lc = sel?.lifecycle || {};
+    const filtered = (this.state.skills || []).filter(s => {
+      const q = (this.state.skillSearch || '').toLowerCase();
+      return !q || (s.name || s.skill_id || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q);
+    });
+
+    const statusBadge = (st) => {
+      const colors = {
+        ACTIVE: 'bg-emerald-950 text-emerald-300 border-emerald-800',
+        DRAFT: 'bg-amber-950 text-amber-300 border-amber-800',
+        DISABLED: 'bg-rose-950 text-rose-300 border-rose-800',
+        ARCHIVED: 'bg-slate-800 text-slate-400 border-slate-700',
+      };
+      return h('span', {className: `text-xs px-2 py-0.5 rounded-full border ${colors[st] || colors.DRAFT}`}, st || 'DRAFT');
+    };
+
+    const leftCol = h('div', {className: 'space-y-3'},
+      this.card('Create from Description', h('div', {className: 'space-y-2'},
+        h('textarea', {
+          rows: 2,
+          value: this.state.skillDraftPrompt,
+          onChange: e => this.setState({skillDraftPrompt: e.target.value}),
+          placeholder: 'e.g. Create a skill that organizes my invoices by vendor and month',
+          className: 'w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm',
+        }),
+        h('div', {className: 'flex justify-end'},
+          h('button', {
+            disabled: this.state.skillBusy || !this.state.skillDraftPrompt.trim(),
+            onClick: () => this.createSkillDraft(),
+            className: 'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-sm font-medium',
+          }, this.state.skillBusy ? 'Creating Draft…' : 'Generate Draft'),
+        ),
+      )),
+      this.card('Registered Skills', h('div', {className: 'space-y-3'},
+        h('div', {className: 'flex gap-2'},
+          h('input', {
+            value: this.state.skillSearch,
+            onChange: e => this.setState({skillSearch: e.target.value}),
+            placeholder: 'Search skills…',
+            className: 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm',
+          }),
+          h('button', {
+            onClick: () => this.loadSkillCollections(),
+            className: 'px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-xs hover:bg-slate-700 whitespace-nowrap',
+          }, 'Browse Collections'),
+        ),
+        h('div', {className: 'space-y-2 max-h-[30rem] overflow-y-auto'},
+          filtered.length ? filtered.map((sk) => h('div', {
+            key: sk.skill_id,
+            onClick: () => this.selectSkill(sk.skill_id),
+            className: cx(
+              'p-3 rounded-xl border cursor-pointer transition',
+              sel?.lifecycle?.skill_id === sk.skill_id ? 'border-brand-500 bg-slate-800/80' : 'border-slate-800 bg-slate-950 hover:bg-slate-800/50',
+            ),
+          },
+            h('div', {className: 'flex items-center justify-between'},
+              h('strong', {className: 'text-sm'}, sk.name || sk.skill_id),
+              statusBadge(sk.state),
+            ),
+            h('div', {className: 'text-xs text-slate-400 mt-1 line-clamp-2'}, sk.description || 'No description'),
+            h('div', {className: 'text-xs text-slate-500 mt-2 font-mono'}, `v${sk.current_version || sk.manifest?.version || '1.0.0'}`),
+          )) : h('div', {className: 'text-slate-500 text-sm'}, 'No matching skills found.'),
+        ),
+      )),
+    );
+
+    const rightCol = sel ? h('div', {className: 'space-y-3'},
+      this.card(null, h('div', {className: 'space-y-4'},
+        h('div', {className: 'flex items-start justify-between flex-wrap gap-2'},
+          h('div', null,
+            h('h2', {className: 'text-lg font-bold'}, m.name || sel.lifecycle.skill_id),
+            h('div', {className: 'text-xs text-slate-400 font-mono mt-0.5'}, `ID: ${sel.lifecycle.skill_id} · v${m.version || sel.lifecycle.current_version}`),
+          ),
+          h('div', {className: 'flex items-center gap-2'},
+            statusBadge(sel.lifecycle.state),
+            sel.lifecycle.state === 'ACTIVE'
+              ? h('button', {onClick: () => this.disableSkill(sel.lifecycle.skill_id), className: 'px-3 py-1.5 rounded-xl border border-rose-800 bg-rose-950 text-rose-300 text-xs'}, 'Disable')
+              : h('button', {onClick: () => this.activateSkill(sel.lifecycle.skill_id), className: 'px-3 py-1.5 rounded-xl border border-emerald-800 bg-emerald-950 text-emerald-300 text-xs'}, 'Review & Activate'),
+          ),
+        ),
+        h('p', {className: 'text-sm text-slate-300'}, m.description || ''),
+        h('div', {className: 'grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs'},
+          h('div', {className: 'rounded-xl border border-slate-800 p-3 bg-slate-950'},
+            h('div', {className: 'text-slate-500 uppercase font-semibold mb-1'}, 'Triggers'),
+            h('div', {className: 'flex flex-wrap gap-1'}, (m.triggers || []).map(t => h('span', {key: t, className: 'px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono'}, t))),
+          ),
+          h('div', {className: 'rounded-xl border border-slate-800 p-3 bg-slate-950'},
+            h('div', {className: 'text-slate-500 uppercase font-semibold mb-1'}, 'Required Tools'),
+            h('div', {className: 'flex flex-wrap gap-1'}, (m.required_tools || []).map(t => h('span', {key: t, className: 'px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono'}, t))),
+          ),
+        ),
+        h('div', {className: 'rounded-xl border border-slate-800 p-3 bg-slate-950 text-xs space-y-1'},
+          h('div', {className: 'text-slate-500 uppercase font-semibold mb-1'}, 'Security & Permission Scopes'),
+          h('div', null, `Allowed Filesystem: ${JSON.stringify(m.permissions?.filesystem || ['workspace'])}`),
+          h('div', null, `Destructive File Changes: ${m.permissions?.destructive ? 'Yes' : 'No (Protected)'}`),
+          h('div', null, `Network Access: ${m.permissions?.network ? 'Yes' : 'No (Offline)'}`),
+          h('div', null, `Subprocess Execution: ${m.permissions?.subprocess ? 'Yes' : 'No'}`),
+        ),
+        h('div', {className: 'flex items-center gap-3 pt-2 border-t border-slate-800 flex-wrap'},
+          h('label', {className: 'flex items-center gap-2 text-xs text-slate-300'},
+            h('input', {type: 'checkbox', checked: this.state.skillDryRun, onChange: e => this.setState({skillDryRun: e.target.checked})}),
+            'Dry Run (Suppress Disk Mutations)',
+          ),
+          h('button', {
+            disabled: this.state.skillBusy,
+            onClick: () => this.testSkill(sel.lifecycle.skill_id),
+            className: 'px-4 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 text-xs font-semibold disabled:opacity-50',
+          }, this.state.skillBusy ? 'Running…' : (this.state.skillDryRun ? 'Preview Dry Run' : 'Execute Live')),
+          h('a', {
+            href: `/skills/${sel.lifecycle.skill_id}/export`,
+            download: `skill_${sel.lifecycle.skill_id}.zip`,
+            className: 'px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300',
+          }, 'Export (.zip)'),
+        ),
+        this.state.skillTrace ? h('div', {className: 'space-y-2 pt-2 border-t border-slate-800'},
+          h('h3', {className: 'text-xs font-semibold uppercase text-slate-400'}, `Execution Trace (${this.state.skillTrace.status})`),
+          h('pre', {className: 'font-mono text-xs overflow-x-auto p-3 rounded-xl bg-slate-950 border border-slate-800 whitespace-pre-wrap'},
+            JSON.stringify(this.state.skillTrace, null, 2),
+          ),
+        ) : null,
+        sel.versions?.length > 1 ? h('div', {className: 'space-y-2 pt-2 border-t border-slate-800'},
+          h('h3', {className: 'text-xs font-semibold uppercase text-slate-400'}, 'Version Snapshots & Rollback'),
+          h('div', {className: 'space-y-1'}, sel.versions.map(v => h('div', {
+            key: v.version,
+            className: 'flex items-center justify-between text-xs p-2 rounded-lg bg-slate-950 border border-slate-800',
+          },
+            h('span', null, `v${v.version} · ${v.created_at}`),
+            v.version !== sel.lifecycle.current_version
+              ? h('button', {
+                onClick: () => this.rollbackSkill(sel.lifecycle.skill_id, v.version),
+                className: 'px-2 py-1 rounded border border-amber-800 bg-amber-950 text-amber-300 hover:bg-amber-900',
+              }, 'Rollback')
+              : h('span', {className: 'text-emerald-400 font-semibold'}, 'Active Version'),
+          ))),
+        ) : null,
+        sel.skill_md ? h('div', {className: 'space-y-2 pt-2 border-t border-slate-800'},
+          h('h3', {className: 'text-xs font-semibold uppercase text-slate-400'}, 'SKILL.md Documentation'),
+          h('pre', {className: 'font-mono text-xs overflow-x-auto p-3 rounded-xl bg-slate-950 border border-slate-800 whitespace-pre-wrap'}, sel.skill_md),
+        ) : null,
+      ))) : this.card(null, h('div', {className: 'text-slate-500 py-12 text-center'}, 'Select a skill from the left or generate a new draft to inspect details.'));
+
+    return h('div', {className: 'grid md:grid-cols-12 gap-3'},
+      h('div', {className: 'md:col-span-5'}, leftCol),
+      h('div', {className: 'md:col-span-7'}, rightCol),
+    );
+  }
+  renderAgents() {
+    const sel = this.state.selectedAgent;
+    const m = sel?.manifest || {};
+    const lc = sel?.lifecycle || {};
+    const filtered = (this.state.agents || []).filter(a => {
+      const q = (this.state.agentSearch || '').toLowerCase();
+      return !q || (a.name || a.agent_id || '').toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q) || (a.role || '').toLowerCase().includes(q);
+    });
+
+    const statusBadge = (st) => {
+      const colors = {
+        ACTIVE: 'bg-emerald-950 text-emerald-300 border-emerald-800',
+        DRAFT: 'bg-amber-950 text-amber-300 border-amber-800',
+        DISABLED: 'bg-rose-950 text-rose-300 border-rose-800',
+        ARCHIVED: 'bg-slate-800 text-slate-400 border-slate-700',
+      };
+      return h('span', {className: `text-xs px-2 py-0.5 rounded-full border ${colors[st] || colors.DRAFT}`}, st || 'DRAFT');
+    };
+
+    const leftCol = h('div', {className: 'space-y-3'},
+      this.card('Create Agent from Description', h('div', {className: 'space-y-2'},
+        h('textarea', {
+          rows: 2,
+          value: this.state.agentDraftPrompt,
+          onChange: e => this.setState({agentDraftPrompt: e.target.value}),
+          placeholder: 'e.g. Create a research specialist that searches and summarizes technical documentation',
+          className: 'w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm',
+        }),
+        h('div', {className: 'flex justify-end'},
+          h('button', {
+            disabled: this.state.agentBusy || !this.state.agentDraftPrompt.trim(),
+            onClick: () => this.createAgentDraft(),
+            className: 'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-sm font-medium',
+          }, this.state.agentBusy ? 'Drafting…' : 'Generate Agent Draft'),
+        ),
+      )),
+      this.card('Registered Custom Agents', h('div', {className: 'space-y-3'},
+        h('input', {
+          value: this.state.agentSearch,
+          onChange: e => this.setState({agentSearch: e.target.value}),
+          placeholder: 'Search agents…',
+          className: 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm',
+        }),
+        h('div', {className: 'space-y-2 max-h-[30rem] overflow-y-auto'},
+          filtered.length ? filtered.map((ag) => h('div', {
+            key: ag.agent_id,
+            onClick: () => this.selectAgent(ag.agent_id),
+            className: cx(
+              'p-3 rounded-xl border cursor-pointer transition',
+              sel?.lifecycle?.agent_id === ag.agent_id ? 'border-brand-500 bg-slate-800/80' : 'border-slate-800 bg-slate-950 hover:bg-slate-800/50',
+            ),
+          },
+            h('div', {className: 'flex items-center justify-between'},
+              h('strong', {className: 'text-sm'}, ag.name || ag.agent_id),
+              statusBadge(ag.state),
+            ),
+            h('div', {className: 'text-xs text-slate-400 mt-1 line-clamp-2'}, ag.description || 'No description'),
+            h('div', {className: 'text-xs text-slate-500 mt-2 flex justify-between font-mono'},
+              h('span', null, `Role: ${ag.role || 'specialist'}`),
+              h('span', null, `v${ag.current_version || ag.manifest?.version || '1.0.0'}`),
+            ),
+          )) : h('div', {className: 'text-slate-500 text-sm'}, 'No matching agents found.'),
+        ),
+      )),
+    );
+
+    const rightCol = sel ? h('div', {className: 'space-y-3'},
+      this.card(null, h('div', {className: 'space-y-4'},
+        h('div', {className: 'flex items-start justify-between flex-wrap gap-2'},
+          h('div', null,
+            h('h2', {className: 'text-lg font-bold'}, m.name || sel.lifecycle.agent_id),
+            h('div', {className: 'text-xs text-slate-400 font-mono mt-0.5'}, `ID: ${sel.lifecycle.agent_id} · Role: ${sel.lifecycle.role || m.role} · v${m.version || sel.lifecycle.current_version}`),
+          ),
+          h('div', {className: 'flex items-center gap-2'},
+            statusBadge(sel.lifecycle.state),
+            sel.lifecycle.state === 'ACTIVE'
+              ? h('button', {onClick: () => this.disableAgent(sel.lifecycle.agent_id), className: 'px-3 py-1.5 rounded-xl border border-rose-800 bg-rose-950 text-rose-300 text-xs'}, 'Disable')
+              : h('button', {onClick: () => this.activateAgent(sel.lifecycle.agent_id), className: 'px-3 py-1.5 rounded-xl border border-emerald-800 bg-emerald-950 text-emerald-300 text-xs'}, 'Review & Activate'),
+          ),
+        ),
+        h('p', {className: 'text-sm text-slate-300'}, m.description || ''),
+        h('div', {className: 'grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs'},
+          h('div', {className: 'rounded-xl border border-slate-800 p-3 bg-slate-950'},
+            h('div', {className: 'text-slate-500 uppercase font-semibold mb-1'}, 'Allowed Tools'),
+            h('div', {className: 'flex flex-wrap gap-1'}, (m.allowed_tools || []).map(t => h('span', {key: t, className: 'px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono'}, t))),
+          ),
+          h('div', {className: 'rounded-xl border border-slate-800 p-3 bg-slate-950'},
+            h('div', {className: 'text-slate-500 uppercase font-semibold mb-1'}, 'Allowed Skills'),
+            h('div', {className: 'flex flex-wrap gap-1'}, (m.allowed_skills || []).map(s => h('span', {key: s, className: 'px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono'}, s))),
+          ),
+        ),
+        h('div', {className: 'rounded-xl border border-slate-800 p-3 bg-slate-950 text-xs space-y-1'},
+          h('div', {className: 'text-slate-500 uppercase font-semibold mb-1'}, 'Governance & Bounding Limits'),
+          h('div', null, `Max Steps: ${m.limits?.max_steps || 15} · Loop Detection Threshold: ${m.limits?.loop_detection_threshold || 3}`),
+          h('div', null, `Timeout: ${m.limits?.timeout_seconds || 120}s · Delegation: ${m.delegation_policy?.can_delegate ? 'Enabled' : 'Disabled'}`),
+          h('div', null, `Memory Scope: [${(m.memory_scope?.readable_namespaces || []).join(', ')}]`),
+        ),
+        h('div', {className: 'flex items-center gap-3 pt-2 border-t border-slate-800 flex-wrap'},
+          h('label', {className: 'flex items-center gap-2 text-xs text-slate-300'},
+            h('input', {type: 'checkbox', checked: this.state.agentDryRun, onChange: e => this.setState({agentDryRun: e.target.checked})}),
+            'Dry Run (Tool Simulation)',
+          ),
+          h('button', {
+            disabled: this.state.agentBusy,
+            onClick: () => this.testAgent(sel.lifecycle.agent_id),
+            className: 'px-4 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 text-xs font-semibold disabled:opacity-50',
+          }, this.state.agentBusy ? 'Executing…' : (this.state.agentDryRun ? 'Run Dry-Run Test' : 'Execute Agent Live')),
+          h('a', {
+            href: `/agents/${sel.lifecycle.agent_id}/export`,
+            download: `agent_${sel.lifecycle.agent_id}.zip`,
+            className: 'px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300',
+          }, 'Export (.zip)'),
+        ),
+        this.state.agentTrace ? h('div', {className: 'space-y-2 pt-2 border-t border-slate-800'},
+          h('h3', {className: 'text-xs font-semibold uppercase text-slate-400'}, `Execution Trace (${this.state.agentTrace.status})`),
+          h('pre', {className: 'font-mono text-xs overflow-x-auto p-3 rounded-xl bg-slate-950 border border-slate-800 whitespace-pre-wrap'},
+            JSON.stringify(this.state.agentTrace, null, 2),
+          ),
+        ) : null,
+        sel.agent_md ? h('div', {className: 'space-y-2 pt-2 border-t border-slate-800'},
+          h('h3', {className: 'text-xs font-semibold uppercase text-slate-400'}, 'AGENT.md Specification'),
+          h('pre', {className: 'font-mono text-xs overflow-x-auto p-3 rounded-xl bg-slate-950 border border-slate-800 whitespace-pre-wrap'}, sel.agent_md),
+        ) : null,
+      ))) : this.card(null, h('div', {className: 'text-slate-500 py-12 text-center'}, 'Select an agent from the left or generate a draft to view details.'));
+
+    return h('div', {className: 'grid md:grid-cols-12 gap-3'},
+      h('div', {className: 'md:col-span-5'}, leftCol),
+      h('div', {className: 'md:col-span-7'}, rightCol),
+    );
   }
   card(title, body, className='') { return h('section',{className:cx('rounded-2xl border border-slate-800 bg-slate-900/75 p-4 shadow-2xl shadow-black/20',className)},title?h('h2',{className:'text-base font-semibold mb-3'},title):null,body); }
   metric(label,value){return this.card(null,h('div',null,h('div',{className:'text-xs uppercase tracking-wider text-slate-500'},label),h('div',{className:'text-2xl font-semibold mt-1'},value)));}

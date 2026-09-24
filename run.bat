@@ -148,6 +148,16 @@ if not defined ASSISTANT_API_TOKEN (
 )
 
 echo.
+
+powershell.exe -NoProfile -Command "try { $null = (New-Object System.Net.Sockets.TcpClient).Connect('%HOST%', %PORT%); exit 0 } catch { exit 1 }" >nul 2>&1
+if not errorlevel 1 (
+    echo Living Assistant is already running.
+    echo Opening dashboard in your browser...
+    start "" "%URL%"
+    pause
+    exit /b 0
+)
+
 echo ========================================================
 echo Server:    http://%HOST%:%PORT%
 echo Dashboard: %URL%
@@ -186,7 +196,12 @@ set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
 if not "%EXIT_CODE%"=="0" (
-    echo [ERROR] Living Assistant stopped with exit code %EXIT_CODE%.
+    if "%EXIT_CODE%"=="3" (
+        echo [ERROR] Living Assistant could not start - port %PORT% may already be in use.
+        echo         If another instance is running, close it first and try again.
+    ) else (
+        echo [ERROR] Living Assistant stopped with exit code %EXIT_CODE%.
+    )
 ) else (
     echo Living Assistant stopped.
 )

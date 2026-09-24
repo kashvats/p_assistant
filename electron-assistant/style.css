@@ -53,6 +53,8 @@ button:hover { filter: brightness(1.16); transform: translateY(-1px); } button:a
 .action-button b { font-size: 12px; } .action-button small { margin-top: 2px; color: #9fb2d6; font-size: 10px; font-weight: 500; }
 .quick-controls { display: flex; gap: 5px; margin-top: 8px; }
 .quick-control { flex: 1; padding: 6px 4px; color: #a9b9d7; background: #15233b; border: 1px solid #2c4267; border-radius: 7px; font-size: 10px; font-weight: 600; }
+.chat-quick-button { color: #b7ccff; background: #1e2f52; border-color: #4a68b0; }
+.chat-quick-button:hover { filter: brightness(1.2); }
 .chat-panel { border-color: #5275b8; } .chat-heading, .settings-heading { justify-content: space-between; margin-bottom: 9px; color: #dce6ff; font-weight: 750; }
 .chat-history { display: grid; gap: 8px; max-height: 290px; overflow-y: auto; padding: 2px 4px 8px 1px; }
 .chat-history::-webkit-scrollbar { width: 6px; } .chat-history::-webkit-scrollbar-thumb { background: #425d91; border-radius: 999px; }
@@ -61,7 +63,10 @@ button:hover { filter: brightness(1.16); transform: translateY(-1px); } button:a
 .chat-message.user { justify-self: end; color: #eef3ff; background: #3d568d; border-bottom-right-radius: 3px; }
 .chat-message.assistant { justify-self: start; color: #dce6ff; background: #142440; border: 1px solid #304b78; border-bottom-left-radius: 3px; }
 .chat-message.pending { opacity: .7; } .chat-message.error { color: #ffb1b1; background: #46252f; border-color: #8f4b58; }
+.chat-message.streaming .chat-body::after { content: '▋'; display: inline-block; animation: blink-cursor .7s step-end infinite; color: #7d9ee8; }
+@keyframes blink-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 .chat-meta { margin-bottom: 3px; color: #8ea4ce; font-size: 9px; font-weight: 700; }
+.chat-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 .close-button { padding: 0 3px; color: #9eb1d4; background: transparent; font-size: 20px; line-height: 1; }
 .chat-row { display: flex; gap: 7px; align-items: end; } .chat-row textarea { min-height: 38px; max-height: 110px; flex: 1; resize: none; font: inherit; line-height: 1.35; } .send-button { width: 37px; min-height: 38px; padding: 0; font-size: 18px; }
 .settings { border-color: #42598d; } label { display: block; margin: 7px 0 4px; color: #a9b8d5; font-size: 11px; }

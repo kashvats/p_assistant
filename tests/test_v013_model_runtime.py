@@ -45,6 +45,16 @@ def test_4gb_gpu_stays_single_model():
     assert rm.model_policy.max_resident_models == 1
     assert rm.model_policy.max_concurrent_generations == 1
     assert rm.model_policy.mode == 'single'
+    assert rm.model_policy.recommended_context_tokens == 4096
+
+
+def test_4gb_gpu_context_budget_can_be_configured():
+    rm = ResourceManager(
+        'balanced',
+        cfg(default_context_tokens=8192, context_tokens_4gb_vram=3072),
+        hardware=hw(32, vram=4, free=4),
+    )
+    assert rm.model_policy.recommended_context_tokens == 3072
 
 
 def test_16gb_gpu_enables_two_models():

@@ -6,11 +6,20 @@ from living_assistant.core.storage_utils import atomic_write_json
 from living_assistant.system.platform_hardening import iter_tree_without_link_traversal, is_link_like
 
 class WatchRegistry:
-    def __init__(self, path: Path | None = None):
+    def __init__(self, path: Path | None = None, enable_watchdog: bool = True, debounce_seconds: float = 0.3):
         self.path = path or (data_dir() / "watches.json")
         if not self.path.exists():
             atomic_write_json(self.path, {})
         self.snapshots: dict[str, dict[str, tuple[int, int]]] = {}
+        self.enable_watchdog = enable_watchdog
+        self.debounce_seconds = debounce_seconds
+        self.watchdog_manager = None
+        if self.enable_watchdog:
+            try:
+                from living_assistant.system.watchdog_service import WatchdogObserverManager
+                self.watchdog_manager = WatchdogObserverManager(debounce_seconds=self.debounce_seconds)
+            except Exception:
+                self.watchdog_manager = None
 
     def _load(self) -> dict:
         try:
@@ -34,6 +43,17 @@ class WatchRegistry:
             "created_at": time.time(),
         }
         self._save(data)
+        if self.watchdog_manager is not None:
+            try:
+                self.watchdog_manager.add_watch(
+                    name=name,
+                    path=p,
+                    recursive=recursive,
+                    extensions=extensions,
+                    debounce_seconds=self.debounce_seconds,
+                )
+            except Exception:
+                pass
         return data[name]
 
     def remove(self, name: str) -> bool:
@@ -42,10 +62,19 @@ class WatchRegistry:
         data.pop(name, None)
         self.snapshots.pop(name, None)
         self._save(data)
+        if self.watchdog_manager is not None:
+            self.watchdog_manager.remove_watch(name)
         return existed
 
     def list(self) -> dict:
         return self._load()
+
+    def stop(self) -> None:
+        if self.watchdog_manager is not None:
+            self.watchdog_manager.stop()
+
+    def close(self) -> None:
+        self.stop()
 
     @staticmethod
     def _scan(cfg: dict, max_files: int = 3000) -> dict[str, tuple[int, int]]:
@@ -78,6 +107,8 @@ class WatchRegistry:
         """
         refreshed = 0
         missing = []
+        if self.watchdog_manager is not None:
+            self.watchdog_manager.rebaseline()
         for name, cfg in self._load().items():
             if not cfg.get("enabled", True):
                 continue
@@ -90,6 +121,14 @@ class WatchRegistry:
         return {"refreshed": refreshed, "missing": missing}
 
     def poll(self, max_events_per_watch: int = 50) -> list[dict]:
+        if self.watchdog_manager is not None:
+            watchdog_events = self.watchdog_manager.poll(max_events_per_watch=max_events_per_watch)
+            if watchdog_events:
+                for name, cfg in self._load().items():
+                    if cfg.get("enabled", True) and Path(cfg["path"]).exists():
+                        self.snapshots[name] = self._scan(cfg)
+                return watchdog_events
+
         events = []
         for name, cfg in self._load().items():
             if not cfg.get("enabled", True):

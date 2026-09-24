@@ -1,0 +1,24 @@
+flowchart LR
+    User["User (Chat / Voice / WebUI / CLI)"] --> Assistant["Living Assistant Core"]
+
+    subgraph CustomSkills["Custom Skills System (FEAT-19)"]
+        SkillCreator["Skill Creator"] --> SkillPackages["Skill Packages\n(manifest.json + SKILL.md)"]
+        SkillPackages --> SkillGuard["Permission Guard & Snapshots"]
+        SkillGuard --> SkillExecutor["Workflow Executor"]
+        SkillExecutor --> ToolAdapters["Portable Tool Adapters\n(Files, Documents, Notifier)"]
+    end
+
+    subgraph CustomAgents["Custom Agents System (FEAT-20)"]
+        AgentCreator["Agent Creator"] --> AgentPackages["Agent Bundles\n(manifest.json + AGENT.md)"]
+        AgentPackages --> Delegation["Delegation Coordinator & Snapshots"]
+        Delegation --> AgentExecutor["Agent Executor & Loop Detection"]
+        AgentExecutor --> ScopedMemory["Scoped Memory\n(Working, Notes, Knowledge)"]
+    end
+
+    Assistant --> SkillCreator
+    Assistant --> SkillExecutor
+    Assistant --> AgentCreator
+    Assistant --> AgentExecutor
+
+    ToolAdapters --> Host["Host System & Workspaces"]
+    AgentExecutor --> ToolAdapters

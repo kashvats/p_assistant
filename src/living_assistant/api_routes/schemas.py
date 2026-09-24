@@ -164,6 +164,7 @@ class DesktopAnalyzeRequest(BaseModel):
         max_length=4000,
     )
     monitor_id: int = Field(default=0, ge=0, le=64)
+    session_id: str | None = Field(default=None, max_length=128)
 
 
 class PeerDelegateRequest(BaseModel):

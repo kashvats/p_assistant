@@ -222,12 +222,21 @@ async function refreshVoiceStatus() {
       $('voice-enabled-toggle').checked = enabled
       $('hands-free-toggle').checked = Boolean(voice.hands_free_running)
       $('hands-free-toggle').disabled = !enabled
-      $('voice-button').disabled = !enabled
+      $('voice-chat').disabled = !enabled
       $('voice-status').textContent = ready
         ? `Ready for “Hey Jarvis” · ${voice.dependencies?.openwakeword ? 'wake model available' : 'install voice/wakeword extras'}`
         : 'Hands-free voice is disabled in the assistant configuration.'
     } catch (error) {
       $('voice-status').textContent = `Voice unavailable: ${error.message}`
+    }
+  }
+
+  async function refreshDesktopStatus() {
+    try {
+      const desktop = await api('/desktop/status')
+      $('screen-access-toggle').checked = Boolean(desktop.vision_enabled)
+    } catch (error) {
+      $('screen-access-toggle').checked = false
     }
   }
 
@@ -298,32 +307,88 @@ async function askAssistant(message) {
   button.textContent = '…'
   $('chat-status').textContent = 'Sending…'
   appendChatMessage('user', text)
-  const pending = appendChatMessage('assistant', 'Thinking…', { pending: true })
+  const pending = appendChatMessage('assistant', '', { pending: true, streaming: true })
+  const pendingBody = pending.querySelector('.chat-body')
+  let accumulated = ''
   try {
-    const answer = await api('/ask', {
+    const response = await fetch(`${state.baseUrl.replace(/\/$/, '')}/chat/stream`, {
       method: 'POST',
+      headers: { ...headers() },
       body: JSON.stringify({
         message: text,
         context: 'The user is working with the hovering desktop companion.',
         session_id: state.chatSessionId,
       }),
     })
-    pending.remove()
-    appendChatMessage('assistant', answer.answer || 'I am ready when you are.')
-    $('headline').textContent = answer.answer || 'I am ready when you are.'
-    $('chat-status').textContent = 'Message sent'
-    setConnectionState(true)
-    hideQuestion()
-  } catch (error) {
-    pending.classList.add('error')
-    pending.textContent = `Could not send: ${error.message}`
-    $('chat-status').textContent = 'Message failed. Check the connection and try again.'
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      throw new Error(payload.detail || `Assistant API returned ${response.status}`)
+    }
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() || ''
+      for (const block of blocks) {
+        const eventLine = block.split('\n').find((l) => l.startsWith('event:'))
+        const dataLine = block.split('\n').find((l) => l.startsWith('data:'))
+        if (!dataLine) continue
+        let event
+        try { event = JSON.parse(dataLine.slice(5).trim()) } catch (_) { continue }
+        const eventType = eventLine ? eventLine.slice(6).trim() : ''
+        if (eventType === 'error' || event.type === 'error') {
+          throw new Error(event.error || 'Stream error')
+        }
+                if (event.type === 'token') {
+          const token =
+            typeof event.text === 'string'
+              ? event.text
+              : typeof event.token === 'string'
+                ? event.token
+                : ''
+
+          if (token) {
+            accumulated += token
+            pendingBody.textContent = accumulated
+            $('chat-history').scrollTop = $('chat-history').scrollHeight
+          }
+        } else if (
+          event.type === 'final' ||
+          event.type === 'done' ||
+          event.type === 'finish'
+        ) {
+          const finalText =
+            typeof event.text === 'string'
+              ? event.text
+              : typeof event.answer === 'string'
+                ? event.answer
+                : ''
+
+          if (finalText) {
+            accumulated = finalText
+            pendingBody.textContent = accumulated
+          }
+        }
+      }
+    }
+
+    pending.classList.remove('pending', 'streaming')
+
+    if (!accumulated.trim()) {
+      throw new Error(
+        'Assistant completed the request but returned no readable response.'
+      )
+    }
     setConnectionState(false, error.message)
   } finally {
     state.sending = false
     $('chat-panel').setAttribute('aria-busy', 'false')
     button.disabled = false
-    button.textContent = '↑'
+    button.textContent = '\u2191'
     input.focus()
   }
 }
@@ -332,11 +397,15 @@ function appendChatMessage(role, content, options = {}) {
   const empty = $('chat-empty')
   if (empty) empty.remove()
   const message = document.createElement('article')
-  message.className = `chat-message ${role}${options.pending ? ' pending' : ''}`
+  const classes = ['chat-message', role]
+  if (options.pending) classes.push('pending')
+  if (options.streaming) classes.push('streaming')
+  message.className = classes.join(' ')
   const meta = document.createElement('div')
   meta.className = 'chat-meta'
   meta.textContent = role === 'user' ? 'You' : 'Assistant'
   const body = document.createElement('div')
+  body.className = 'chat-body'
   body.textContent = content
   message.append(meta, body)
   $('chat-history').appendChild(message)
@@ -363,6 +432,10 @@ async function loadChatHistory() {
   }
 }
 
+$('open-chat-quick').addEventListener('click', () => {
+  $('chat-panel').classList.remove('hidden')
+  $('chat-input').focus()
+})
 $('settings-button').addEventListener('click', () => $('settings').classList.toggle('hidden'))
 $('mode-button').addEventListener('click', () => setExpanded(!state.expanded))
 $('face-toggle').addEventListener('click', () => {
@@ -485,15 +558,11 @@ $('save-settings').addEventListener('click', () => {
   $('settings').classList.add('hidden')
   refreshStatus()
   refreshVoiceStatus()
+  refreshDesktopStatus()
   refreshModelCatalog()
 })
 $('dismiss-button').addEventListener('click', hideQuestion)
 $('ask-button').addEventListener('click', () => askAssistant(state.question).catch((error) => { $('connection-error').textContent = error.message }))
-$('chat-button').addEventListener('click', () => {
-  $('chat-panel').classList.remove('hidden')
-  loadChatHistory()
-  $('chat-input').focus()
-})
 $('close-chat').addEventListener('click', () => $('chat-panel').classList.add('hidden'))
 $('chat-form').addEventListener('submit', (event) => {
   event.preventDefault()
@@ -509,22 +578,24 @@ $('chat-input').addEventListener('keydown', (event) => {
     $('chat-form').requestSubmit()
   }
 })
-$('voice-button').addEventListener('click', async () => {
-  const button = $('voice-button')
+$('voice-chat').addEventListener('click', async () => {
+  const button = $('voice-chat')
   const original = button.innerHTML
   button.disabled = true
-  button.querySelector('b').textContent = 'Listening…'
-  button.querySelector('small').textContent = 'Speak after approval'
+  $('voice-status').textContent = 'Listening…'
   setExpression('observing')
   try {
     const result = await api('/voice/ask', {
       method: 'POST',
-      body: JSON.stringify({ max_seconds: 15, speak: false }),
+      body: JSON.stringify({ max_seconds: 15, speak: true }),
     })
     if (!result.ok) throw new Error(result.error || 'Voice command did not complete.')
+    $('voice-status').textContent = 'Speaking…'
     $('headline').textContent = result.answer || 'I heard you.'
     $('context').textContent = `Heard: “${result.transcript}”`
     setExpression('learning')
+    await loadChatHistory()
+    $('voice-status').textContent = 'Idle'
   } catch (error) {
     $('connection-error').textContent = error.message
     $('headline').textContent = 'I could not complete that voice request.'
@@ -532,17 +603,20 @@ $('voice-button').addEventListener('click', async () => {
   } finally {
     button.innerHTML = original
     button.disabled = false
+    if ($('voice-status').textContent !== 'Speaking…') $('voice-status').textContent = 'Idle'
   }
 })
-$('screen-button').addEventListener('click', async () => {
+
+$('screen-access-toggle').addEventListener('change', async (event) => {
   try {
-    $('headline').textContent = 'Taking a careful look…'
-    const result = await api('/desktop/analyze-screen', { method: 'POST', body: JSON.stringify({ prompt: 'Summarize what is currently visible and identify anything related to the active project.' }) })
-    $('headline').textContent = result.answer || result.error || 'Screen analysis completed.'
-    setConnectionState(true)
+    const result = await api('/desktop/screen-access', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: event.target.checked }),
+    })
+    event.target.checked = Boolean(result.vision_enabled)
   } catch (error) {
+    event.target.checked = !event.target.checked
     $('connection-error').textContent = error.message
-    setConnectionState(false, error.message)
   }
 })
 
@@ -561,6 +635,9 @@ loadConfig().then(() => {
   loadChatHistory()
   setInterval(refreshStatus, 15000)
   setInterval(refreshVoiceStatus, 5000)
+  setInterval(refreshDesktopStatus, 15000)
   setInterval(refreshModelCatalog, 30000)
   setInterval(refreshActivity, 3000)
 })
+
+window.assistantDesktop?.onOpenSettings?.(() => $('settings').classList.remove('hidden'))

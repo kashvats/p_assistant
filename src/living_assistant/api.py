@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from living_assistant.api_routes.agents import router as agents_router
 from living_assistant.api_routes.assistant import router as assistant_router
 from living_assistant.api_routes.desktop import router as desktop_router
 from living_assistant.api_routes.improvements import router as improvements_router
@@ -38,6 +39,7 @@ from living_assistant.api_routes.schemas import (
     TodoRequest,
 )
 from living_assistant.api_routes.security import router as security_router
+from living_assistant.api_routes.skills import router as skills_router
 from living_assistant.api_routes.ui import router as ui_router
 from living_assistant.api_routes.workspace import router as workspace_router
 from living_assistant.core.runtime import Runtime, get_runtime
@@ -109,11 +111,14 @@ def _auth(authorization: str | None) -> None:
     token = get_api_token()
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing or invalid token")
+    supplied = authorization.strip()
+    if supplied.lower().startswith("bearer "):
+        supplied = supplied[7:].strip()
     # Byte comparison preserves constant-time behavior and safely handles
     # non-ASCII header values.
-    if not hmac.compare_digest(
-        authorization.encode("utf-8"),
-        f"Bearer {token}".encode("utf-8"),
+    if not supplied or not hmac.compare_digest(
+        supplied.encode("utf-8"),
+        token.encode("utf-8"),
     ):
         raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -154,6 +159,11 @@ def status(authorization: str | None = Header(default=None)):
         "active_model": selected_model,
         "model_runtime": model_runtime,
         "model_provider": model_provider,
+        "integrations": (
+            rt.integrations.status()
+            if getattr(rt, "integrations", None) is not None
+            else {}
+        ),
     }
 
 
@@ -184,6 +194,8 @@ app.include_router(personal_router)
 app.include_router(security_router)
 app.include_router(improvements_router)
 app.include_router(integrations_router)
+app.include_router(skills_router)
+app.include_router(agents_router)
 app.include_router(ui_router)
 
 

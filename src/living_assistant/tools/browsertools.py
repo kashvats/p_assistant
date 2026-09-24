@@ -2,10 +2,10 @@ from __future__ import annotations
 from .base import Tool
 from living_assistant.desktop.browser import BrowserController
 
-def build_browser_tools(controller: BrowserController, enabled: bool = True) -> list[Tool]:
+def build_browser_tools(controller: BrowserController, enabled: bool = True, external=None) -> list[Tool]:
     if not enabled:
         return []
-    return [
+    tools = [
         Tool('browser_snapshot','Open a page in a fresh isolated browser and return rendered body text. Downloads are disabled. Optionally save a screenshot.',
              {'type':'object','properties':{'url':{'type':'string'},'screenshot':{'type':'string'}},'required':['url']},controller.snapshot),
         Tool('browser_interact','Perform one approved click/fill in a fresh isolated browser. Requires explicit approval.',
@@ -22,3 +22,20 @@ def build_browser_tools(controller: BrowserController, enabled: bool = True) -> 
         Tool('browser_session_close','Close a named isolated browser session.',
              {'type':'object','properties':{'name':{'type':'string'},'delete_profile':{'type':'boolean','default':False}},'required':['name']},controller.close_session),
     ]
+    if external is not None and external.available():
+        tools.append(
+            Tool(
+                "browser_use_task",
+                "Run a multi-step browser task through the pinned Browser Use engine.",
+                {
+                    "type": "object",
+                    "properties": {
+                        "task": {"type": "string"},
+                        "timeout_seconds": {"type": "number", "default": 120},
+                    },
+                    "required": ["task"],
+                },
+                external.run,
+            )
+        )
+    return tools

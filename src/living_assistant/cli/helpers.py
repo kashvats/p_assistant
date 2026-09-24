@@ -12,6 +12,7 @@ security_app = typer.Typer(help="Defensive local security tools.")
 approval_app = typer.Typer(help="Review persistent approval requests.")
 watch_app = typer.Typer(help="Manage low-resource filesystem watches.")
 skill_app = typer.Typer(help="Manage user-confirmed reusable prompt skills.")
+agent_app = typer.Typer(help="Manage and execute versioned custom agents.")
 todo_app = typer.Typer(help="Manage reminders/todos.")
 quarantine_app = typer.Typer(help="Inspect/release downloaded quarantined files.")
 git_app = typer.Typer(help="Git-aware project inspection.")
@@ -37,6 +38,7 @@ for sub, name in [
     (approval_app, "approval"),
     (watch_app, "watch"),
     (skill_app, "skill"),
+    (agent_app, "agent"),
     (todo_app, "todo"),
     (quarantine_app, "quarantine"),
     (git_app, "git"),

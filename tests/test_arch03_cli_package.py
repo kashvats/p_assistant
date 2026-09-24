@@ -20,6 +20,7 @@ def test_cli_package_exposes_expected_root_contract():
     tree = _command_tree(app)
     assert tree["commands"] == ["ask", "chat", "daemon", "doctor", "onboard", "serve", "tick", "tray"]
     assert {
+        "agent",
         "approval",
         "briefing",
         "browser",

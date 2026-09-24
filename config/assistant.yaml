@@ -52,6 +52,9 @@ model_runtime:
   thermal_guard_enabled: true
   max_gpu_temperature_c: 83
   max_cpu_temperature_c: 90
+  default_context_tokens: 8192
+  context_tokens_4gb_vram: 4096
+  context_tokens_under_8gb_vram: 6144
 
 profiles:
   lite:
@@ -150,6 +153,23 @@ web_search:
   # Durable cross-process provider budget stored locally in SQLite.
   max_calls_per_day: 1000
   serper_timeout_seconds: 15
+
+external_integrations:
+  # Optional engines remain disabled until installed and explicitly enabled.
+  # Native assistant implementations remain the safe fallback.
+  browser_use: {enabled: false, revision: d8110c5ff87ccba887aaa726cdb780f2f84bef8d, path: ./external-components/browser-use}
+  openviking: {enabled: false, revision: 053ddbbf392a1688fc7043d81529f47ef2cf86c8}
+  codebase_memory_mcp: {enabled: false, revision: 85f1f36e6cac63630b988f63d153b16f881a11e9}
+  diagram_design: {enabled: false, revision: 49c6e97775eaa18ba791bebe23162a70ae601c18}
+  cybersecurity_skills: {enabled: false, revision: 54a798831d2266a3ca61ce68a7acb80b81160d57}
+  agency_agents: {enabled: false, revision: 579a0a96dab86857da7daa483aa0281d7dde8a17}
+  openmontage: {enabled: false, revision: dc1ace47b99a419e42d01a03cb6ace5346efa8ae}
+  graft: {enabled: false, revision: d8110c5ff87ccba887aaa726cdb780f2f84bef8d}
+  agentmemory: {enabled: false, revision: e783f73d752f83b689451e3a7e48061cda1202f7}
+  edge0: {enabled: false, revision: 36ec2f5602779811ec5d805674f14a864657f3e6}
+  scientific_agent_skills: {enabled: false, revision: e04ba88819c365c9acf9d6661ea802143e728bd6}
+  awesome_harness_engineering: {enabled: false, revision: fb4cd2c49ebe22bb230e1451ecb8fb4957ca62e6}
+  awesome_ai_agent_tools: {enabled: false, revision: 1188e1bee9bfd97258e5014abf0b866a6691cc9b}
 
 downloads:
   quarantine_risky_files: true

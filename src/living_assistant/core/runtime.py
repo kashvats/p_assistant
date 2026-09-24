@@ -72,6 +72,19 @@ from living_assistant.tools.peertools import build_peer_tools
 from living_assistant.system.codebase_index import CodebaseIndex
 from living_assistant.system.workspace_snapshots import WorkspaceSnapshotManager
 from living_assistant.system.peer_agents import PeerAgentManager
+from living_assistant.integrations import AgentMemoryAdapter, BrowserUseAdapter, ExternalIntegrationRegistry, OpenVikingAdapter, CodebaseMemoryAdapter, DiagramDesignAdapter, CybersecuritySkillsAdapter, GraftAdapter, OpenMontageAdapter, Edge0Adapter, AgencyAgentsAdapter, ScientificSkillsAdapter, AwesomeHarnessAdapter, AwesomeAgentToolsAdapter
+from living_assistant.tools.vikingtools import build_viking_tools
+from living_assistant.tools.agentmemorytools import build_agentmemory_tools
+from living_assistant.tools.codebasememorytools import build_codebase_memory_tools
+from living_assistant.tools.diagramtools import build_diagram_tools
+from living_assistant.tools.securityskills_tools import build_security_skills_tools
+from living_assistant.tools.grafttools import build_graft_tools
+from living_assistant.tools.openmontagetools import build_openmontage_tools
+from living_assistant.tools.edge0tools import build_edge0_tools
+from living_assistant.tools.agencyagentstools import build_agency_agents_tools
+from living_assistant.tools.scientific_skillstools import build_scientific_skills_tools
+from living_assistant.tools.awesome_harnesstools import build_awesome_harness_tools
+from living_assistant.tools.awesome_agent_tools_tools import build_awesome_agent_tools
 
 @dataclass
 class Runtime:
@@ -121,6 +134,13 @@ class Runtime:
     peers: PeerAgentManager
     model_manager: ModelManager
     desktop_controller: DesktopController
+    integrations: ExternalIntegrationRegistry
+    openviking: OpenVikingAdapter | None
+    agentmemory: AgentMemoryAdapter | None = None
+    codebase_memory: CodebaseMemoryAdapter | None = None
+    skill_manager: Any = None
+    agent_manager: Any = None
+    scheduler: Any = None
 
 
 import threading
@@ -138,6 +158,7 @@ def get_runtime(interactive: bool = False) -> Runtime:
 def build_runtime(interactive: bool = True) -> Runtime:
     load_dotenv()
     cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw)
+    integrations = ExternalIntegrationRegistry(cfg)
     saved_model = load_model_preferences().get(profile)
     if saved_model:
         cfg.setdefault("profiles", {}).setdefault(profile, {}).setdefault("models", {})["orchestrator"] = saved_model
@@ -193,6 +214,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
         max_file_bytes=int(index_cfg.get('max_file_bytes',512000)),
         max_chunk_chars=int(index_cfg.get('max_chunk_chars',3500)),
         max_chunks=int(index_cfg.get('max_chunks',12000)),
+        resource_manager=resources,
     )
     briefings=BriefingEngine(cfg,personal,memory,calendar,projects,processes,approvals,notifier,guardian=guardian,experiences=experiences)
     planner=TaskGraphManager(approvals.path)
@@ -228,14 +250,157 @@ def build_runtime(interactive: bool = True) -> Runtime:
     mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
     configured_model = str(pcfg["models"]["orchestrator"])
     resolved_model = mm.resolve_local_model(configured_model)
+    if resolved_model and not AirLLMProvider.is_airllm_model(resolved_model):
+        try:
+            selected_size = provider.model_size_bytes(resolved_model)
+            allowed, _reason = resources.can_start_model(selected_size)
+            selected_lower = resolved_model.lower()
+            unsuitable_for_chat = any(
+                marker in selected_lower
+                for marker in ("embed", "nomic-embed", "moondream")
+            )
+            if not allowed or unsuitable_for_chat:
+                candidates = []
+                for candidate in ollama_provider.available_models():
+                    lowered_candidate = candidate.lower()
+                    if any(
+                        marker in lowered_candidate
+                        for marker in ("embed", "nomic-embed", "moondream")
+                    ):
+                        continue
+                    size = ollama_provider.model_size_bytes(candidate)
+                    if size is None:
+                        continue
+                    fits, _ = resources.can_start_model(size)
+                    if fits:
+                        candidates.append((size, candidate))
+                if candidates:
+                    resolved_model = min(candidates, key=lambda item: item[0])[1]
+        except Exception:
+            # Model inventory is an optional startup optimization. Normal
+            # selection and its explicit error remain authoritative if Ollama
+            # is unavailable during startup.
+            pass
     if resolved_model and resolved_model != configured_model:
         pcfg["models"]["orchestrator"] = resolved_model
         save_model_preference(profile, resolved_model)
     desktop_controller=DesktopController(ws, approval, cfg, provider=provider, model_manager=mm, quiet_provider=personal.is_quiet)
-    keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45)); context_tokens=int(pcfg.get('context_tokens',4096))
+    keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45))
+    context_tokens=min(
+        int(pcfg.get('context_tokens',4096)),
+        int(getattr(resources.model_policy, "recommended_context_tokens", 4096)),
+    )
     browser_cfg=cfg.get('browser',{})
     browser_enabled=bool(browser_cfg.get('enabled',True)) and (profile!='lite' or bool(browser_cfg.get('lite_enabled',False)))
     browser=BrowserController(ws,approval,headless=bool(browser_cfg.get('headless',False)),quiet_provider=personal.is_quiet)
+    browser_use = None
+    browser_use_cfg = (cfg.get("external_integrations", {}).get("browser_use", {}) or {})
+    if bool(browser_use_cfg.get("enabled", False)):
+        browser_use = BrowserUseAdapter(
+            browser_use_cfg.get("path", project_root() / "external-components" / "browser-use"),
+            str(ocfg["base_url"]),
+            str(resolved_model or pcfg["models"]["orchestrator"]),
+        )
+
+    openviking_adapter = None
+    ov_cfg = (cfg.get("external_integrations", {}).get("openviking", {}) or {})
+    if bool(ov_cfg.get("enabled", False)):
+        openviking_adapter = OpenVikingAdapter(
+            url=str(ov_cfg.get("url", "http://127.0.0.1:1933")),
+            api_key=str(ov_cfg.get("api_key", "")),
+            account=str(ov_cfg.get("account", "")),
+            user=str(ov_cfg.get("user", "")),
+            actor_peer_id=str(ov_cfg.get("actor_peer_id", "living-assistant")),
+            timeout=float(ov_cfg.get("timeout", 30.0)),
+            path=ov_cfg.get("path", project_root() / "external-components" / "OpenViking"),
+        )
+
+    agentmemory_adapter = None
+    am_cfg = (cfg.get("external_integrations", {}).get("agentmemory", {}) or {})
+    if bool(am_cfg.get("enabled", False)):
+        agentmemory_adapter = AgentMemoryAdapter(
+            url=str(am_cfg.get("url", "http://127.0.0.1:3111")),
+            token=str(am_cfg.get("token", "")),
+            timeout=float(am_cfg.get("timeout", 15.0)),
+            path=am_cfg.get("path", project_root() / "external-components" / "agentmemory"),
+        )
+
+    codebase_memory_adapter = None
+    cbm_cfg = (cfg.get("external_integrations", {}).get("codebase_memory_mcp", {}) or {})
+    if bool(cbm_cfg.get("enabled", False)):
+        codebase_memory_adapter = CodebaseMemoryAdapter(
+            command=str(cbm_cfg.get("command", "codebase-memory-mcp")),
+            path=cbm_cfg.get("path", project_root() / "external-components" / "codebase-memory-mcp"),
+            timeout=float(cbm_cfg.get("timeout", 30.0)),
+        )
+
+    diagram_adapter = None
+    diag_cfg = (cfg.get("external_integrations", {}).get("diagram_design", {}) or {})
+    if bool(diag_cfg.get("enabled", False)):
+        diagram_adapter = DiagramDesignAdapter(
+            path=diag_cfg.get("path", project_root() / "external-components" / "diagram-design"),
+            timeout=float(diag_cfg.get("timeout", 30.0)),
+        )
+
+    cybersecurity_adapter = None
+    cs_cfg = (cfg.get("external_integrations", {}).get("cybersecurity_skills", {}) or {})
+    if bool(cs_cfg.get("enabled", False)):
+        cybersecurity_adapter = CybersecuritySkillsAdapter(
+            path=cs_cfg.get("path", project_root() / "external-components" / "Anthropic-Cybersecurity-Skills"),
+        )
+
+    graft_adapter = None
+    graft_cfg = (cfg.get("external_integrations", {}).get("graft", {}) or {})
+    if bool(graft_cfg.get("enabled", False)):
+        graft_adapter = GraftAdapter(
+            command=str(graft_cfg.get("command", "graft")),
+            path=graft_cfg.get("path", project_root() / "external-components" / "Graft"),
+            timeout=float(graft_cfg.get("timeout", 30.0)),
+        )
+
+    openmontage_adapter = None
+    openmontage_cfg = (cfg.get("external_integrations", {}).get("openmontage", {}) or {})
+    if bool(openmontage_cfg.get("enabled", False)):
+        openmontage_adapter = OpenMontageAdapter(
+            path=openmontage_cfg.get("path", project_root() / "external-components" / "openmontage"),
+            timeout=float(openmontage_cfg.get("timeout", 30.0)),
+        )
+
+    edge0_adapter = None
+    edge0_cfg = (cfg.get("external_integrations", {}).get("edge0", {}) or {})
+    if bool(edge0_cfg.get("enabled", False)):
+        edge0_adapter = Edge0Adapter(
+            path=edge0_cfg.get("path", project_root() / "external-components" / "edge0"),
+            timeout=float(edge0_cfg.get("timeout", 30.0)),
+        )
+
+    agency_agents_adapter = None
+    agency_cfg = (cfg.get("external_integrations", {}).get("agency_agents", {}) or {})
+    if bool(agency_cfg.get("enabled", False)):
+        agency_agents_adapter = AgencyAgentsAdapter(
+            path=agency_cfg.get("path", project_root() / "external-components" / "agency-agents"),
+        )
+
+    scientific_skills_adapter = None
+    scientific_cfg = (cfg.get("external_integrations", {}).get("scientific_agent_skills", {}) or {})
+    if bool(scientific_cfg.get("enabled", False)):
+        scientific_skills_adapter = ScientificSkillsAdapter(
+            path=scientific_cfg.get("path", project_root() / "external-components" / "scientific-agent-skills"),
+        )
+
+    awesome_harness_adapter = None
+    awesome_harness_cfg = (cfg.get("external_integrations", {}).get("awesome_harness_engineering", {}) or {})
+    if bool(awesome_harness_cfg.get("enabled", False)):
+        awesome_harness_adapter = AwesomeHarnessAdapter(
+            path=awesome_harness_cfg.get("path", project_root() / "external-components" / "awesome-harness-engineering"),
+        )
+
+    awesome_agent_tools_adapter = None
+    awesome_agent_tools_cfg = (cfg.get("external_integrations", {}).get("awesome_ai_agent_tools", {}) or {})
+    if bool(awesome_agent_tools_cfg.get("enabled", False)):
+        awesome_agent_tools_adapter = AwesomeAgentToolsAdapter(
+            path=awesome_agent_tools_cfg.get("path", project_root() / "external-components" / "awesome-ai-agent-tools"),
+        )
 
     specialists=SpecialistRouter(
         mm, pcfg['models'], keep_alive=keep_alive, max_handoffs=int(pcfg['max_handoffs']),
@@ -260,7 +425,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tool_registry.extend(build_group_tools(group_controller))
     tool_registry.extend(build_git_tools(ws,approval))
     tool_registry.extend(build_web_tools(ws,cfg,approval,quarantine,browser=browser,snapshot_manager=snapshots))
-    tool_registry.extend(build_browser_tools(browser,enabled=browser_enabled))
+    tool_registry.extend(build_browser_tools(browser,enabled=browser_enabled,external=browser_use))
     tool_registry.extend(build_database_tools(cfg))
     tool_registry.extend(build_personal_tools(memory,notifier))
     tool_registry.extend(build_calendar_tools(calendar))
@@ -279,6 +444,65 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tool_registry.extend(build_security_tools(ws,approval,guardian,security_sensors))
     if bool(cfg.get('desktop',{}).get('enabled',True)):
         tool_registry.extend(build_desktop_tools(ws,approval,desktop_controller))
+    if openviking_adapter is not None:
+        tool_registry.extend(build_viking_tools(openviking_adapter))
+    if agentmemory_adapter is not None:
+        tool_registry.extend(build_agentmemory_tools(agentmemory_adapter))
+    if codebase_memory_adapter is not None:
+        tool_registry.extend(build_codebase_memory_tools(codebase_memory_adapter))
+    if diagram_adapter is not None:
+        tool_registry.extend(build_diagram_tools(diagram_adapter))
+    if cybersecurity_adapter is not None:
+        tool_registry.extend(build_security_skills_tools(cybersecurity_adapter))
+    if graft_adapter is not None:
+        tool_registry.extend(build_graft_tools(graft_adapter))
+    if openmontage_adapter is not None:
+        tool_registry.extend(build_openmontage_tools(openmontage_adapter))
+    if edge0_adapter is not None:
+        tool_registry.extend(build_edge0_tools(edge0_adapter))
+    if agency_agents_adapter is not None:
+        tool_registry.extend(build_agency_agents_tools(agency_agents_adapter))
+    if scientific_skills_adapter is not None:
+        tool_registry.extend(build_scientific_skills_tools(scientific_skills_adapter))
+    if awesome_harness_adapter is not None:
+        tool_registry.extend(build_awesome_harness_tools(awesome_harness_adapter))
+    if awesome_agent_tools_adapter is not None:
+        tool_registry.extend(build_awesome_agent_tools(awesome_agent_tools_adapter))
+
+    from living_assistant.skills import SkillManager, SkillStore
+    from living_assistant.skills.tools import build_skill_tools
+    skill_store = SkillStore(approvals.path)
+    skill_manager = SkillManager(
+        workspace=ws,
+        tool_registry=tool_registry,
+        store=skill_store,
+        approval_manager=approval,
+        notifier=notifier,
+        model_manager=mm,
+    )
+    skills.manager = skill_manager
+    tool_registry.extend(build_skill_tools(skill_manager))
+
+    from living_assistant.agents.custom import AgentManager, AgentStore, build_agent_tools
+    agent_store = AgentStore(approvals.path)
+    agent_manager = AgentManager(
+        tool_registry=tool_registry,
+        store=agent_store,
+        skills_manager=skill_manager,
+        model_manager=mm,
+        system_memory=memory,
+    )
+    tool_registry.extend(build_agent_tools(agent_manager))
+
+    from living_assistant.system.scheduler import LivingScheduler
+    from living_assistant.tools.schedulertools import build_scheduler_tools
+    scheduler = LivingScheduler(
+        db_path=approvals.path.parent / "scheduler.sqlite3",
+        notifier=notifier,
+        memory=memory,
+    )
+    tool_registry.extend(build_scheduler_tools(scheduler))
+
     tools=tool_registry.all()
 
     orchestrator=Orchestrator(mm,pcfg['models']['orchestrator'],tools,specialists,
@@ -288,4 +512,5 @@ def build_runtime(interactive: bool = True) -> Runtime:
     mobile_bridge=MobileBridge(cfg, connector_manager, orchestrator)
     return Runtime(cfg,profile,hw,ws,snapshots,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,repairs,canaries,browser,
-                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller)
+                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller,integrations,openviking_adapter,agentmemory_adapter,codebase_memory_adapter,skill_manager,agent_manager,scheduler=scheduler)
+

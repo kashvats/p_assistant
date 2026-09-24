@@ -42,12 +42,8 @@
         <button id="dismiss-button" class="secondary">Not now</button>
       </div>
     </section>
-    <section class="controls">
-      <button id="screen-button" class="action-button"><span>◉</span><b>Ask about screen</b><small>Use an approved snapshot</small></button>
-      <button id="chat-button" class="action-button"><span>✦</span><b>Ask me anything</b><small>Talk through your next step</small></button>
-      <button id="voice-button" class="action-button"><span>●</span><b>Talk to me</b><small>Local microphone, approval-gated</small></button>
-    </section>
-    <section class="quick-controls" aria-label="Privacy controls">
+    <section class="quick-controls" aria-label="Quick controls">
+      <button id="open-chat-quick" class="quick-control chat-quick-button" title="Open chat">💬 Chat</button>
       <button id="pause-observation" class="quick-control">Pause observing</button>
       <button id="toggle-learning" class="quick-control">Learning on</button>
       <button id="clear-learning-quick" class="quick-control">Clear learning</button>
@@ -59,8 +55,9 @@
         <div id="chat-empty" class="chat-empty">Your conversation history will appear here.</div>
       </div>
       <form id="chat-form" class="chat-row">
-        <textarea id="chat-input" rows="1" maxlength="2000" placeholder="What are you working on?" autocomplete="off"></textarea>
+        <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Ask anything, or say “check my screen”…" autocomplete="off"></textarea>
         <button id="send-chat" class="primary send-button" type="submit" title="Send message">↑</button>
+        <button id="voice-chat" class="secondary send-button" type="button" title="Record a voice message">●</button>
       </form>
       <div id="chat-status" class="chat-status" role="status"></div>
     </section>
@@ -78,8 +75,9 @@
         <label class="switch-row"><input id="learning-toggle" type="checkbox" checked><span>Learn repeated patterns</span></label>
         <button id="clear-learning" class="secondary compact">Clear learned behavior</button>
         <button id="hide-assistant" class="secondary compact">Hide floating assistant</button>
+        <label class="switch-row"><input id="screen-access-toggle" type="checkbox"><span>Allow screen inspection</span></label>
       </div>
-      <div class="voice-heading">Voice wake word</div>
+      <div class="voice-heading">Voice capability</div>
       <div class="voice-controls">
         <label class="switch-row"><input id="voice-enabled-toggle" type="checkbox"><span>Enable voice features</span></label>
         <label class="switch-row"><input id="hands-free-toggle" type="checkbox"><span>Listen for “Hey Jarvis”</span></label>

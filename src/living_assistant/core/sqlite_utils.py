@@ -123,5 +123,12 @@ class ThreadLocalSQLite:
         self._local.generation = self._generation
         return closed
 
+    def __enter__(self):
+        return self._connection().__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self._connection().__exit__(exc_type, exc_val, exc_tb)
+
     def __getattr__(self, name):
         return getattr(self._connection(), name)
+

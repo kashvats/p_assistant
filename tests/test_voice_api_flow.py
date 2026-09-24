@@ -81,7 +81,7 @@ def test_voice_ask_runs_local_record_transcribe_and_orchestrator(monkeypatch):
     assert response.json()["ok"] is True
     assert response.json()["transcript"] == "open my project"
     assert calls == [
-        ("open my project", "The user issued this request by voice.", "voice-companion")
+        ("open my project", "The user issued this request by voice.", "desktop-companion")
     ]
     assert voice.recorded is True
 

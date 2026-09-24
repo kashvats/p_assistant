@@ -1,0 +1,38 @@
+flowchart TD
+    User["User Request (Chat / Voice / UI / CLI)"] --> Orch["Orchestrator (agents/orchestrator.py)"]
+    Orch --> |"Matches Trigger / Invokes"| SkillMgr["SkillManager (skills/manager.py)"]
+    Orch --> |"Invokes / Delegates"| AgentMgr["AgentManager (agents/custom/manager.py)"]
+
+    User --> |"Create Skill Command"| SkillCreator["SkillCreator (skills/creator.py)"]
+    SkillCreator --> |"Introspects"| ToolReg["ToolRegistry (tools/registry.py)"]
+    SkillCreator --> |"Generates Draft"| ModelMgr["ModelManager (core/model_provider.py)"]
+    SkillCreator --> |"Validates Schema"| SkillManifest["SkillManifest (skills/manifest.py)"]
+    SkillCreator --> |"Saves DRAFT"| SkillStore["SkillStore (skills/store.py - SQLite)"]
+
+    User --> |"Create Agent Command"| AgentCreator["AgentCreator (agents/custom/creator.py)"]
+    AgentCreator --> |"Infers Role & Tools"| ToolReg
+    AgentCreator --> |"Infers Skills"| SkillMgr
+    AgentCreator --> |"Validates Contract"| AgentManifest["AgentManifest (agents/custom/manifest.py)"]
+    AgentCreator --> |"Saves DRAFT"| AgentStore["AgentStore (agents/custom/store.py - SQLite)"]
+
+    SkillMgr --> |"Read Package & Hash"| SkillDiskPkg["skills/<id>/ (SKILL.md, manifest.json, examples)"]
+    SkillMgr --> |"Read State & Approvals"| SkillStore
+    SkillMgr --> |"Execute"| SkillRunner["SkillExecutor (skills/runner.py)"]
+    SkillRunner --> |"Check Scopes & Allowlists"| SkillGuard["SkillPermissionGuard (skills/guards.py)"]
+    SkillGuard --> |"Request Interactive Approval"| ApprMgr["ApprovalManager (core/approval.py)"]
+    SkillRunner --> |"Portable Invocation"| Adapter["PortableToolAdapter (skills/adapters.py)"]
+    Adapter --> |"files.list / files.move / dry-run"| Workspace["Workspace (core/workspace.py)"]
+    Adapter --> |"documents.extract"| Extractor["DocumentExtractor (skills/extractor.py)"]
+
+    AgentMgr --> |"Read Package & Hash"| AgentDiskPkg["agents/<id>/ (AGENT.md, manifest.json, examples)"]
+    AgentMgr --> |"Read State & Approvals"| AgentStore
+    AgentMgr --> |"Execute"| AgentRunner["AgentExecutor (agents/custom/runner.py)"]
+    AgentRunner --> |"Check Delegation & Slots"| DelegationCoord["AgentDelegationCoordinator (agents/custom/delegation.py)"]
+    AgentRunner --> |"Scoped Memory Access"| ScopedMem["AgentScopedMemory (agents/custom/memory.py)"]
+    AgentRunner --> |"Invokes Allowed Tools"| ToolReg
+    AgentRunner --> |"Invokes Allowed Skills"| SkillMgr
+
+    SkillsAPI["FastAPI /skills (api_routes/skills.py)"] --> SkillMgr
+    AgentsAPI["FastAPI /agents (api_routes/agents.py)"] --> AgentMgr
+    WebUI["React WebUI (webui/src/main.js)"] --> SkillsAPI
+    WebUI --> AgentsAPI
