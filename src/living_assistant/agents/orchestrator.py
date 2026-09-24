@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 import math
 import re
 import time
@@ -20,6 +21,8 @@ from living_assistant.security.security_utils import redact_secrets
 from living_assistant.system.resource_manager import ResourceManager
 from living_assistant.tools.base import Tool
 from living_assistant.core.typesafe import JevClient
+
+logger = logging.getLogger(__name__)
 
 
 # Keep the tool surface small enough for compact local orchestrator models while
@@ -550,20 +553,25 @@ class Orchestrator:
             if level == "Highly Relevant": score_val = 2
             elif level == "Maybe": score_val = 1
 
-            scored_tools.append((score_val + conf, name))
+            final_score = score_val + conf
+            scored_tools.append((final_score, name))
+            logger.debug("[Tool routing] %s: level=%s conf=%.2f score=%.2f", name, level, conf, final_score)
 
         # Sort by Jev score descending and take the top ones
         scored_tools.sort(reverse=True)
         names = [name for score, name in scored_tools[:INITIAL_TOOL_LIMIT] if score > 0.5]
+        logger.info("[Tool routing] Selected %d tools from Jev scoring: %s", len(names), names)
 
         # Fallback to BM25 if Jev didn't find anything relevant
         if not names:
+            logger.info("[Tool routing] Jev found no tools, falling back to BM25 search")
             matches = self.tool_router.search(
                 route_query,
                 limit=INITIAL_TOOL_LIMIT,
                 exclude={TOOL_DISCOVERY_NAME},
             )
             names = [item["name"] for item in matches]
+            logger.info("[Tool routing] BM25 fallback selected: %s", names)
 
         # Catalog search is the only always-visible tool.
         names = self._merge_tool_names(
@@ -571,6 +579,7 @@ class Orchestrator:
             [TOOL_DISCOVERY_NAME],
             self.tools,
         )
+        logger.debug("[Tool routing] Final active tools (with discovery): %s", names)
         return names
 
     def _followup_tool_names(
@@ -1413,6 +1422,12 @@ class Orchestrator:
                     name = fn.get("name")
                     args = fn.get("arguments") or {}
 
+                    logger.debug("[Tool execution] Model requested tool: %s with args: %s", name, args)
+
+                    # Check if tool is in active tools
+                    if name not in active_tool_names:
+                        logger.warning("[Tool execution] Tool %s not in active_tool_names: %s", name, active_tool_names)
+
                     self._publish(
                         "tool.started",
                         session_id=session_id,
@@ -1434,14 +1449,17 @@ class Orchestrator:
                     )
                     if is_safe_prob < 0.5:
                         result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
+                        logger.warning("[Tool execution] Jev security gate blocked %s (safety_prob=%.2f)", name, is_safe_prob)
                         self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
                     else:
+                        logger.debug("[Tool execution] Security gate passed for %s (safety_prob=%.2f)", name, is_safe_prob)
                         args, result = self._execute_tool(
                             name,
                             args,
                             session_id=session_id,
                             run_id=run_id,
                         )
+                        logger.debug("[Tool execution] Tool %s returned: %s", name, result)
 
                     self._history_tool(
                         run_id,
@@ -1535,8 +1553,8 @@ class Orchestrator:
                             )
                             yield {"type": "final", "text": answer, "session_id": session_id, "run_id": run_id}
                             return
-                    except Exception:
-                        pass
+                    except Exception as loop_exc:
+                        logger.debug("Jev loop-breaker error: %s", loop_exc, exc_info=True)
 
         except Exception as exc:
             self._history_finish(

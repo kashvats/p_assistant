@@ -243,7 +243,7 @@ class JevClient:
             data = resp.json()
             return data["selection"], float(data["confidence"])
         except Exception as exc:
-            logger.warning("[Jev] live choice failed (%s), falling back to mock", exc)
+            logger.warning("[Jev] live choice failed (%s), falling back to mock", exc, exc_info=False)
             return self._mock_choice(context, options)
 
     def _live_noul(self, context: Any, statement: str) -> float:
@@ -263,7 +263,7 @@ class JevClient:
             resp.raise_for_status()
             return float(resp.json()["probability"])
         except Exception as exc:
-            logger.warning("[Jev] live noul failed (%s), falling back to mock", exc)
+            logger.warning("[Jev] live noul failed (%s), falling back to mock", exc, exc_info=False)
             return self._mock_noul(context, statement)
 
     def _live_score(self, context: Any, levels: List[str], question: str) -> Tuple[str, float]:
@@ -285,7 +285,7 @@ class JevClient:
             data = resp.json()
             return data["level"], float(data["confidence"])
         except Exception as exc:
-            logger.warning("[Jev] live score failed (%s), falling back to mock", exc)
+            logger.warning("[Jev] live score failed (%s), falling back to mock", exc, exc_info=False)
             return self._mock_score(context, levels, question)
 
     # ------------------------------------------------------------------
@@ -350,8 +350,9 @@ class JevClient:
                 except Exception:
                     req = ctx
                 req_words = set(re.split(r"[\W_]+", req))
-                lesson_words = ctx_words - req_words
-                overlap = len(req_words & lesson_words) / max(1, len(req_words))
+                intersection = req_words & ctx_words
+                union = req_words | ctx_words
+                overlap = len(intersection) / max(1, len(union))
                 if overlap > 0.4:
                     return levels[-1], min(0.95, 0.5 + overlap)
                 if overlap > 0.1:
@@ -361,7 +362,7 @@ class JevClient:
         # Knowledge value / GC scoring
         if "knowledge" in q or "value" in q or "obsolete" in q or "stale" in q:
             try:
-                data = json.loads(ctx) if not isinstance(context, dict) else context
+                data = json.loads(ctx) if isinstance(ctx, str) else context
             except Exception:
                 data = {}
             conf = float(data.get("confidence", 0.5))
@@ -376,12 +377,39 @@ class JevClient:
             return levels[-1], 0.75
 
         # Tool relevance scoring (used by orchestrator routing)
-        if "tool" in q:
-            ctx_words = set(re.split(r"[\W_]+", ctx))
-            level_words = set(re.split(r"[\W_]+", levels[-1].lower()))
-            if ctx_words & level_words:
-                return levels[-1], 0.88
-            return levels[0], 0.72
+        if "tool" in q or "relevant" in q.lower():
+            try:
+                # Extract request and tool description from context
+                lines = ctx.split('\n')
+                request_line = next((l for l in lines if l.startswith('Request:')), "")
+                tool_line = next((l for l in lines if l.startswith('Tool:')), "")
+
+                request_text = request_line.replace('Request:', '').lower()
+                tool_desc = tool_line.replace('Tool:', '').lower()
+
+                # Split into words, filter stopwords
+                stopwords = {'the', 'a', 'an', 'is', 'are', 'was', 'be', 'by', 'or', 'and', 'of', 'to', 'in', 'for', 'with', 'on'}
+                req_words = set(w for w in re.split(r'[\W_]+', request_text) if w and len(w) > 2 and w not in stopwords)
+                tool_words = set(w for w in re.split(r'[\W_]+', tool_desc) if w and len(w) > 2 and w not in stopwords)
+
+                if not req_words or not tool_words:
+                    return levels[0], 0.60
+
+                # Jaccard similarity between request words and tool words
+                intersection = req_words & tool_words
+                union = req_words | tool_words
+                overlap = len(intersection) / max(1, len(union))
+
+                # Map overlap score to levels
+                if overlap > 0.35:
+                    return levels[-1], min(0.95, 0.65 + overlap)
+                if overlap > 0.15:
+                    return levels[len(levels)//2], 0.70
+                if overlap > 0.05:
+                    return levels[len(levels)//2], 0.60
+                return levels[0], 0.55
+            except Exception:
+                return levels[len(levels)//2], 0.60
 
         return levels[len(levels) // 2], 0.60
 
