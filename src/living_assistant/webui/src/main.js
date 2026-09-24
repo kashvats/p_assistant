@@ -7,8 +7,8 @@ const Prism = globalThis.Prism;
 const h = React.createElement;
 
 const NAV = [
-  ['overview', 'Overview'], ['models', 'Models'], ['chat', 'Chat'], ['skills', 'Skills'], ['agents', 'Agents'], ['approvals', 'Approvals'],
-  ['organize', 'Calendar & Todos'], ['security', 'Security'], ['activity', 'Activity'],
+  ['overview', '🏠 Overview'], ['models', '🤖 Models'], ['chat', '💬 Chat'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'],
+  ['organize', '📅 Calendar & Todos'], ['security', '🔒 Security'], ['activity', '📊 Activity'], ['tools', '🔧 Tools'],
 ];
 
 function cx(...parts) { return parts.filter(Boolean).join(' '); }
@@ -118,6 +118,9 @@ class App extends React.Component {
       skills: [], selectedSkill: null, skillDraftPrompt: '', skillSearch: '', skillBusy: false, skillTrace: null, skillDryRun: true, skillCollections: null,
       agents: [], selectedAgent: null, agentDraftPrompt: '', agentSearch: '', agentBusy: false, agentTrace: null, agentDryRun: true,
       toast: '', error: '',
+      voiceRecording: false, attachedFile: null,
+      toolsStatus: null, browserSessions: [],
+      expandedTools: {},
     };
     this.pollers = []; this.activityController = null; this.approvalSeen = new Set();
   }
@@ -129,7 +132,7 @@ class App extends React.Component {
     this.pollers.push(setInterval(() => this.loadUsage(), 10000));
   }
   componentWillUnmount() { window.removeEventListener('hashchange', this.onHash); this.pollers.forEach(clearInterval); if (this.activityController) this.activityController.abort(); }
-  authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer ${this.state.token}`} : {}); }
+  authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer \x60} : {}); }
   async api(url, opt = {}) {
     let response;
     try { response = await fetch(url, {...opt, headers: this.authHeaders(opt.headers || {})}); }
@@ -314,7 +317,41 @@ class App extends React.Component {
     } catch (e) { this.notify(`Test failed: ${e.message}`, true); }
     finally { this.setState({agentBusy: false}); }
   }
-  async refreshAll() { await Promise.allSettled([this.loadStatus(), this.loadUsage(), this.loadModels(), this.loadSkills(), this.loadAgents(), this.loadApprovals(), this.loadTodos(), this.loadCalendar(), this.loadSecurity(), this.loadActivity()]); }
+  async voiceAsk() {
+    if (this.state.voiceRecording || this.state.streaming) return;
+    this.setState({voiceRecording: true});
+    try {
+      const res = await this.api('/voice/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({max_seconds: 10, language: 'en', speak: false})});
+      const transcript = res.transcript || res.text || '';
+      if (transcript) {
+        this.setState({chatInput: transcript});
+        this.notify('Voice captured — press Send or Enter');
+      } else {
+        this.notify('No speech detected', true);
+      }
+    } catch (e) { this.notify(`Voice unavailable: ${e.message}`, true); }
+    finally { this.setState({voiceRecording: false}); }
+  }
+  async loadToolsStatus() {
+    try {
+      const [voiceStatus, browserSessions] = await Promise.allSettled([
+        this.api('/voice/status'),
+        this.api('/browser/sessions'),
+      ]);
+      this.setState({
+        toolsStatus: voiceStatus.status === 'fulfilled' ? voiceStatus.value : {error: voiceStatus.reason?.message},
+        browserSessions: browserSessions.status === 'fulfilled' ? (browserSessions.value || []) : [],
+      });
+    } catch (_) {}
+  }
+  async startBrowserSession() {
+    try {
+      const res = await this.api('/browser/sessions', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})});
+      this.notify(`Browser session started: ${res.session_id || res.id || 'ok'}`);
+      await this.loadToolsStatus();
+    } catch (e) { this.notify(`Failed to start browser session: ${e.message}`, true); }
+  }
+  async refreshAll() { await Promise.allSettled([this.loadStatus(), this.loadUsage(), this.loadModels(), this.loadSkills(), this.loadAgents(), this.loadApprovals(), this.loadTodos(), this.loadCalendar(), this.loadSecurity(), this.loadActivity(), this.loadToolsStatus()]); }
   async startActivityStream() {
     if (this.activityController) this.activityController.abort();
     const controller = new AbortController(); this.activityController = controller;

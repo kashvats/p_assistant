@@ -5,6 +5,6 @@
 ## `config/assistant.yaml`
 
 - language: `yaml`
-- size: 9242 bytes
-- hash: `e9b8ebb015ef`
+- size: 11076 bytes
+- hash: `e36ed341bbd2`
 

@@ -15,8 +15,8 @@
 ## `tests/test_approval.py`
 
 - language: `py`
-- size: 2155 bytes
-- hash: `cbdf30e2042a`
+- size: 2199 bytes
+- hash: `9c3e018e8407`
 - symbols:
   - `function` `test_one_time_approval` — line 3
   - `function` `test_stale_pending_approval_expires_and_does_not_block_requeue` — line 12
@@ -28,8 +28,8 @@
 ## `tests/test_approval_sound.py`
 
 - language: `py`
-- size: 2503 bytes
-- hash: `9c6ca7cbb5dc`
+- size: 2555 bytes
+- hash: `b4ec44212e54`
 - symbols:
   - `function` `test_notifier_plays_approval_sound_only_when_not_quiet` — line 5
   - `function` `test_pending_approval_sounds_once_for_new_gate` — line 22
@@ -42,8 +42,8 @@
 ## `tests/test_arch03_cli_package.py`
 
 - language: `py`
-- size: 1274 bytes
-- hash: `3dc536ed9d67`
+- size: 1341 bytes
+- hash: `7fc1f6431e8a`
 - symbols:
   - `function` `_command_tree` — line 6
   - `function` `test_cli_package_exposes_expected_root_contract` — line 19
@@ -54,8 +54,8 @@
 ## `tests/test_arch04_evaluation_split.py`
 
 - language: `py`
-- size: 1193 bytes
-- hash: `e586c619fc45`
+- size: 1216 bytes
+- hash: `bb7a585b4d13`
 - symbols:
   - `function` `test_evaluation_compatibility_facade_preserves_public_symbols` — line 10
   - `function` `test_evaluation_responsibilities_live_in_split_modules` — line 19
@@ -70,8 +70,8 @@
 ## `tests/test_arch05_sensor_split.py`
 
 - language: `py`
-- size: 786 bytes
-- hash: `c8586fa6ed1c`
+- size: 799 bytes
+- hash: `106948934718`
 - symbols:
   - `function` `test_platform_sensor_collectors_are_split_but_public_contract_is_preserved` — line 7
 - imports:
@@ -82,8 +82,8 @@
 ## `tests/test_arch06_store_injection.py`
 
 - language: `py`
-- size: 2224 bytes
-- hash: `a26cde5d6947`
+- size: 2280 bytes
+- hash: `fd5a2f67bd99`
 - symbols:
   - `function` `test_persistent_stores_keep_injectable_storage_paths` — line 51
 - imports:
@@ -113,8 +113,8 @@
 ## `tests/test_arch07_tool_registry.py`
 
 - language: `py`
-- size: 758 bytes
-- hash: `a48daa2665ab`
+- size: 782 bytes
+- hash: `0ebaf452f6f8`
 - symbols:
   - `function` `_tool` — line 9
   - `function` `test_registry_preserves_order_and_lookup` — line 13
@@ -128,11 +128,11 @@
 ## `tests/test_architecture_api.py`
 
 - language: `py`
-- size: 1632 bytes
-- hash: `ae685584044b`
+- size: 1765 bytes
+- hash: `0d8d2a746770`
 - symbols:
-  - `function` `test_api_is_split_into_domain_routers_without_duplicate_routes` — line 20
-  - `function` `test_api_bootstrap_is_no_longer_the_monolithic_route_file` — line 55
+  - `function` `test_api_is_split_into_domain_routers_without_duplicate_routes` — line 22
+  - `function` `test_api_bootstrap_is_no_longer_the_monolithic_route_file` — line 59
 - imports:
   - `__future__`
   - `living_assistant`
@@ -142,8 +142,8 @@
 ## `tests/test_architecture_domains.py`
 
 - language: `py`
-- size: 977 bytes
-- hash: `d5e457020ac9`
+- size: 1001 bytes
+- hash: `4f860b1990e8`
 - symbols:
   - `function` `test_domain_packages_own_representative_implementations_and_legacy_aliases_match` — line 4
   - `function` `test_agents_and_connectors_packages_preserve_legacy_public_symbols` — line 20
@@ -153,25 +153,26 @@
 ## `tests/test_config_hot_reload.py`
 
 - language: `py`
-- size: 5421 bytes
-- hash: `bf68d8024b9e`
+- size: 5975 bytes
+- hash: `956862867dce`
 - symbols:
   - `function` `seeded` — line 10
   - `function` `test_reloader_applies_safe_sections_and_reports_structural_restart` — line 17
   - `function` `test_invalid_yaml_fails_once_without_mutating_live_config` — line 40
-  - `function` `test_connector_enabled_requires_restart_but_refresh_window_is_live` — line 51
-  - `class` `Processes` — line 64
-  - `method` `Processes.list` — line 65
-  - `class` `Watches` — line 66
-  - `method` `Watches.poll` — line 67
-  - `method` `Watches.rebaseline` — line 68
-  - `class` `Note` — line 69
-  - `method` `Note.__init__` — line 70
-  - `method` `Note.flush` — line 71
-  - `method` `Note.send` — line 72
-  - `method` `Note.is_quiet` — line 73
-  - `function` `test_daemon_tick_applies_live_notification_config` — line 76
-  - `function` `test_mobile_and_peer_runtime_objects_receive_reloaded_cfg` — line 100
+  - `function` `test_model_preference_persists_per_profile` — line 51
+  - `function` `test_connector_enabled_requires_restart_but_refresh_window_is_live` — line 64
+  - `class` `Processes` — line 77
+  - `method` `Processes.list` — line 78
+  - `class` `Watches` — line 79
+  - `method` `Watches.poll` — line 80
+  - `method` `Watches.rebaseline` — line 81
+  - `class` `Note` — line 82
+  - `method` `Note.__init__` — line 83
+  - `method` `Note.flush` — line 84
+  - `method` `Note.send` — line 85
+  - `method` `Note.is_quiet` — line 86
+  - `function` `test_daemon_tick_applies_live_notification_config` — line 89
+  - `function` `test_mobile_and_peer_runtime_objects_receive_reloaded_cfg` — line 113
 - imports:
   - `living_assistant.core.config`
   - `living_assistant.core.memory`
@@ -183,8 +184,8 @@
 ## `tests/test_connector_background_refresh.py`
 
 - language: `py`
-- size: 3378 bytes
-- hash: `b01ff62b85e8`
+- size: 3458 bytes
+- hash: `8eaf3643eaec`
 - symbols:
   - `class` `Approval` — line 9
   - `method` `Approval.request` — line 10
@@ -207,11 +208,90 @@
   - `living_assistant.memory`
   - `time`
 
+## `tests/test_custom_agents.py`
+
+- language: `py`
+- size: 12597 bytes
+- hash: `17b6e585805f`
+- symbols:
+  - `function` `agent_env` — line 31
+  - `function` `test_agent_manifest_permission_hash_and_validation` — line 58
+  - `function` `test_agent_package_save_load_and_snapshot` — line 93
+  - `function` `test_agent_package_export_and_import_zip` — line 122
+  - `function` `test_agent_store_lifecycle_and_approvals` — line 144
+  - `function` `test_agent_scoped_memory_isolation` — line 171
+  - `function` `test_agent_delegation_coordinator_and_permission_inheritance` — line 198
+  - `function` `test_agent_creator_draft_generation` — line 252
+  - `function` `test_builtin_reference_agents_seeded` — line 266
+  - `function` `test_agent_execution_loop_detection_and_bounding` — line 279
+  - `function` `test_approval_invalidation_upon_disk_tampering` — line 299
+  - `function` `test_agent_tools_exposure` — line 325
+- imports:
+  - `__future__`
+  - `json`
+  - `living_assistant.agents.custom.creator`
+  - `living_assistant.agents.custom.delegation`
+  - `living_assistant.agents.custom.examples`
+  - `living_assistant.agents.custom.manager`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.agents.custom.memory`
+  - `living_assistant.agents.custom.package`
+  - `living_assistant.agents.custom.runner`
+  - `living_assistant.agents.custom.store`
+  - `living_assistant.agents.custom.tools`
+  - `living_assistant.tools.base`
+  - `living_assistant.tools.registry`
+  - `pathlib`
+  - `pytest`
+
+## `tests/test_custom_skills.py`
+
+- language: `py`
+- size: 19109 bytes
+- hash: `1edced875ef1`
+- symbols:
+  - `function` `mock_env` — line 37
+  - `function` `test_manifest_validation_success` — line 75
+  - `function` `test_manifest_validation_rejects_invalid_id` — line 87
+  - `function` `test_manifest_validation_rejects_invalid_version` — line 92
+  - `function` `test_manifest_flags_unknown_tools` — line 97
+  - `function` `test_import_zip_slip_traversal_defense` — line 111
+  - `function` `test_import_zip_absolute_path_defense` — line 122
+  - `function` `test_package_export_and_import_roundtrip` — line 132
+  - `function` `test_skill_store_lifecycle_and_rollback` — line 156
+  - `function` `test_guard_enforces_tool_allowlist` — line 192
+  - `function` `test_guard_blocks_unauthorized_filesystem_scope` — line 206
+  - `function` `test_guard_blocks_unauthorized_destructive_actions` — line 220
+  - `function` `test_portable_adapter_dry_run_suppresses_mutations` — line 241
+  - `function` `test_portable_adapter_live_move_collision_and_undo` — line 257
+  - `function` `test_document_extractor_parses_invoice_fields` — line 288
+  - `function` `test_document_extractor_flags_uncertain_extractions` — line 311
+  - `function` `test_skill_creator_invoice_draft` — line 323
+  - `function` `test_invoice_organizer_end_to_end` — line 345
+  - `function` `test_daily_briefing_execution` — line 391
+  - `function` `test_downloads_organizer_execution` — line 399
+  - `function` `test_external_collections_discovery` — line 420
+  - `function` `test_skill_registry_syncs_with_manager` — line 431
+  - `function` `test_skills_rest_api_lifecycle` — line 445
+- imports:
+  - `__future__`
+  - `io`
+  - `json`
+  - `living_assistant.core.approval`
+  - `living_assistant.core.workspace`
+  - `living_assistant.skills`
+  - `living_assistant.skills.examples`
+  - `living_assistant.tools.base`
+  - `living_assistant.tools.registry`
+  - `pathlib`
+  - `pytest`
+  - `zipfile`
+
 ## `tests/test_daemon_crash_recovery.py`
 
 - language: `py`
-- size: 2277 bytes
-- hash: `7400ec2da696`
+- size: 2334 bytes
+- hash: `a487d76c3767`
 - symbols:
   - `class` `Processes` — line 6
   - `method` `Processes.list` — line 7
@@ -229,11 +309,105 @@
   - `living_assistant.daemon`
   - `living_assistant.memory`
 
+## `tests/test_downloads_organizer_e2e.py`
+
+- language: `py`
+- size: 9411 bytes
+- hash: `c2c471110469`
+- symbols:
+  - `function` `e2e_env` — line 20
+  - `function` `test_downloads_organizer_complete_11_step_lifecycle` — line 54
+- imports:
+  - `__future__`
+  - `living_assistant.core.approval`
+  - `living_assistant.core.workspace`
+  - `living_assistant.skills.creator`
+  - `living_assistant.skills.guards`
+  - `living_assistant.skills.manager`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.package`
+  - `living_assistant.skills.store`
+  - `living_assistant.tools.base`
+  - `living_assistant.tools.registry`
+  - `os`
+  - `pathlib`
+  - `pytest`
+
+## `tests/test_external_integrations.py`
+
+- language: `py`
+- size: 61304 bytes
+- hash: `64557df7faa7`
+- symbols:
+  - `function` `test_external_integrations_are_lazy_and_disabled_by_default` — line 7
+  - `function` `test_external_skill_path_is_reported_without_importing_it` — line 15
+  - `function` `test_browser_use_adapter_registers_only_when_importable` — line 27
+  - `function` `test_openviking_adapter_available_with_local_checkout` — line 51
+  - `function` `test_openviking_tools_registration` — line 60
+  - `function` `test_openviking_adapter_mocked_calls` — line 75
+  - `function` `test_agentmemory_adapter_available_with_local_checkout` — line 119
+  - `function` `test_agentmemory_tools_registration` — line 128
+  - `function` `test_agentmemory_adapter_mocked_calls` — line 144
+  - `function` `test_codebase_memory_adapter_available_with_local_checkout` — line 211
+  - `function` `test_codebase_memory_tools_registration` — line 219
+  - `function` `test_codebase_memory_adapter_mocked_calls` — line 235
+  - `function` `test_resource_manager_process_and_system_snapshots` — line 288
+  - `function` `test_resource_manager_interactive_and_load_throttling` — line 319
+  - `function` `test_codebase_index_throttling_with_resource_manager` — line 346
+  - `function` `test_platform_paths_directory_standards` — line 366
+  - `function` `test_platform_paths_legacy_migration` — line 385
+  - `function` `test_uv_environment_manager_status_and_package_validation` — line 415
+  - `function` `test_uv_environment_manager_run_with_scrubbing_and_redaction` — line 430
+  - `function` `test_external_registry_environment_status` — line 470
+  - `function` `test_keyring_vault_memory_mode` — line 480
+  - `function` `test_encrypted_file_vault_encryption_and_integrity` — line 499
+  - `function` `test_credential_store_keyring_vault_lifecycle` — line 539
+  - `function` `test_disk_cache_basic_lifecycle` — line 572
+  - `function` `test_disk_cache_decorator` — line 605
+  - `function` `test_disk_cache_codebase_features_and_invoice_caching` — line 624
+  - `function` `test_watchdog_debounced_event_handler_lifecycle` — line 683
+  - `function` `test_watchdog_observer_manager_and_listener` — line 743
+  - `function` `test_codebase_index_incremental_update` — line 781
+  - `function` `test_scheduled_task_store_lifecycle` — line 848
+  - `function` `test_living_scheduler_reminders_and_missed_recovery` — line 892
+  - `function` `test_scheduler_tools_suite` — line 974
+  - `function` `test_trafilatura_article_extractor_lifecycle` — line 1004
+  - `function` `test_trafilatura_document_extractor_html_file` — line 1056
+  - `function` `test_web_extract_article_tool_execution` — line 1086
+  - `function` `test_diagram_design_status_discovery` — line 1141
+  - `function` `test_diagram_design_adapter_available_and_types` — line 1155
+  - `function` `test_diagram_design_extract_mermaid_from_text` — line 1171
+  - `function` `test_diagram_design_extract_mermaid_fixture_file` — line 1193
+  - `function` `test_diagram_design_extract_drawio_fixture_file` — line 1203
+  - `function` `test_diagram_design_extract_excalidraw_fixture_file` — line 1213
+  - `function` `test_diagram_design_validation_pass_and_fail` — line 1223
+  - `function` `test_diagram_design_generate_html_and_export_svg` — line 1260
+  - `function` `test_diagram_tools_registration_and_execution` — line 1284
+  - `function` `test_cybersecurity_skills_status_discovery` — line 1332
+  - `function` `test_cybersecurity_skills_adapter_available_and_catalog` — line 1346
+  - `function` `test_cybersecurity_skills_search` — line 1357
+  - `function` `test_cybersecurity_skills_get_skill` — line 1376
+  - `function` `test_cybersecurity_skills_prompt_injection_audit_benign_and_malicious` — line 1389
+  - `function` `test_cybersecurity_skills_threat_model_component` — line 1417
+  - `function` `test_security_skills_tools_registration_and_execution` — line 1427
+  - `function` `test_graft_status_discovery` — line 1464
+  - `function` `test_graft_adapter_available_and_stats` — line 1478
+  - `function` `test_graft_insert_and_verified_recall` — line 1489
+  - `function` `test_graft_retrieve_hybrid` — line 1515
+  - `function` `test_graft_explore_relationships` — line 1536
+  - `function` `test_graft_list_and_delete` — line 1557
+  - `function` `test_graft_tools_registration_and_execution` — line 1576
+- imports:
+  - `living_assistant.integrations.browser_use`
+  - `living_assistant.integrations.external`
+  - `living_assistant.tools.browsertools`
+  - `types`
+
 ## `tests/test_feat01_ast_patch_engine.py`
 
 - language: `py`
-- size: 3476 bytes
-- hash: `10de69fbea75`
+- size: 3562 bytes
+- hash: `df70e9e7ca31`
 - symbols:
   - `function` `_engine` — line 9
   - `function` `test_ast_patch_allows_modifying_existing_function_without_deleting_neighbors` — line 20
@@ -252,8 +426,8 @@
 ## `tests/test_feat02_project_auditor.py`
 
 - language: `py`
-- size: 2073 bytes
-- hash: `df3145a6eba9`
+- size: 2126 bytes
+- hash: `955731072b46`
 - symbols:
   - `function` `test_project_auditor_reports_dependencies_lint_dead_code_and_security_without_secret_values` — line 12
   - `function` `test_project_auditor_is_workspace_bounded` — line 36
@@ -269,8 +443,8 @@
 ## `tests/test_feat03_repair_loop.py`
 
 - language: `py`
-- size: 8057 bytes
-- hash: `d0290d73abb9`
+- size: 8243 bytes
+- hash: `b00900016a0a`
 - symbols:
   - `function` `_build` — line 12
   - `function` `_approve` — line 47
@@ -293,8 +467,8 @@
 ## `tests/test_feat04_regression_detection.py`
 
 - language: `py`
-- size: 2589 bytes
-- hash: `f6d6e3c4a21e`
+- size: 2658 bytes
+- hash: `03b7b466a630`
 - symbols:
   - `function` `_agg` — line 7
   - `function` `test_stable_regression_beyond_budget_is_detected` — line 24
@@ -310,8 +484,8 @@
 ## `tests/test_feat05_run_history.py`
 
 - language: `py`
-- size: 4468 bytes
-- hash: `0631b6e9c94a`
+- size: 4588 bytes
+- hash: `679c4ed8b067`
 - symbols:
   - `class` `FakeProvider` — line 12
   - `method` `FakeProvider.__init__` — line 13
@@ -337,8 +511,8 @@
 ## `tests/test_feat06_knowledge_gaps.py`
 
 - language: `py`
-- size: 2999 bytes
-- hash: `ef4e3135d1d3`
+- size: 3075 bytes
+- hash: `63ae27af5cd7`
 - symbols:
   - `function` `_engine` — line 8
   - `function` `test_recurring_failed_topic_surfaces_as_learning_opportunity` — line 15
@@ -355,8 +529,8 @@
 ## `tests/test_feat07_model_usage.py`
 
 - language: `py`
-- size: 7576 bytes
-- hash: `46a42fcd8c0b`
+- size: 7808 bytes
+- hash: `e54bb4725d75`
 - symbols:
   - `class` `_Specialists` — line 13
   - `method` `_Specialists.delegate` — line 14
@@ -388,8 +562,8 @@
 ## `tests/test_feat08_searxng.py`
 
 - language: `py`
-- size: 8523 bytes
-- hash: `7090d79fdda9`
+- size: 8808 bytes
+- hash: `1bbf18ea6f23`
 - symbols:
   - `function` `_tool_map` — line 8
   - `class` `_Response` — line 12
@@ -415,8 +589,8 @@
 ## `tests/test_feat09_safe_commands.py`
 
 - language: `py`
-- size: 5476 bytes
-- hash: `78496d66a88c`
+- size: 5639 bytes
+- hash: `9690005ef64d`
 - symbols:
   - `function` `_handlers` — line 11
   - `class` `_Events` — line 15
@@ -438,8 +612,8 @@
 ## `tests/test_feat10_airllm_provider.py`
 
 - language: `py`
-- size: 9642 bytes
-- hash: `303ef5133c9d`
+- size: 9926 bytes
+- hash: `25c6c9200726`
 - symbols:
   - `class` `_FakeInputIds` — line 13
   - `method` `_FakeInputIds.__init__` — line 16
@@ -475,8 +649,8 @@
 ## `tests/test_feat11_codebase_rag.py`
 
 - language: `py`
-- size: 5183 bytes
-- hash: `070d1689b796`
+- size: 5312 bytes
+- hash: `4ae8a4dd91e2`
 - symbols:
   - `function` `_build_index` — line 10
   - `function` `test_section_aware_python_index_and_semantic_identifier_retrieval` — line 18
@@ -495,8 +669,8 @@
 ## `tests/test_feat12_workspace_snapshots.py`
 
 - language: `py`
-- size: 8032 bytes
-- hash: `a4a371cdf4a9`
+- size: 8236 bytes
+- hash: `232f55e02008`
 - symbols:
   - `class` `AllowApproval` — line 13
   - `method` `AllowApproval.__init__` — line 14
@@ -525,20 +699,21 @@
 ## `tests/test_feat13_model_manager_ui.py`
 
 - language: `py`
-- size: 7398 bytes
-- hash: `d18057407792`
+- size: 8037 bytes
+- hash: `0d421ea6bb72`
 - symbols:
   - `class` `_Resources` — line 13
   - `method` `_Resources.__init__` — line 14
   - `method` `_Resources.snapshot` — line 29
   - `function` `provider` — line 34
   - `function` `test_local_catalog_reports_disk_and_labeled_vram` — line 60
-  - `function` `test_local_model_pull_uses_existing_ollama_provider` — line 80
-  - `function` `test_local_model_management_rejects_invalid_names` — line 92
-  - `function` `test_local_model_delete_requires_confirmation_and_refuses_in_use` — line 98
-  - `function` `test_model_router_exposes_local_pull_and_delete` — line 123
-  - `function` `test_webui_contains_local_model_manager_without_unsafe_model_html` — line 158
-  - `function` `test_ollama_provider_management_calls_expected_http_endpoints` — line 171
+  - `function` `test_saved_ollama_alias_resolves_to_installed_tag` — line 80
+  - `function` `test_local_model_pull_uses_existing_ollama_provider` — line 90
+  - `function` `test_local_model_management_rejects_invalid_names` — line 102
+  - `function` `test_local_model_delete_requires_confirmation_and_refuses_in_use` — line 108
+  - `function` `test_model_router_exposes_local_pull_and_delete` — line 133
+  - `function` `test_webui_contains_local_model_manager_without_unsafe_model_html` — line 168
+  - `function` `test_ollama_provider_management_calls_expected_http_endpoints` — line 181
 - imports:
   - `__future__`
   - `living_assistant.api_routes`
@@ -551,8 +726,8 @@
 ## `tests/test_filesystem_search.py`
 
 - language: `py`
-- size: 1383 bytes
-- hash: `7a90577c968e`
+- size: 1417 bytes
+- hash: `d23fa0bd29ee`
 - symbols:
   - `function` `handlers` — line 5
   - `function` `test_search_files_supports_regex_and_extension_filter` — line 9
@@ -566,8 +741,8 @@
 ## `tests/test_group_health_daemon.py`
 
 - language: `py`
-- size: 1388 bytes
-- hash: `bae4930a99b5`
+- size: 1429 bytes
+- hash: `ffe54a6ea2f4`
 - symbols:
   - `class` `Processes` — line 5
   - `method` `Processes.list` — line 6
@@ -589,8 +764,8 @@
 ## `tests/test_groups_parallel.py`
 
 - language: `py`
-- size: 3568 bytes
-- hash: `b9b9305e2e62`
+- size: 3650 bytes
+- hash: `42783884c1c2`
 - symbols:
   - `class` `Projects` — line 8
   - `method` `Projects.__init__` — line 9
@@ -626,8 +801,8 @@
 ## `tests/test_hierarchical_orchestration.py`
 
 - language: `py`
-- size: 6127 bytes
-- hash: `40b267f6d396`
+- size: 6277 bytes
+- hash: `b5f7c5cee312`
 - symbols:
   - `class` `DummyModelManager` — line 6
   - `method` `DummyModelManager.__init__` — line 7
@@ -650,8 +825,8 @@
 ## `tests/test_improvement_context.py`
 
 - language: `py`
-- size: 1545 bytes
-- hash: `3dd1519336a2`
+- size: 1576 bytes
+- hash: `d4d8dfe6ac8f`
 - symbols:
   - `function` `engine` — line 7
   - `function` `test_improvement_context_finds_imports_and_callers` — line 14
@@ -665,8 +840,8 @@
 ## `tests/test_memory.py`
 
 - language: `py`
-- size: 1339 bytes
-- hash: `9778a41a903d`
+- size: 1378 bytes
+- hash: `c3ce3682309a`
 - symbols:
   - `function` `test_memory_search_rebuilds_fts_for_existing_database` — line 3
 
@@ -684,8 +859,8 @@
 ## `tests/test_mobile_bridge.py`
 
 - language: `py`
-- size: 6401 bytes
-- hash: `139cdb20a879`
+- size: 6582 bytes
+- hash: `ef8fcd3c36ce`
 - symbols:
   - `class` `Registry` — line 8
   - `method` `Registry.__init__` — line 9
@@ -724,11 +899,26 @@
   - `living_assistant.core.memory`
   - `living_assistant.system.daemon`
 
+## `tests/test_model_mode_credentials.py`
+
+- language: `py`
+- size: 1918 bytes
+- hash: `646f533317bd`
+- symbols:
+  - `function` `manager` — line 4
+  - `function` `test_no_selected_model_is_not_presented_as_local` — line 8
+  - `function` `test_local_models_never_require_provider_credentials` — line 14
+  - `function` `test_online_provider_requires_only_its_credential` — line 22
+  - `function` `test_online_provider_missing_key_names_only_selected_provider` — line 32
+  - `function` `test_switching_back_to_local_disables_online_credential_prompt` — line 41
+- imports:
+  - `living_assistant.core.model_provider`
+
 ## `tests/test_onboarding.py`
 
 - language: `py`
-- size: 3037 bytes
-- hash: `4b4fa64940f5`
+- size: 3108 bytes
+- hash: `1e584f61d1e8`
 - symbols:
   - `function` `seed_config` — line 10
   - `function` `test_onboarding_updates_workspace_model_voice_and_connector_without_secret` — line 17
@@ -746,8 +936,8 @@
 ## `tests/test_orchestrator_limits.py`
 
 - language: `py`
-- size: 1980 bytes
-- hash: `fdfdcd511422`
+- size: 2042 bytes
+- hash: `9dd19a0a0210`
 - symbols:
   - `class` `SequenceProvider` — line 7
   - `method` `SequenceProvider.__init__` — line 8
@@ -769,8 +959,8 @@
 ## `tests/test_overlay.py`
 
 - language: `py`
-- size: 11503 bytes
-- hash: `a6743639587d`
+- size: 11818 bytes
+- hash: `b6efc5db3e3f`
 - symbols:
   - `class` `_FakeLabel` — line 10
   - `method` `_FakeLabel.__init__` — line 11
@@ -813,8 +1003,8 @@
 ## `tests/test_peer_agents.py`
 
 - language: `py`
-- size: 5692 bytes
-- hash: `8a6a6f07ae39`
+- size: 5811 bytes
+- hash: `1d32294b3d5b`
 - symbols:
   - `class` `FakeResponse` — line 11
   - `method` `FakeResponse.json` — line 13
@@ -840,8 +1030,8 @@
 ## `tests/test_planning_runtime.py`
 
 - language: `py`
-- size: 2425 bytes
-- hash: `6a46f37580e2`
+- size: 2474 bytes
+- hash: `6426fc965404`
 - symbols:
   - `function` `test_planning_tools_form_a_working_dependency_dag` — line 7
   - `function` `test_planning_tools_expose_valid_ollama_function_schemas` — line 23
@@ -854,8 +1044,8 @@
 ## `tests/test_policy.py`
 
 - language: `py`
-- size: 1263 bytes
-- hash: `b7a01557c197`
+- size: 1290 bytes
+- hash: `4c1fdce8c1a7`
 - symbols:
   - `function` `test_blocks_root_delete` — line 3
   - `function` `test_blocks_defender_disable` — line 6
@@ -868,8 +1058,8 @@
 ## `tests/test_project_process_env.py`
 
 - language: `py`
-- size: 724 bytes
-- hash: `ccc89a94c415`
+- size: 743 bytes
+- hash: `292b8f138897`
 - symbols:
   - `function` `test_managed_process_receives_project_environment` — line 6
 - imports:
@@ -880,8 +1070,8 @@
 ## `tests/test_project_registry.py`
 
 - language: `py`
-- size: 1656 bytes
-- hash: `a4819740fb8a`
+- size: 1694 bytes
+- hash: `6ce24c64465b`
 - symbols:
   - `function` `test_v01_project_registry_migrates` — line 4
   - `function` `test_project_add_detects_start` — line 13
@@ -904,8 +1094,8 @@
 ## `tests/test_quiet_activity_suppression.py`
 
 - language: `py`
-- size: 1981 bytes
-- hash: `4fca21d8995b`
+- size: 2025 bytes
+- hash: `461a0b97290f`
 - symbols:
   - `class` `Approval` — line 5
   - `method` `Approval.request` — line 6
@@ -921,8 +1111,8 @@
 ## `tests/test_session_context_budget.py`
 
 - language: `py`
-- size: 1466 bytes
-- hash: `5f1d143c53fb`
+- size: 1507 bytes
+- hash: `02e340a05a7f`
 - symbols:
   - `class` `Provider` — line 7
   - `method` `Provider.chat` — line 8
@@ -941,8 +1131,8 @@
 ## `tests/test_skills.py`
 
 - language: `py`
-- size: 1234 bytes
-- hash: `c554f3cd7337`
+- size: 1264 bytes
+- hash: `602de43a3ad5`
 - symbols:
   - `function` `test_skill_matching` — line 3
   - `function` `test_fresh_skill_registry_is_seeded_with_builtin_defaults` — line 10
@@ -954,8 +1144,8 @@
 ## `tests/test_ui01_react_vite_tailwind.py`
 
 - language: `py`
-- size: 1915 bytes
-- hash: `5c925804021b`
+- size: 1960 bytes
+- hash: `ea820698fa4c`
 - symbols:
   - `function` `test_ui01_has_react_vite_tailwind_project_structure` — line 10
   - `function` `test_ui01_react_app_has_multiple_pages_and_hash_navigation` — line 22
@@ -969,8 +1159,8 @@
 ## `tests/test_ui06_plotly.py`
 
 - language: `py`
-- size: 7172 bytes
-- hash: `8ee179829e41`
+- size: 7351 bytes
+- hash: `d097bc842d97`
 - symbols:
   - `function` `test_ui06_uses_real_plotly_component_not_hand_drawn_svg_or_canvas` — line 18
   - `function` `test_ui06_plotly_version_is_exact_and_loader_is_same_origin_only` — line 31
@@ -995,8 +1185,8 @@
 ## `tests/test_ui_chat_approvals.py`
 
 - language: `py`
-- size: 1997 bytes
-- hash: `5f0a3c15eafe`
+- size: 2056 bytes
+- hash: `10fa3c96967e`
 - symbols:
   - `function` `_app` — line 9
   - `function` `test_ui02_chat_renders_assistant_markdown_without_html_injection` — line 13
@@ -1011,29 +1201,32 @@
 ## `tests/test_v010_interaction.py`
 
 - language: `py`
-- size: 6456 bytes
-- hash: `6937a12081de`
+- size: 8717 bytes
+- hash: `34419ca6a667`
 - symbols:
-  - `class` `FakeProvider` — line 13
-  - `method` `FakeProvider.__init__` — line 14
-  - `method` `FakeProvider.chat_stream` — line 19
-  - `method` `FakeProvider.unload` — line 24
-  - `class` `NoPressure` — line 28
-  - `method` `NoPressure.can_start_model` — line 29
-  - `class` `DummySpecialists` — line 33
-  - `method` `DummySpecialists.delegate` — line 34
-  - `function` `_orchestrator` — line 38
-  - `function` `test_event_bus_records_ordered_activity` — line 51
-  - `function` `test_orchestrator_streams_tokens_and_final_without_bypassing_normal_context` — line 60
-  - `function` `test_streaming_tool_call_runs_through_registered_tool_then_continues` — line 71
-  - `function` `test_streaming_error_redacts_secret_like_values` — line 87
-  - `function` `test_dashboard_is_bundled_and_no_longer_disabled_by_api_token` — line 99
-  - `function` `test_chat_stream_api_emits_sse` — line 116
-  - `function` `test_activity_endpoint_is_authenticated_like_other_local_data` — line 143
-  - `function` `test_event_bus_persists_recent_activity_across_restart` — line 156
+  - `class` `FakeProvider` — line 14
+  - `method` `FakeProvider.__init__` — line 15
+  - `method` `FakeProvider.chat_stream` — line 20
+  - `method` `FakeProvider.unload` — line 25
+  - `class` `NoPressure` — line 29
+  - `method` `NoPressure.can_start_model` — line 30
+  - `class` `DummySpecialists` — line 34
+  - `method` `DummySpecialists.delegate` — line 35
+  - `function` `_orchestrator` — line 39
+  - `function` `test_event_bus_records_ordered_activity` — line 52
+  - `function` `test_orchestrator_streams_tokens_and_final_without_bypassing_normal_context` — line 61
+  - `function` `test_streaming_tool_call_runs_through_registered_tool_then_continues` — line 72
+  - `function` `test_streaming_error_redacts_secret_like_values` — line 88
+  - `function` `test_dashboard_is_bundled_and_no_longer_disabled_by_api_token` — line 100
+  - `function` `test_chat_stream_api_emits_sse` — line 117
+  - `function` `test_ask_returns_actionable_service_error_when_local_runner_stops` — line 144
+  - `function` `test_chat_stream_emits_actionable_runner_error` — line 174
+  - `function` `test_activity_endpoint_is_authenticated_like_other_local_data` — line 208
+  - `function` `test_event_bus_persists_recent_activity_across_restart` — line 221
 - imports:
   - `__future__`
   - `fastapi.testclient`
+  - `living_assistant.core.model_provider`
   - `living_assistant.event_bus`
   - `living_assistant.model_provider`
   - `living_assistant.orchestrator`
@@ -1043,8 +1236,8 @@
 ## `tests/test_v011_voice_presence.py`
 
 - language: `py`
-- size: 9381 bytes
-- hash: `41741a7def83`
+- size: 9601 bytes
+- hash: `1b4162846ef9`
 - symbols:
   - `class` `AllowApproval` — line 12
   - `method` `AllowApproval.__init__` — line 13
@@ -1082,8 +1275,8 @@
 ## `tests/test_v012_connectors.py`
 
 - language: `py`
-- size: 9510 bytes
-- hash: `bd933a8084b9`
+- size: 9700 bytes
+- hash: `647ac5a01bcc`
 - symbols:
   - `class` `Approval` — line 12
   - `method` `Approval.__init__` — line 13
@@ -1115,43 +1308,44 @@
 ## `tests/test_v013_model_runtime.py`
 
 - language: `py`
-- size: 13200 bytes
-- hash: `8a537a30d77d`
+- size: 13920 bytes
+- hash: `0495209dc33d`
 - symbols:
   - `function` `hw` — line 12
   - `function` `cfg` — line 21
   - `function` `test_4gb_gpu_stays_single_model` — line 43
-  - `function` `test_16gb_gpu_enables_two_models` — line 50
-  - `function` `test_24gb_gpu_enables_three_models` — line 57
-  - `function` `test_apple_unified_memory_thresholds` — line 63
-  - `function` `test_lite_profile_always_single_in_auto_mode` — line 68
-  - `function` `test_explicit_single_overrides_high_end_hardware` — line 73
-  - `class` `FakeResources` — line 80
-  - `method` `FakeResources.can_admit_model` — line 85
-  - `method` `FakeResources.can_start_model` — line 90
-  - `method` `FakeResources.thermal_pressure` — line 93
-  - `class` `FakeProvider` — line 97
-  - `method` `FakeProvider.__init__` — line 98
-  - `method` `FakeProvider.model_size_bytes` — line 103
-  - `method` `FakeProvider.unload` — line 106
-  - `method` `FakeProvider.preload` — line 109
-  - `method` `FakeProvider.running_models` — line 113
-  - `function` `policy` — line 117
-  - `function` `test_single_mode_evicts_previous_model` — line 131
-  - `function` `test_multi_mode_keeps_two_and_lru_evicts` — line 140
-  - `function` `test_pressure_evicts_idle_model_even_before_count_limit` — line 151
-  - `function` `test_preload_uses_long_resident_keep_alive` — line 160
-  - `function` `test_distinct_models_can_hold_generation_leases_concurrently` — line 168
-  - `function` `test_same_model_is_serialized_when_parallel_per_model_is_one` — line 192
-  - `function` `test_status_can_sync_provider_running_models` — line 219
-  - `function` `test_thermal_pressure_serializes_otherwise_parallel_models` — line 229
-  - `function` `test_resource_thermal_guard_blocks_additional_residency` — line 257
-  - `function` `test_model_runtime_api_status_and_controls` — line 268
-  - `function` `test_combined_model_sizes_respect_total_vram_budget` — line 307
-  - `function` `test_lower_priority_background_model_cannot_evict_foreground_model` — line 320
-  - `function` `test_higher_priority_foreground_model_evicts_lower_priority_background_model` — line 337
-  - `function` `test_can_start_model_rejects_known_model_that_would_force_cpu_fallback` — line 346
-  - `function` `test_can_start_model_blocks_when_only_reserved_vram_remains` — line 358
+  - `function` `test_4gb_gpu_context_budget_can_be_configured` — line 51
+  - `function` `test_16gb_gpu_enables_two_models` — line 60
+  - `function` `test_24gb_gpu_enables_three_models` — line 67
+  - `function` `test_apple_unified_memory_thresholds` — line 73
+  - `function` `test_lite_profile_always_single_in_auto_mode` — line 78
+  - `function` `test_explicit_single_overrides_high_end_hardware` — line 83
+  - `class` `FakeResources` — line 90
+  - `method` `FakeResources.can_admit_model` — line 95
+  - `method` `FakeResources.can_start_model` — line 100
+  - `method` `FakeResources.thermal_pressure` — line 103
+  - `class` `FakeProvider` — line 107
+  - `method` `FakeProvider.__init__` — line 108
+  - `method` `FakeProvider.model_size_bytes` — line 113
+  - `method` `FakeProvider.unload` — line 116
+  - `method` `FakeProvider.preload` — line 119
+  - `method` `FakeProvider.running_models` — line 123
+  - `function` `policy` — line 127
+  - `function` `test_single_mode_evicts_previous_model` — line 141
+  - `function` `test_multi_mode_keeps_two_and_lru_evicts` — line 150
+  - `function` `test_pressure_evicts_idle_model_even_before_count_limit` — line 161
+  - `function` `test_preload_uses_long_resident_keep_alive` — line 170
+  - `function` `test_distinct_models_can_hold_generation_leases_concurrently` — line 178
+  - `function` `test_same_model_is_serialized_when_parallel_per_model_is_one` — line 202
+  - `function` `test_status_can_sync_provider_running_models` — line 229
+  - `function` `test_thermal_pressure_serializes_otherwise_parallel_models` — line 239
+  - `function` `test_resource_thermal_guard_blocks_additional_residency` — line 267
+  - `function` `test_model_runtime_api_status_and_controls` — line 278
+  - `function` `test_combined_model_sizes_respect_total_vram_budget` — line 317
+  - `function` `test_lower_priority_background_model_cannot_evict_foreground_model` — line 330
+  - `function` `test_higher_priority_foreground_model_evicts_lower_priority_background_model` — line 347
+  - `function` `test_can_start_model_rejects_known_model_that_would_force_cpu_fallback` — line 356
+  - `function` `test_can_start_model_blocks_when_only_reserved_vram_remains` — line 368
 - imports:
   - `__future__`
   - `dataclasses`
@@ -1165,8 +1359,8 @@
 ## `tests/test_v014_desktop_intelligence.py`
 
 - language: `py`
-- size: 3955 bytes
-- hash: `b26cab3e473a`
+- size: 4068 bytes
+- hash: `9c68d27c352b`
 - symbols:
   - `class` `Approval` — line 9
   - `method` `Approval.__init__` — line 10
@@ -1203,8 +1397,8 @@
 ## `tests/test_v015_security_sensors.py`
 
 - language: `py`
-- size: 11720 bytes
-- hash: `7f975f9010cd`
+- size: 11961 bytes
+- hash: `dca1a87a23c4`
 - symbols:
   - `class` `AllowApproval` — line 12
   - `method` `AllowApproval.request` — line 13
@@ -1249,8 +1443,8 @@
 ## `tests/test_v016_platform_hardening.py`
 
 - language: `py`
-- size: 9128 bytes
-- hash: `b1907597abb2`
+- size: 9355 bytes
+- hash: `bce10b6d7f73`
 - symbols:
   - `function` `test_portable_link_prefers_symlink` — line 18
   - `function` `test_file_link_falls_back_to_hardlink` — line 27
@@ -1282,8 +1476,8 @@
 ## `tests/test_v0171_audit_fixes.py`
 
 - language: `py`
-- size: 5749 bytes
-- hash: `9f670662987d`
+- size: 5879 bytes
+- hash: `ad098ecb74ee`
 - symbols:
   - `function` `_tools` — line 11
   - `class` `FakeBrowser` — line 15
@@ -1309,8 +1503,8 @@
 ## `tests/test_v0172_security_regressions.py`
 
 - language: `py`
-- size: 11770 bytes
-- hash: `0710e1b8c26a`
+- size: 12028 bytes
+- hash: `cd5ea600ce21`
 - symbols:
   - `function` `_handlers` — line 26
   - `function` `_git` — line 30
@@ -1353,8 +1547,8 @@
 ## `tests/test_v0173_shell_output.py`
 
 - language: `py`
-- size: 1097 bytes
-- hash: `e881afcc1b6d`
+- size: 1119 bytes
+- hash: `911edd84da98`
 - symbols:
   - `function` `test_run_command_bounds_model_visible_output_without_buffering_capture` — line 6
 - imports:
@@ -1365,8 +1559,8 @@
 ## `tests/test_v0173_specialist_timeout.py`
 
 - language: `py`
-- size: 958 bytes
-- hash: `f80145e26365`
+- size: 989 bytes
+- hash: `65c444a23240`
 - symbols:
   - `class` `SlowProvider` — line 6
   - `method` `SlowProvider.chat` — line 7
@@ -1381,8 +1575,8 @@
 ## `tests/test_v0173_voice_tools.py`
 
 - language: `py`
-- size: 1132 bytes
-- hash: `645869a7ca86`
+- size: 1155 bytes
+- hash: `d951782f5021`
 - symbols:
   - `function` `test_one_shot_voice_tools_remain_available_when_voice_mode_disabled` — line 7
 - imports:
@@ -1394,8 +1588,8 @@
 ## `tests/test_v017_release_packaging.py`
 
 - language: `py`
-- size: 6453 bytes
-- hash: `fda93eb8bce5`
+- size: 6594 bytes
+- hash: `9de7af96004c`
 - symbols:
   - `function` `_fake_installed_version` — line 15
   - `function` `_minimal_wheel` — line 25
@@ -1513,8 +1707,8 @@
 ## `tests/test_v04_improvements.py`
 
 - language: `py`
-- size: 2680 bytes
-- hash: `275bfb2296b7`
+- size: 2741 bytes
+- hash: `f52b9e28e56b`
 - symbols:
   - `function` `build` — line 6
   - `function` `test_proposal_requires_approval_then_applies` — line 14
@@ -1529,8 +1723,8 @@
 ## `tests/test_v04_routines.py`
 
 - language: `py`
-- size: 1464 bytes
-- hash: `31ac0e9c4a7c`
+- size: 1495 bytes
+- hash: `490c770e3943`
 - symbols:
   - `class` `Memory` — line 3
   - `method` `Memory.__init__` — line 4
@@ -1560,8 +1754,8 @@
 ## `tests/test_v05_briefing.py`
 
 - language: `py`
-- size: 3374 bytes
-- hash: `1094529d51fc`
+- size: 3447 bytes
+- hash: `f46f12d8ab58`
 - symbols:
   - `class` `EmptyProjects` — line 7
   - `method` `EmptyProjects.list` — line 8
@@ -1605,8 +1799,8 @@
 ## `tests/test_v05_notifications.py`
 
 - language: `py`
-- size: 1696 bytes
-- hash: `8949b0daaca8`
+- size: 1736 bytes
+- hash: `eef26d688905`
 - symbols:
   - `function` `test_quiet_notifications_queue_and_flush` — line 4
   - `function` `test_windows_notification_uses_powershell_toast_backend` — line 16
@@ -1647,8 +1841,8 @@
 ## `tests/test_v05_sessions.py`
 
 - language: `py`
-- size: 3368 bytes
-- hash: `93250651d644`
+- size: 3445 bytes
+- hash: `4a6e2a40bc62`
 - symbols:
   - `function` `test_session_history_search_and_delete` — line 5
   - `function` `test_session_prune` — line 16
@@ -1675,8 +1869,8 @@
 ## `tests/test_v06_security_guardian.py`
 
 - language: `py`
-- size: 7215 bytes
-- hash: `6da6bc5665a9`
+- size: 7368 bytes
+- hash: `268fd26b3f08`
 - symbols:
   - `function` `guardian` — line 8
   - `function` `test_integrity_baseline_detects_change` — line 12
@@ -1701,8 +1895,8 @@
 ## `tests/test_v07_evaluation.py`
 
 - language: `py`
-- size: 12634 bytes
-- hash: `4ffb59439219`
+- size: 12852 bytes
+- hash: `52f3f812d192`
 - symbols:
   - `function` `build` — line 13
   - `function` `approve_and_retry` — line 31
@@ -1735,8 +1929,8 @@
 ## `tests/test_v08_hardened_canary.py`
 
 - language: `py`
-- size: 10474 bytes
-- hash: `a5cefb864ddc`
+- size: 10661 bytes
+- hash: `2d50f5373171`
 - symbols:
   - `function` `approve_and_retry` — line 13
   - `function` `base_stack` — line 19
@@ -1764,8 +1958,8 @@
 ## `tests/test_v092_security_hardening.py`
 
 - language: `py`
-- size: 9128 bytes
-- hash: `37d5e96883cc`
+- size: 9321 bytes
+- hash: `73064b9b1122`
 - symbols:
   - `function` `_tools` — line 22
   - `function` `test_shell_read_exemption_cannot_be_chained` — line 26
@@ -1805,8 +1999,8 @@
 ## `tests/test_v09_experience.py`
 
 - language: `py`
-- size: 10176 bytes
-- hash: `c2a855d839e9`
+- size: 10392 bytes
+- hash: `21ea66740040`
 - symbols:
   - `function` `engine` — line 6
   - `function` `recovery_trace` — line 18
@@ -1852,11 +2046,37 @@
   - `living_assistant.orchestrator`
   - `living_assistant.tools.base`
 
+## `tests/test_voice_api_flow.py`
+
+- language: `py`
+- size: 6067 bytes
+- hash: `dc6cc8fb1267`
+- symbols:
+  - `class` `FakeVoice` — line 6
+  - `method` `FakeVoice.__init__` — line 7
+  - `method` `FakeVoice.status` — line 11
+  - `method` `FakeVoice.record_until_silence` — line 14
+  - `method` `FakeVoice.transcribe` — line 18
+  - `method` `FakeVoice.clean_command_text` — line 21
+  - `method` `FakeVoice.speak` — line 24
+  - `method` `FakeVoice.start_hands_free` — line 27
+  - `method` `FakeVoice.stop_hands_free` — line 32
+  - `class` `FakeModels` — line 37
+  - `method` `FakeModels.provider_info` — line 40
+  - `method` `FakeModels.validate_model_selection` — line 50
+  - `function` `test_voice_ask_runs_local_record_transcribe_and_orchestrator` — line 54
+  - `function` `test_voice_ask_rejects_unconfigured_online_model_before_microphone` — line 89
+  - `function` `test_voice_status_exposes_hands_free_readiness` — line 134
+  - `function` `test_hands_free_start_and_stop_use_local_model` — line 159
+- imports:
+  - `fastapi.testclient`
+  - `types`
+
 ## `tests/test_watchers.py`
 
 - language: `py`
-- size: 1142 bytes
-- hash: `d87ef57ef20f`
+- size: 1173 bytes
+- hash: `7a2d557263a7`
 - symbols:
   - `function` `test_watcher_detects_change` — line 4
   - `function` `test_watcher_batches_large_change_bursts` — line 16
@@ -1868,8 +2088,8 @@
 ## `tests/test_webtools_image_download.py`
 
 - language: `py`
-- size: 3273 bytes
-- hash: `111edf431d85`
+- size: 3365 bytes
+- hash: `6202b5631793`
 - symbols:
   - `class` `_Response` — line 10
   - `method` `_Response.__init__` — line 15
@@ -1897,8 +2117,8 @@
 ## `tests/test_webui.py`
 
 - language: `py`
-- size: 2508 bytes
-- hash: `7ab309af5de7`
+- size: 2585 bytes
+- hash: `ed4b000e8236`
 - symbols:
   - `function` `_dashboard_source` — line 9
   - `function` `_app_source` — line 17
@@ -1915,8 +2135,8 @@
 ## `tests/test_windows_eventlog_daemon_wiring.py`
 
 - language: `py`
-- size: 2813 bytes
-- hash: `4bd63b7eb0bf`
+- size: 2879 bytes
+- hash: `217dda9d6c53`
 - symbols:
   - `class` `Guardian` — line 7
   - `method` `Guardian.__init__` — line 8

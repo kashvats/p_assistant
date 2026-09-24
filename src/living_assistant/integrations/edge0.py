@@ -64,13 +64,10 @@ class Edge0Adapter:
         try:
             edge0 = self._sdk()
             engine = edge0.AutoEngine.from_pretrained(model)
-
-            # Use generate or similar
-            if hasattr(engine, "generate"):
-                result = engine.generate(prompt, max_tokens=max_tokens)
-                return {"ok": True, "text": str(result)}
-
-            return {"ok": True, "text": "Mock generation"}
+            if not hasattr(engine, "generate"):
+                return {"ok": False, "error": f"Edge0 engine for '{model}' does not expose a generate() method"}
+            result = engine.generate(prompt, max_tokens=max_tokens)
+            return {"ok": True, "text": str(result)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
@@ -79,9 +76,9 @@ class Edge0Adapter:
         try:
             edge0 = self._sdk()
             engine = edge0.AutoEngine.from_pretrained(model)
-            if hasattr(engine, "chat"):
-                result = engine.chat(messages)
-                return {"ok": True, "text": str(result)}
-            return {"ok": True, "text": "Mock chat response"}
+            if not hasattr(engine, "chat"):
+                return {"ok": False, "error": f"Edge0 engine for '{model}' does not expose a chat() method"}
+            result = engine.chat(messages)
+            return {"ok": True, "text": str(result)}
         except Exception as e:
             return {"ok": False, "error": str(e)}

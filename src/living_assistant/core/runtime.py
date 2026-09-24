@@ -138,6 +138,15 @@ class Runtime:
     openviking: OpenVikingAdapter | None
     agentmemory: AgentMemoryAdapter | None = None
     codebase_memory: CodebaseMemoryAdapter | None = None
+    diagram: DiagramDesignAdapter | None = None
+    cybersecurity: CybersecuritySkillsAdapter | None = None
+    graft: GraftAdapter | None = None
+    openmontage: OpenMontageAdapter | None = None
+    edge0: Edge0Adapter | None = None
+    agency_agents: AgencyAgentsAdapter | None = None
+    scientific_skills: ScientificSkillsAdapter | None = None
+    awesome_harness: AwesomeHarnessAdapter | None = None
+    awesome_agent_tools: AwesomeAgentToolsAdapter | None = None
     skill_manager: Any = None
     agent_manager: Any = None
     scheduler: Any = None
@@ -512,5 +521,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     mobile_bridge=MobileBridge(cfg, connector_manager, orchestrator)
     return Runtime(cfg,profile,hw,ws,snapshots,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,repairs,canaries,browser,
-                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller,integrations,openviking_adapter,agentmemory_adapter,codebase_memory_adapter,skill_manager,agent_manager,scheduler=scheduler)
+                   personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller,integrations,openviking_adapter,agentmemory_adapter,codebase_memory_adapter,
+                   diagram=diagram_adapter,cybersecurity=cybersecurity_adapter,graft=graft_adapter,openmontage=openmontage_adapter,edge0=edge0_adapter,agency_agents=agency_agents_adapter,scientific_skills=scientific_skills_adapter,awesome_harness=awesome_harness_adapter,awesome_agent_tools=awesome_agent_tools_adapter,
+                   skill_manager=skill_manager,agent_manager=agent_manager,scheduler=scheduler)
 

@@ -5,20 +5,20 @@
 ## `scripts/bootstrap.ps1`
 
 - language: `ps1`
-- size: 471 bytes
-- hash: `0629d5af4e32`
+- size: 482 bytes
+- hash: `85f8846cbd75`
 
 ## `scripts/bootstrap.sh`
 
 - language: `sh`
-- size: 294 bytes
-- hash: `09459bcf0daa`
+- size: 304 bytes
+- hash: `9ce98150479d`
 
 ## `scripts/build_release.py`
 
 - language: `py`
-- size: 837 bytes
-- hash: `857275b13289`
+- size: 856 bytes
+- hash: `8e203ca86096`
 - symbols:
   - `function` `sha` — line 12
 - imports:
@@ -32,8 +32,8 @@
 ## `scripts/install.py`
 
 - language: `py`
-- size: 289 bytes
-- hash: `19106b29bf5f`
+- size: 297 bytes
+- hash: `99348ba9b4f1`
 - imports:
   - `living_assistant.release_manager`
   - `pathlib`
@@ -42,20 +42,20 @@
 ## `scripts/install_daemon_linux.sh`
 
 - language: `sh`
-- size: 1330 bytes
-- hash: `98001a7cded0`
+- size: 1371 bytes
+- hash: `360a4862bb52`
 
 ## `scripts/install_daemon_macos.sh`
 
 - language: `sh`
-- size: 1521 bytes
-- hash: `f0e6f51f9b82`
+- size: 1545 bytes
+- hash: `49cd1b8d8655`
 
 ## `scripts/install_daemon_windows.ps1`
 
 - language: `ps1`
-- size: 1436 bytes
-- hash: `4dde2db3ecf2`
+- size: 1452 bytes
+- hash: `4609b38fa1ac`
 
 ## `scripts/install_operator.sh`
 
@@ -72,54 +72,54 @@
 ## `scripts/install_release_linux.sh`
 
 - language: `sh`
-- size: 1366 bytes
-- hash: `df50d7d26cd7`
+- size: 1393 bytes
+- hash: `8831e66f2b6b`
 
 ## `scripts/install_release_macos.sh`
 
 - language: `sh`
-- size: 1398 bytes
-- hash: `460d072327f7`
+- size: 1425 bytes
+- hash: `696381859b43`
 
 ## `scripts/install_release_windows.ps1`
 
 - language: `ps1`
-- size: 1436 bytes
-- hash: `3afe98f47d86`
+- size: 1461 bytes
+- hash: `1da0b267b51c`
 
 ## `scripts/uninstall_release_linux.sh`
 
 - language: `sh`
-- size: 129 bytes
-- hash: `68bb11078717`
+- size: 133 bytes
+- hash: `2185f8d5dec1`
 
 ## `scripts/uninstall_release_macos.sh`
 
 - language: `sh`
-- size: 129 bytes
-- hash: `68bb11078717`
+- size: 133 bytes
+- hash: `2185f8d5dec1`
 
 ## `scripts/uninstall_release_windows.ps1`
 
 - language: `ps1`
-- size: 153 bytes
-- hash: `20727bb9c41d`
+- size: 156 bytes
+- hash: `9e565b1509b8`
 
 ## `scripts/update_release_linux.sh`
 
 - language: `sh`
-- size: 106 bytes
-- hash: `1c25d026e3a5`
+- size: 109 bytes
+- hash: `e6bd7fda889e`
 
 ## `scripts/update_release_macos.sh`
 
 - language: `sh`
-- size: 106 bytes
-- hash: `2311a5b4b22c`
+- size: 109 bytes
+- hash: `1300ac601422`
 
 ## `scripts/update_release_windows.ps1`
 
 - language: `ps1`
-- size: 96 bytes
-- hash: `079592d1b8bb`
+- size: 98 bytes
+- hash: `6d4d127a6a26`
 

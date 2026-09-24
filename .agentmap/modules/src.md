@@ -11,16 +11,16 @@
 ## `src/living_assistant/agents/__init__.py`
 
 - language: `py`
-- size: 263 bytes
-- hash: `ebf79461f59b`
+- size: 270 bytes
+- hash: `83398b2e6bf3`
 - imports:
   - `agents`
 
 ## `src/living_assistant/agents/agents.py`
 
 - language: `py`
-- size: 5339 bytes
-- hash: `a6e12fbe119e`
+- size: 5453 bytes
+- hash: `382296a05b33`
 - symbols:
   - `class` `SpecialistRouter` — line 13
   - `method` `SpecialistRouter.__init__` — line 14
@@ -39,8 +39,8 @@
 ## `src/living_assistant/agents/aggregator.py`
 
 - language: `py`
-- size: 6851 bytes
-- hash: `b0737af6c5bb`
+- size: 6979 bytes
+- hash: `d797457e3c50`
 - symbols:
   - `class` `AggregatedResult` — line 8
   - `class` `Aggregator` — line 26
@@ -54,48 +54,330 @@
   - `pydantic`
   - `typing`
 
+## `src/living_assistant/agents/custom/__init__.py`
+
+- language: `py`
+- size: 1640 bytes
+- hash: `a1f51a893815`
+- imports:
+  - `__future__`
+  - `living_assistant.agents.custom.creator`
+  - `living_assistant.agents.custom.delegation`
+  - `living_assistant.agents.custom.examples`
+  - `living_assistant.agents.custom.manager`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.agents.custom.memory`
+  - `living_assistant.agents.custom.package`
+  - `living_assistant.agents.custom.runner`
+  - `living_assistant.agents.custom.store`
+  - `living_assistant.agents.custom.tools`
+
+## `src/living_assistant/agents/custom/creator.py`
+
+- language: `py`
+- size: 7632 bytes
+- hash: `bdc10f7ba9ea`
+- symbols:
+  - `class` `AgentCreator` — line 21
+  - `method` `AgentCreator.__init__` — line 24
+  - `method` `AgentCreator._slugify` — line 38
+  - `method` `AgentCreator._heuristic_agent_draft` — line 44
+  - `method` `AgentCreator.create_draft` — line 128
+- imports:
+  - `__future__`
+  - `datetime`
+  - `json`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.agents.custom.package`
+  - `living_assistant.agents.custom.store`
+  - `living_assistant.tools.registry`
+  - `pathlib`
+  - `re`
+  - `typing`
+
+## `src/living_assistant/agents/custom/delegation.py`
+
+- language: `py`
+- size: 2978 bytes
+- hash: `2a06a040e208`
+- symbols:
+  - `class` `DelegationViolation` — line 9
+  - `class` `AgentDelegationCoordinator` — line 13
+  - `method` `AgentDelegationCoordinator.__init__` — line 16
+  - `method` `AgentDelegationCoordinator.validate_delegation` — line 21
+- imports:
+  - `__future__`
+  - `living_assistant.agents.custom.manifest`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/agents/custom/examples.py`
+
+- language: `py`
+- size: 5726 bytes
+- hash: `9169b1c5d67e`
+- symbols:
+  - `function` `get_research_agent_manifest` — line 12
+  - `function` `get_file_assistant_manifest` — line 54
+  - `function` `get_planner_agent_manifest` — line 96
+- imports:
+  - `__future__`
+  - `living_assistant.agents.custom.manifest`
+
+## `src/living_assistant/agents/custom/manager.py`
+
+- language: `py`
+- size: 9817 bytes
+- hash: `ec17aacc2f15`
+- symbols:
+  - `function` `default_agents_dir` — line 22
+  - `class` `AgentManager` — line 26
+  - `method` `AgentManager.__init__` — line 29
+  - `method` `AgentManager._seed_builtins_if_needed` — line 65
+  - `method` `AgentManager.list_agents` — line 85
+  - `method` `AgentManager.get_agent` — line 107
+  - `method` `AgentManager.create_draft` — line 128
+  - `method` `AgentManager.update_agent` — line 131
+  - `method` `AgentManager.activate_agent` — line 144
+  - `method` `AgentManager.disable_agent` — line 177
+  - `method` `AgentManager.archive_agent` — line 181
+  - `method` `AgentManager.execute_agent` — line 185
+  - `method` `AgentManager.export_agent` — line 222
+  - `method` `AgentManager.import_agent` — line 229
+- imports:
+  - `__future__`
+  - `datetime`
+  - `living_assistant.agents.custom.creator`
+  - `living_assistant.agents.custom.delegation`
+  - `living_assistant.agents.custom.examples`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.agents.custom.package`
+  - `living_assistant.agents.custom.runner`
+  - `living_assistant.agents.custom.store`
+  - `living_assistant.core.config`
+  - `living_assistant.tools.registry`
+  - `pathlib`
+  - `typing`
+
+## `src/living_assistant/agents/custom/manifest.py`
+
+- language: `py`
+- size: 3916 bytes
+- hash: `b99c014a4502`
+- symbols:
+  - `class` `AgentLimits` — line 9
+  - `class` `AgentDelegationPolicy` — line 18
+  - `class` `AgentMemoryScope` — line 25
+  - `class` `AgentModelPreference` — line 35
+  - `class` `AgentProvenance` — line 41
+  - `class` `AgentManifest` — line 48
+  - `method` `AgentManifest.permission_hash` — line 67
+  - `method` `AgentManifest.validate_against_system` — line 79
+  - `method` `AgentManifest.from_json` — line 104
+- imports:
+  - `__future__`
+  - `hashlib`
+  - `json`
+  - `pydantic`
+  - `typing`
+
+## `src/living_assistant/agents/custom/memory.py`
+
+- language: `py`
+- size: 3719 bytes
+- hash: `6239be75aa45`
+- symbols:
+  - `class` `MemoryScopeViolation` — line 8
+  - `class` `AgentScopedMemory` — line 12
+  - `method` `AgentScopedMemory.__init__` — line 15
+  - `method` `AgentScopedMemory._check_read` — line 28
+  - `method` `AgentScopedMemory._check_write` — line 35
+  - `method` `AgentScopedMemory.read` — line 42
+  - `method` `AgentScopedMemory.write` — line 54
+  - `method` `AgentScopedMemory.list_keys` — line 68
+  - `method` `AgentScopedMemory.get_prompt_context` — line 76
+- imports:
+  - `__future__`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.agents.custom.store`
+  - `typing`
+
+## `src/living_assistant/agents/custom/package.py`
+
+- language: `py`
+- size: 7627 bytes
+- hash: `3759189de6e6`
+- symbols:
+  - `class` `AgentPackageError` — line 15
+  - `class` `AgentPackage` — line 19
+  - `method` `AgentPackage.__init__` — line 22
+  - `method` `AgentPackage.save` — line 36
+  - `method` `AgentPackage.load` — line 59
+  - `method` `AgentPackage.deterministic_hash` — line 90
+  - `method` `AgentPackage.create_snapshot` — line 104
+  - `method` `AgentPackage.export_zip` — line 120
+  - `method` `AgentPackage.import_zip` — line 136
+- imports:
+  - `__future__`
+  - `hashlib`
+  - `json`
+  - `living_assistant.agents.custom.manifest`
+  - `os`
+  - `pathlib`
+  - `shutil`
+  - `tempfile`
+  - `typing`
+  - `zipfile`
+
+## `src/living_assistant/agents/custom/runner.py`
+
+- language: `py`
+- size: 10768 bytes
+- hash: `c16713633ade`
+- symbols:
+  - `class` `AgentExecutionError` — line 17
+  - `class` `AgentExecutor` — line 21
+  - `method` `AgentExecutor.__init__` — line 24
+  - `method` `AgentExecutor.execute` — line 40
+- imports:
+  - `__future__`
+  - `collections`
+  - `datetime`
+  - `hashlib`
+  - `json`
+  - `living_assistant.agents.custom.delegation`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.agents.custom.memory`
+  - `living_assistant.agents.custom.store`
+  - `living_assistant.tools.registry`
+  - `time`
+  - `typing`
+
+## `src/living_assistant/agents/custom/store.py`
+
+- language: `py`
+- size: 15928 bytes
+- hash: `5cd61d1f6d92`
+- symbols:
+  - `class` `AgentStore` — line 85
+  - `method` `AgentStore.__init__` — line 88
+  - `method` `AgentStore._init_schema` — line 97
+  - `method` `AgentStore.close` — line 101
+  - `method` `AgentStore.register_agent` — line 109
+  - `method` `AgentStore.get_lifecycle` — line 171
+  - `method` `AgentStore.set_state` — line 177
+  - `method` `AgentStore.approve_agent` — line 185
+  - `method` `AgentStore.is_approved` — line 210
+  - `method` `AgentStore.list_agents` — line 231
+  - `method` `AgentStore.get_versions` — line 242
+  - `method` `AgentStore.record_execution_start` — line 254
+  - `method` `AgentStore.record_execution_finish` — line 285
+  - `method` `AgentStore.get_executions` — line 321
+  - `method` `AgentStore.record_action` — line 362
+  - `method` `AgentStore.set_memory` — line 408
+  - `method` `AgentStore.get_memory` — line 423
+  - `method` `AgentStore.list_memory` — line 437
+  - `method` `AgentStore.clear_memory` — line 451
+- imports:
+  - `__future__`
+  - `datetime`
+  - `json`
+  - `living_assistant.agents.custom.manifest`
+  - `living_assistant.core.config`
+  - `living_assistant.core.sqlite_utils`
+  - `pathlib`
+  - `sqlite3`
+  - `typing`
+  - `uuid`
+
+## `src/living_assistant/agents/custom/tools.py`
+
+- language: `py`
+- size: 4647 bytes
+- hash: `16ea00a28004`
+- symbols:
+  - `function` `build_agent_tools` — line 8
+- imports:
+  - `__future__`
+  - `living_assistant.agents.custom.manager`
+  - `living_assistant.tools.base`
+  - `typing`
+
 ## `src/living_assistant/agents/orchestrator.py`
 
 - language: `py`
-- size: 20761 bytes
-- hash: `39259a15bed5`
+- size: 57133 bytes
+- hash: `db3db457a114`
 - symbols:
-  - `class` `Orchestrator` — line 13
-  - `method` `Orchestrator.__init__` — line 14
-  - `method` `Orchestrator._delegate` — line 43
-  - `method` `Orchestrator._model_lease` — line 63
-  - `method` `Orchestrator._publish` — line 78
-  - `method` `Orchestrator._history_start` — line 86
-  - `method` `Orchestrator._history_tool` — line 95
-  - `method` `Orchestrator._history_finish` — line 103
-  - `method` `Orchestrator._record_model_usage` — line 111
-  - `method` `Orchestrator._skill_context` — line 122
-  - `method` `Orchestrator._session_context` — line 129
-  - `method` `Orchestrator._project_hint` — line 156
-  - `method` `Orchestrator._experience_context` — line 168
-  - `method` `Orchestrator._finish` — line 173
-  - `method` `Orchestrator._prepare` — line 178
-  - `method` `Orchestrator._execute_tool` — line 197
-  - `method` `Orchestrator.run` — line 219
-  - `method` `Orchestrator.run_stream` — line 284
+  - `class` `_ToolDocument` — line 41
+  - `class` `DynamicToolRouter` — line 51
+  - `method` `DynamicToolRouter.__init__` — line 66
+  - `method` `DynamicToolRouter._normalize_text` — line 75
+  - `method` `DynamicToolRouter._term_variants` — line 84
+  - `method` `DynamicToolRouter._tokenize` — line 117
+  - `method` `DynamicToolRouter._flatten_schema` — line 127
+  - `method` `DynamicToolRouter._safe_schema` — line 146
+  - `method` `DynamicToolRouter._signature` — line 153
+  - `method` `DynamicToolRouter.refresh` — line 165
+  - `method` `DynamicToolRouter._char_ngrams` — line 228
+  - `method` `DynamicToolRouter._fuzzy_score` — line 234
+  - `method` `DynamicToolRouter.search` — line 258
+  - `class` `Orchestrator` — line 330
+  - `method` `Orchestrator.__init__` — line 331
+  - `method` `Orchestrator._duplicate_tool_names` — line 438
+  - `method` `Orchestrator._register_internal_tool` — line 442
+  - `method` `Orchestrator._delegate` — line 453
+  - `method` `Orchestrator._tool_catalog_search` — line 485
+  - `method` `Orchestrator._merge_tool_names` — line 503
+  - `method` `Orchestrator._initial_tool_names` — line 520
+  - `method` `Orchestrator._followup_tool_names` — line 576
+  - `method` `Orchestrator._expand_from_discovery_result` — line 605
+  - `method` `Orchestrator._schemas_for` — line 623
+  - `method` `Orchestrator._routing_context` — line 633
+  - `method` `Orchestrator._model_lease` — line 649
+  - `method` `Orchestrator._publish` — line 663
+  - `method` `Orchestrator._history_start` — line 671
+  - `method` `Orchestrator._history_tool` — line 692
+  - `method` `Orchestrator._history_finish` — line 715
+  - `method` `Orchestrator._record_model_usage` — line 736
+  - `method` `Orchestrator._skill_context` — line 762
+  - `method` `Orchestrator._session_context` — line 780
+  - `method` `Orchestrator._project_hint` — line 804
+  - `method` `Orchestrator._experience_context` — line 821
+  - `method` `Orchestrator._finish` — line 833
+  - `method` `Orchestrator._prepare` — line 838
+  - `method` `Orchestrator._execute_tool` — line 878
+  - `method` `Orchestrator._serialized_tool_result` — line 920
+  - `method` `Orchestrator._update_active_tools_after_result` — line 928
+  - `method` `Orchestrator.run` — line 952
+  - `method` `Orchestrator.run_stream` — line 1230
 - imports:
   - `__future__`
+  - `collections`
   - `contextlib`
+  - `dataclasses`
+  - `difflib`
+  - `inspect`
   - `json`
   - `living_assistant.agents.agents`
   - `living_assistant.agents.prompts`
   - `living_assistant.core.model_provider`
   - `living_assistant.core.skills`
+  - `living_assistant.core.typesafe`
   - `living_assistant.security.security_utils`
   - `living_assistant.system.resource_manager`
   - `living_assistant.tools.base`
+  - `math`
+  - `pathlib`
+  - `re`
   - `time`
+  - `typing`
 
 ## `src/living_assistant/agents/orchestrator_teams.py`
 
 - language: `py`
-- size: 4055 bytes
-- hash: `96a85b92a20f`
+- size: 4137 bytes
+- hash: `ddd294e4f7d2`
 - symbols:
   - `function` `dispatch_to_teams` — line 8
 - imports:
@@ -106,14 +388,14 @@
 ## `src/living_assistant/agents/prompts.py`
 
 - language: `py`
-- size: 4755 bytes
-- hash: `3c00932e2743`
+- size: 4680 bytes
+- hash: `5bf652731736`
 
 ## `src/living_assistant/agents/task_graph.py`
 
 - language: `py`
-- size: 3723 bytes
-- hash: `e064d2da4bcd`
+- size: 3823 bytes
+- hash: `493e41400b23`
 - symbols:
   - `class` `TaskNode` — line 9
   - `class` `TaskGraphManager` — line 18
@@ -135,8 +417,8 @@
 ## `src/living_assistant/aggregator.py`
 
 - language: `py`
-- size: 252 bytes
-- hash: `820acd5c7e7c`
+- size: 257 bytes
+- hash: `6bfe3bfbbf54`
 - imports:
   - `importlib`
   - `sys`
@@ -144,29 +426,30 @@
 ## `src/living_assistant/api.py`
 
 - language: `py`
-- size: 6098 bytes
-- hash: `0eca893142a7`
+- size: 7474 bytes
+- hash: `5fa0051fa1f5`
 - symbols:
-  - `function` `_allowed_hostnames` — line 56
-  - `function` `_host_only` — line 65
-  - `function` `_origin_is_local_or_same` — line 72
-  - `async-function` `local_api_boundary` — line 83
-  - `function` `_rt` — line 104
-  - `function` `_auth` — line 108
-  - `function` `health` — line 122
-  - `function` `status` — line 127
-  - `function` `platform_status_endpoint` — line 142
-  - `function` `platform_service_status_endpoint` — line 150
+  - `function` `_allowed_hostnames` — line 58
+  - `function` `_host_only` — line 67
+  - `function` `_origin_is_local_or_same` — line 74
+  - `async-function` `local_api_boundary` — line 85
+  - `function` `_rt` — line 106
+  - `function` `_auth` — line 110
+  - `function` `health` — line 127
+  - `function` `status` — line 132
+  - `function` `platform_status_endpoint` — line 171
+  - `function` `platform_service_status_endpoint` — line 179
 - routes:
-  - `GET /health` → `health` — line 122
-  - `GET /status` → `status` — line 127
-  - `GET /platform/status` → `platform_status_endpoint` — line 142
-  - `GET /platform/service-status` → `platform_service_status_endpoint` — line 150
+  - `GET /health` → `health` — line 127
+  - `GET /status` → `status` — line 132
+  - `GET /platform/status` → `platform_status_endpoint` — line 171
+  - `GET /platform/service-status` → `platform_service_status_endpoint` — line 179
 - imports:
   - `__future__`
   - `fastapi`
   - `fastapi.responses`
   - `hmac`
+  - `living_assistant.api_routes.agents`
   - `living_assistant.api_routes.assistant`
   - `living_assistant.api_routes.desktop`
   - `living_assistant.api_routes.improvements`
@@ -176,6 +459,7 @@
   - `living_assistant.api_routes.personal`
   - `living_assistant.api_routes.schemas`
   - `living_assistant.api_routes.security`
+  - `living_assistant.api_routes.skills`
   - `living_assistant.api_routes.ui`
   - `living_assistant.api_routes.workspace`
   - `living_assistant.core.runtime`
@@ -187,8 +471,8 @@
 ## `src/living_assistant/api_auth.py`
 
 - language: `py`
-- size: 252 bytes
-- hash: `90d1e094c748`
+- size: 257 bytes
+- hash: `9d219b0711a2`
 - imports:
   - `importlib`
   - `sys`
@@ -196,25 +480,63 @@
 ## `src/living_assistant/api_routes/__init__.py`
 
 - language: `py`
-- size: 57 bytes
-- hash: `8c9bd15c60ec`
+- size: 58 bytes
+- hash: `7f55c2bc60d4`
+
+## `src/living_assistant/api_routes/agents.py`
+
+- language: `py`
+- size: 6132 bytes
+- hash: `846777d0adda`
+- symbols:
+  - `class` `AgentDraftRequest` — line 13
+  - `class` `UpdateAgentRequest` — line 18
+  - `class` `ExecuteAgentRequest` — line 23
+  - `class` `ImportAgentZipRequest` — line 30
+  - `function` `list_agents` — line 35
+  - `function` `create_draft` — line 45
+  - `function` `get_agent` — line 61
+  - `function` `update_agent` — line 74
+  - `function` `activate_agent` — line 92
+  - `function` `disable_agent` — line 106
+  - `function` `execute_agent` — line 116
+  - `function` `export_agent` — line 140
+  - `function` `import_agent` — line 163
+- routes:
+  - `POST /draft` → `create_draft` — line 45
+  - `GET /{agent_id}` → `get_agent` — line 61
+  - `PUT /{agent_id}` → `update_agent` — line 74
+  - `POST /{agent_id}/activate` → `activate_agent` — line 92
+  - `POST /{agent_id}/disable` → `disable_agent` — line 106
+  - `POST /{agent_id}/execute` → `execute_agent` — line 116
+  - `GET /{agent_id}/export` → `export_agent` — line 140
+  - `POST /import` → `import_agent` — line 163
+- imports:
+  - `__future__`
+  - `base64`
+  - `fastapi`
+  - `living_assistant.api_routes.dependencies`
+  - `pydantic`
+  - `typing`
 
 ## `src/living_assistant/api_routes/assistant.py`
 
 - language: `py`
-- size: 2778 bytes
-- hash: `a2b439dcff36`
+- size: 5099 bytes
+- hash: `01faa652b5c6`
 - symbols:
-  - `function` `_sse` — line 14
-  - `function` `ask` — line 30
-  - `function` `activity` — line 49
-  - `function` `activity_stream` — line 59
-  - `function` `chat_stream` — line 88
+  - `function` `_has_screen_intent` — line 22
+  - `function` `_model_http_error` — line 26
+  - `function` `_sse` — line 37
+  - `function` `ask` — line 53
+  - `function` `activity` — line 92
+  - `function` `activity_stream` — line 102
+  - `function` `chat_stream` — line 131
 - routes:
-  - `POST /ask` → `ask` — line 30
-  - `GET /activity` → `activity` — line 49
-  - `GET /activity/stream` → `activity_stream` — line 59
-  - `POST /chat/stream` → `chat_stream` — line 88
+  - `POST /ask` → `ask` — line 53
+  - `GET /activity` → `activity` — line 92
+  - `GET /activity/stream` → `activity_stream` — line 102
+  - `POST /chat/stream` → `chat_stream` — line 131
 - imports:
   - `__future__`
   - `fastapi`
@@ -222,12 +544,14 @@
   - `json`
   - `living_assistant.api_routes.dependencies`
   - `living_assistant.api_routes.schemas`
+  - `living_assistant.core.model_provider`
+  - `re`
 
 ## `src/living_assistant/api_routes/dependencies.py`
 
 - language: `py`
-- size: 543 bytes
-- hash: `3cb72904a27a`
+- size: 561 bytes
+- hash: `daae7187c038`
 - symbols:
   - `function` `runtime` — line 6
   - `function` `authorize` — line 14
@@ -238,18 +562,20 @@
 ## `src/living_assistant/api_routes/desktop.py`
 
 - language: `py`
-- size: 1078 bytes
-- hash: `fa7568c5cc3b`
+- size: 2137 bytes
+- hash: `584103f1de04`
 - symbols:
   - `function` `desktop_status` — line 12
   - `function` `desktop_monitors` — line 18
   - `function` `desktop_windows` — line 24
   - `function` `desktop_analyze_screen` — line 30
+  - `function` `desktop_screen_access` — line 56
 - routes:
   - `GET /desktop/status` → `desktop_status` — line 12
   - `GET /desktop/monitors` → `desktop_monitors` — line 18
   - `GET /desktop/windows` → `desktop_windows` — line 24
   - `POST /desktop/analyze-screen` → `desktop_analyze_screen` — line 30
+  - `POST /desktop/screen-access` → `desktop_screen_access` — line 56
 - imports:
   - `__future__`
   - `fastapi`
@@ -259,8 +585,8 @@
 ## `src/living_assistant/api_routes/improvements.py`
 
 - language: `py`
-- size: 8239 bytes
-- hash: `2e308bd64176`
+- size: 8557 bytes
+- hash: `db13c90e5103`
 - symbols:
   - `function` `improvements` — line 19
   - `function` `improvement_apply` — line 30
@@ -320,71 +646,77 @@
 ## `src/living_assistant/api_routes/integrations.py`
 
 - language: `py`
-- size: 3097 bytes
-- hash: `4f8d2c0cc74f`
+- size: 6949 bytes
+- hash: `50872a2e0be2`
 - symbols:
-  - `function` `voice_status` — line 18
-  - `function` `voice_enabled` — line 29
-  - `function` `browser_sessions` — line 44
-  - `function` `browser_session_start` — line 50
-  - `function` `browser_session_navigate` — line 64
-  - `function` `browser_session_interact` — line 74
-  - `function` `browser_session_close` — line 89
-  - `function` `connectors` — line 98
-  - `function` `connector_status` — line 104
-  - `function` `connector_call` — line 113
+  - `function` `voice_status` — line 21
+  - `function` `voice_ask` — line 34
+  - `function` `voice_hands_free` — line 84
+  - `function` `voice_enabled` — line 126
+  - `function` `browser_sessions` — line 141
+  - `function` `browser_session_start` — line 147
+  - `function` `browser_session_navigate` — line 161
+  - `function` `browser_session_interact` — line 171
+  - `function` `browser_session_close` — line 186
+  - `function` `connectors` — line 195
+  - `function` `connector_status` — line 201
+  - `function` `connector_call` — line 210
 - routes:
-  - `GET /voice/status` → `voice_status` — line 18
-  - `POST /voice/enabled` → `voice_enabled` — line 29
-  - `GET /browser/sessions` → `browser_sessions` — line 44
-  - `POST /browser/sessions` → `browser_session_start` — line 50
-  - `POST /browser/sessions/{name}/navigate` → `browser_session_navigate` — line 64
-  - `POST /browser/sessions/{name}/interact` → `browser_session_interact` — line 74
-  - `DELETE /browser/sessions/{name}` → `browser_session_close` — line 89
-  - `GET /connectors` → `connectors` — line 98
-  - `GET /connectors/{name}/status` → `connector_status` — line 104
-  - `POST /connectors/{name}/call` → `connector_call` — line 113
+  - `GET /voice/status` → `voice_status` — line 21
+  - `POST /voice/ask` → `voice_ask` — line 34
+  - `POST /voice/hands-free` → `voice_hands_free` — line 84
+  - `POST /voice/enabled` → `voice_enabled` — line 126
+  - `GET /browser/sessions` → `browser_sessions` — line 141
+  - `POST /browser/sessions` → `browser_session_start` — line 147
+  - `POST /browser/sessions/{name}/navigate` → `browser_session_navigate` — line 161
+  - `POST /browser/sessions/{name}/interact` → `browser_session_interact` — line 171
+  - `DELETE /browser/sessions/{name}` → `browser_session_close` — line 186
+  - `GET /connectors` → `connectors` — line 195
+  - `GET /connectors/{name}/status` → `connector_status` — line 201
+  - `POST /connectors/{name}/call` → `connector_call` — line 210
 - imports:
   - `__future__`
   - `fastapi`
   - `living_assistant.api_routes.dependencies`
   - `living_assistant.api_routes.schemas`
+  - `threading`
 
 ## `src/living_assistant/api_routes/models.py`
 
 - language: `py`
-- size: 3040 bytes
-- hash: `b3e5910c32b9`
+- size: 4230 bytes
+- hash: `b02d1621b73f`
 - symbols:
-  - `function` `model_status` — line 13
-  - `function` `model_select` — line 24
-  - `function` `model_preload` — line 47
-  - `function` `model_unload` — line 56
-  - `function` `model_local_catalog` — line 65
-  - `function` `model_pull` — line 71
-  - `function` `model_delete` — line 80
-  - `function` `model_usage` — line 88
+  - `function` `model_status` — line 14
+  - `function` `model_select` — line 25
+  - `function` `model_preload` — line 61
+  - `function` `model_unload` — line 76
+  - `function` `model_local_catalog` — line 85
+  - `function` `model_pull` — line 94
+  - `function` `model_delete` — line 103
+  - `function` `model_usage` — line 111
 - routes:
-  - `GET /models/status` → `model_status` — line 13
-  - `POST /models/select` → `model_select` — line 24
-  - `POST /models/preload` → `model_preload` — line 47
-  - `POST /models/unload` → `model_unload` — line 56
-  - `GET /models/local` → `model_local_catalog` — line 65
-  - `POST /models/pull` → `model_pull` — line 71
-  - `POST /models/delete` → `model_delete` — line 80
-  - `GET /models/usage` → `model_usage` — line 88
+  - `GET /models/status` → `model_status` — line 14
+  - `POST /models/select` → `model_select` — line 25
+  - `POST /models/preload` → `model_preload` — line 61
+  - `POST /models/unload` → `model_unload` — line 76
+  - `GET /models/local` → `model_local_catalog` — line 85
+  - `POST /models/pull` → `model_pull` — line 94
+  - `POST /models/delete` → `model_delete` — line 103
+  - `GET /models/usage` → `model_usage` — line 111
 - imports:
   - `__future__`
   - `fastapi`
   - `living_assistant.api_routes.dependencies`
   - `living_assistant.api_routes.schemas`
+  - `living_assistant.core.config`
   - `living_assistant.core.model_provider`
 
 ## `src/living_assistant/api_routes/peers.py`
 
 - language: `py`
-- size: 884 bytes
-- hash: `18d764665a5b`
+- size: 911 bytes
+- hash: `54ac8cce5d74`
 - symbols:
   - `function` `peers_list` — line 12
   - `function` `peer_delegate` — line 18
@@ -400,8 +732,8 @@
 ## `src/living_assistant/api_routes/personal.py`
 
 - language: `py`
-- size: 4340 bytes
-- hash: `35dc07d65ec1`
+- size: 4518 bytes
+- hash: `205c432353c9`
 - symbols:
   - `function` `events` — line 17
   - `function` `todos` — line 26
@@ -447,8 +779,8 @@
 ## `src/living_assistant/api_routes/schemas.py`
 
 - language: `py`
-- size: 4061 bytes
-- hash: `b497d793b45f`
+- size: 4484 bytes
+- hash: `37983fdc11ec`
 - symbols:
   - `class` `AskRequest` — line 6
   - `class` `ApprovalDecision` — line 12
@@ -472,8 +804,9 @@
   - `class` `ModelRequest` — line 142
   - `class` `ModelDeleteRequest` — line 146
   - `class` `EnabledRequest` — line 151
-  - `class` `DesktopAnalyzeRequest` — line 155
-  - `class` `PeerDelegateRequest` — line 163
+  - `class` `VoiceAskRequest` — line 155
+  - `class` `DesktopAnalyzeRequest` — line 161
+  - `class` `PeerDelegateRequest` — line 170
 - imports:
   - `__future__`
   - `pydantic`
@@ -481,8 +814,8 @@
 ## `src/living_assistant/api_routes/security.py`
 
 - language: `py`
-- size: 13055 bytes
-- hash: `905c5401ba11`
+- size: 13502 bytes
+- hash: `c329059aa8f3`
 - symbols:
   - `function` `approvals` — line 22
   - `function` `approval_decide` — line 31
@@ -576,11 +909,63 @@
   - `living_assistant.api_routes.schemas`
   - `living_assistant.security.security_guardian`
 
+## `src/living_assistant/api_routes/skills.py`
+
+- language: `py`
+- size: 9437 bytes
+- hash: `6d531e7bd3b7`
+- symbols:
+  - `class` `DraftRequest` — line 14
+  - `class` `UpdateSkillRequest` — line 18
+  - `class` `ExecuteRequest` — line 23
+  - `class` `RollbackRequest` — line 28
+  - `class` `UndoRequest` — line 32
+  - `class` `ImportCollectionRequest` — line 36
+  - `class` `ImportZipRequest` — line 41
+  - `function` `list_skills` — line 46
+  - `function` `create_draft` — line 58
+  - `function` `get_skill` — line 74
+  - `function` `update_skill` — line 87
+  - `function` `activate_skill` — line 106
+  - `function` `disable_skill` — line 119
+  - `function` `archive_skill` — line 130
+  - `function` `execute_skill` — line 141
+  - `function` `rollback_skill` — line 155
+  - `function` `undo_skill` — line 174
+  - `function` `reconcile_skill` — line 187
+  - `function` `export_skill` — line 200
+  - `function` `import_skill` — line 218
+  - `function` `browse_collections` — line 239
+  - `function` `import_collection_skill` — line 246
+- routes:
+  - `POST /draft` → `create_draft` — line 58
+  - `GET /{skill_id}` → `get_skill` — line 74
+  - `PUT /{skill_id}` → `update_skill` — line 87
+  - `POST /{skill_id}/activate` → `activate_skill` — line 106
+  - `POST /{skill_id}/disable` → `disable_skill` — line 119
+  - `POST /{skill_id}/archive` → `archive_skill` — line 130
+  - `POST /{skill_id}/execute` → `execute_skill` — line 141
+  - `POST /{skill_id}/rollback` → `rollback_skill` — line 155
+  - `POST /{skill_id}/undo` → `undo_skill` — line 174
+  - `POST /{skill_id}/reconcile` → `reconcile_skill` — line 187
+  - `GET /{skill_id}/export` → `export_skill` — line 200
+  - `POST /import` → `import_skill` — line 218
+  - `GET /collections/browse` → `browse_collections` — line 239
+  - `POST /collections/import` → `import_collection_skill` — line 246
+- imports:
+  - `__future__`
+  - `base64`
+  - `fastapi`
+  - `living_assistant.api_routes.dependencies`
+  - `living_assistant.skills.collections`
+  - `pydantic`
+  - `typing`
+
 ## `src/living_assistant/api_routes/ui.py`
 
 - language: `py`
-- size: 2527 bytes
-- hash: `fe24ca5aef79`
+- size: 2599 bytes
+- hash: `475737d5bdd9`
 - symbols:
   - `function` `_security_headers` — line 17
   - `function` `dashboard` — line 26
@@ -599,22 +984,20 @@
 ## `src/living_assistant/api_routes/workspace.py`
 
 - language: `py`
-- size: 1117 bytes
-- hash: `57f28f14d7e4`
+- size: 1005 bytes
+- hash: `1297d39ab53f`
 - symbols:
   - `function` `projects` — line 11
   - `function` `groups` — line 17
   - `function` `processes` — line 23
   - `function` `watches` — line 29
-  - `function` `skills` — line 35
-  - `function` `routines` — line 41
+  - `function` `routines` — line 35
 - routes:
   - `GET /projects` → `projects` — line 11
   - `GET /groups` → `groups` — line 17
   - `GET /processes` → `processes` — line 23
   - `GET /watches` → `watches` — line 29
-  - `GET /skills` → `skills` — line 35
-  - `GET /routines` → `routines` — line 41
+  - `GET /routines` → `routines` — line 35
 - imports:
   - `__future__`
   - `fastapi`
@@ -623,8 +1006,8 @@
 ## `src/living_assistant/approval.py`
 
 - language: `py`
-- size: 244 bytes
-- hash: `758c1780d8cc`
+- size: 249 bytes
+- hash: `a098bd0930cc`
 - imports:
   - `importlib`
   - `sys`
@@ -632,8 +1015,8 @@
 ## `src/living_assistant/approval_ui.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `7ebc4a35f39f`
+- size: 261 bytes
+- hash: `f6717db34551`
 - imports:
   - `importlib`
   - `sys`
@@ -641,8 +1024,8 @@
 ## `src/living_assistant/briefing.py`
 
 - language: `py`
-- size: 244 bytes
-- hash: `eb4a2fe46f07`
+- size: 249 bytes
+- hash: `94b2301e2ac2`
 - imports:
   - `importlib`
   - `sys`
@@ -650,8 +1033,8 @@
 ## `src/living_assistant/browser.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `d2ef2c52857e`
+- size: 253 bytes
+- hash: `2355842700be`
 - imports:
   - `importlib`
   - `sys`
@@ -659,8 +1042,8 @@
 ## `src/living_assistant/calendar_store.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `c542c5d0cea7`
+- size: 261 bytes
+- hash: `614cf71aa686`
 - imports:
   - `importlib`
   - `sys`
@@ -668,8 +1051,8 @@
 ## `src/living_assistant/canary.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `83881b9cd559`
+- size: 253 bytes
+- hash: `64e30fe60a93`
 - imports:
   - `importlib`
   - `sys`
@@ -677,209 +1060,226 @@
 ## `src/living_assistant/cli/__init__.py`
 
 - language: `py`
-- size: 225 bytes
-- hash: `ba1d8e73d2c5`
+- size: 232 bytes
+- hash: `063dea33adca`
 - imports:
   - `commands`
 
 ## `src/living_assistant/cli/commands.py`
 
 - language: `py`
-- size: 62679 bytes
-- hash: `f34aa738324e`
+- size: 70545 bytes
+- hash: `5aaaf660e416`
 - symbols:
-  - `function` `onboard` — line 60
-  - `function` `doctor` — line 122
-  - `function` `platform_status_cmd` — line 158
-  - `function` `platform_link_probe` — line 163
-  - `function` `platform_service_status` — line 168
-  - `function` `release_status` — line 174
-  - `function` `release_verify` — line 178
-  - `function` `release_backup` — line 183
-  - `function` `release_rollback` — line 187
-  - `function` `release_remove_version` — line 191
-  - `function` `model_status` — line 195
-  - `function` `model_preload` — line 201
-  - `function` `model_unload` — line 207
-  - `function` `model_sleep` — line 212
-  - `function` `ask` — line 218
-  - `function` `chat` — line 226
-  - `function` `daemon` — line 242
-  - `function` `tick` — line 249
-  - `function` `serve` — line 256
-  - `function` `tray` — line 263
-  - `function` `project_add` — line 273
-  - `function` `project_list` — line 288
-  - `function` `project_detect` — line 295
-  - `function` `project_audit` — line 300
-  - `function` `project_snapshot` — line 307
-  - `function` `project_snapshots` — line 313
-  - `function` `project_snapshot_restore` — line 320
-  - `function` `project_run` — line 335
-  - `function` `project_test` — line 346
-  - `function` `project_processes` — line 358
-  - `function` `project_logs` — line 362
-  - `function` `project_restart` — line 367
-  - `function` `project_stop` — line 374
-  - `function` `group_add` — line 377
-  - `function` `group_list` — line 389
-  - `function` `group_plan` — line 392
-  - `function` `group_run` — line 395
-  - `function` `group_stop` — line 399
-  - `function` `approval_list` — line 402
-  - `function` `approval_approve` — line 406
-  - `function` `approval_deny` — line 409
-  - `function` `approval_ui` — line 412
-  - `function` `watch_add` — line 421
-  - `function` `watch_list` — line 425
-  - `function` `watch_remove` — line 428
-  - `function` `skill_add` — line 431
-  - `function` `skill_list` — line 436
-  - `function` `skill_remove` — line 439
-  - `function` `todo_add` — line 442
-  - `function` `todo_list` — line 446
-  - `function` `todo_done` — line 449
-  - `function` `quarantine_list` — line 452
-  - `function` `quarantine_release` — line 455
-  - `function` `quarantine_inspect` — line 466
-  - `function` `quarantine_scan` — line 472
-  - `function` `git_status` — line 481
-  - `function` `git_diff` — line 487
-  - `function` `desktop_screenshot` — line 493
-  - `function` `desktop_clipboard_read` — line 500
-  - `function` `desktop_status` — line 507
-  - `function` `desktop_monitors` — line 511
-  - `function` `desktop_windows` — line 515
-  - `function` `desktop_accessibility` — line 519
-  - `function` `desktop_click` — line 523
-  - `function` `desktop_type` — line 527
-  - `function` `desktop_hotkey` — line 531
-  - `function` `desktop_analyze_screen` — line 535
-  - `function` `security_audit` — line 539
-  - `function` `security_av_status` — line 542
-  - `function` `security_posture` — line 545
-  - `function` `security_findings` — line 549
-  - `function` `security_resolve` — line 553
-  - `function` `security_initialize` — line 557
-  - `function` `security_startup_inventory` — line 564
-  - `function` `security_startup_capture` — line 567
-  - `function` `security_startup_check` — line 570
-  - `function` `security_network_capture` — line 573
-  - `function` `security_network_check` — line 576
-  - `function` `security_process` — line 579
-  - `function` `security_process_triage` — line 582
-  - `function` `security_network_activity` — line 585
-  - `function` `security_file_signature` — line 588
-  - `function` `security_baseline_add` — line 591
-  - `function` `security_baseline_list` — line 596
-  - `function` `security_baseline_check` — line 599
-  - `function` `security_baseline_refresh` — line 602
-  - `function` `security_baseline_remove` — line 605
-  - `function` `security_contain_process` — line 608
-  - `function` `security_sensor_status` — line 612
-  - `function` `security_events` — line 615
-  - `function` `security_correlate` — line 618
-  - `function` `security_dns` — line 621
-  - `function` `security_tls_context` — line 624
-  - `function` `security_yara` — line 627
-  - `function` `security_reputation` — line 631
-  - `function` `security_reputation_process` — line 634
-  - `function` `security_binary_assess` — line 637
-  - `function` `security_binary_trust` — line 640
-  - `function` `security_binary_check` — line 643
-  - `function` `security_usb_check` — line 646
-  - `function` `security_usb_capture` — line 649
-  - `function` `security_extensions_check` — line 652
-  - `function` `security_extensions_capture` — line 655
-  - `function` `security_backup_capture` — line 658
-  - `function` `security_backup_list` — line 661
-  - `function` `security_backup_check` — line 664
-  - `function` `security_network_isolate` — line 667
-  - `function` `security_network_restore` — line 670
-  - `function` `browser_live` — line 675
-  - `function` `browser_sessions` — line 708
-  - `function` `browser_start` — line 712
-  - `function` `browser_snapshot` — line 718
-  - `function` `browser_navigate` — line 722
-  - `function` `browser_click` — line 726
-  - `function` `browser_fill` — line 730
-  - `function` `browser_close` — line 734
-  - `function` `voice_status` — line 738
-  - `function` `voice_record` — line 743
-  - `function` `voice_record_utterance` — line 748
-  - `function` `voice_transcribe` — line 757
-  - `function` `voice_wake` — line 765
-  - `function` `voice_wake_model_download` — line 776
-  - `function` `voice_ask` — line 784
-  - `function` `voice_presence` — line 802
-  - `function` `routine_list` — line 865
-  - `function` `routine_add_event_notify` — line 869
-  - `function` `routine_add_interval_notify` — line 874
-  - `function` `routine_add_interval_todo` — line 879
-  - `function` `routine_add_daily_notify` — line 884
-  - `function` `routine_add_daily_todo` — line 889
-  - `function` `routine_add_weekly_notify` — line 894
-  - `function` `routine_add_prompt` — line 899
-  - `function` `routine_enable` — line 906
-  - `function` `routine_disable` — line 910
-  - `function` `routine_remove` — line 914
-  - `function` `improve_list` — line 918
-  - `function` `improve_show` — line 922
-  - `function` `improve_propose` — line 926
-  - `function` `improve_apply` — line 933
-  - `function` `improve_rollback` — line 937
-  - `function` `improve_reject` — line 941
-  - `function` `improve_suite_add` — line 945
-  - `function` `improve_suite_list` — line 960
-  - `function` `improve_suite_remove` — line 964
-  - `function` `improve_evaluate` — line 968
-  - `function` `improve_evaluations` — line 984
-  - `function` `improve_report` — line 988
-  - `function` `improve_sandbox_status` — line 993
-  - `function` `improve_canary_run` — line 998
-  - `function` `improve_canaries` — line 1008
-  - `function` `improve_canary_report` — line 1012
-  - `function` `improve_promote` — line 1016
-  - `function` `improve_revert_promotion` — line 1020
-  - `function` `improve_cleanup_evaluation` — line 1024
-  - `function` `calendar_add` — line 1029
-  - `function` `calendar_list` — line 1033
-  - `function` `calendar_upcoming` — line 1037
-  - `function` `calendar_cancel` — line 1041
-  - `function` `calendar_export` — line 1045
-  - `function` `personal_status` — line 1050
-  - `function` `personal_quiet` — line 1054
-  - `function` `personal_quiet_off` — line 1058
-  - `function` `personal_focus` — line 1062
-  - `function` `personal_focus_off` — line 1066
-  - `function` `personal_flush_notifications` — line 1070
-  - `function` `briefing_now` — line 1074
-  - `function` `session_list` — line 1081
-  - `function` `session_show` — line 1085
-  - `function` `session_search` — line 1089
-  - `function` `session_delete` — line 1093
-  - `function` `integration_list` — line 1098
-  - `function` `integration_providers` — line 1102
-  - `function` `integration_add` — line 1107
-  - `function` `integration_status` — line 1118
-  - `function` `integration_call` — line 1122
-  - `function` `integration_auth` — line 1131
-  - `function` `integration_clear_credentials` — line 1155
-  - `function` `integration_enable` — line 1163
-  - `function` `integration_disable` — line 1167
-  - `function` `integration_remove` — line 1171
-  - `function` `experience_add` — line 1176
-  - `function` `experience_list` — line 1192
-  - `function` `experience_show` — line 1197
-  - `function` `experience_search` — line 1201
-  - `function` `experience_confirm` — line 1205
-  - `function` `experience_verify` — line 1210
-  - `function` `experience_reject` — line 1214
-  - `function` `experience_supersede` — line 1218
-  - `function` `experience_episodes` — line 1222
-  - `function` `experience_patterns` — line 1226
-  - `function` `experience_stats` — line 1230
-  - `function` `experience_maintenance` — line 1234
+  - `function` `onboard` — line 61
+  - `function` `doctor` — line 123
+  - `function` `platform_status_cmd` — line 159
+  - `function` `platform_link_probe` — line 164
+  - `function` `platform_service_status` — line 169
+  - `function` `release_status` — line 175
+  - `function` `release_verify` — line 179
+  - `function` `release_backup` — line 184
+  - `function` `release_rollback` — line 188
+  - `function` `release_remove_version` — line 192
+  - `function` `model_status` — line 196
+  - `function` `model_preload` — line 202
+  - `function` `model_unload` — line 208
+  - `function` `model_sleep` — line 213
+  - `function` `ask` — line 219
+  - `function` `chat` — line 227
+  - `function` `daemon` — line 243
+  - `function` `tick` — line 250
+  - `function` `serve` — line 257
+  - `function` `tray` — line 264
+  - `function` `project_add` — line 274
+  - `function` `project_list` — line 289
+  - `function` `project_detect` — line 296
+  - `function` `project_audit` — line 301
+  - `function` `project_snapshot` — line 308
+  - `function` `project_snapshots` — line 314
+  - `function` `project_snapshot_restore` — line 321
+  - `function` `project_run` — line 336
+  - `function` `project_test` — line 347
+  - `function` `project_processes` — line 359
+  - `function` `project_logs` — line 363
+  - `function` `project_restart` — line 368
+  - `function` `project_stop` — line 375
+  - `function` `group_add` — line 378
+  - `function` `group_list` — line 390
+  - `function` `group_plan` — line 393
+  - `function` `group_run` — line 396
+  - `function` `group_stop` — line 400
+  - `function` `approval_list` — line 403
+  - `function` `approval_approve` — line 407
+  - `function` `approval_deny` — line 410
+  - `function` `approval_ui` — line 413
+  - `function` `watch_add` — line 422
+  - `function` `watch_list` — line 426
+  - `function` `watch_remove` — line 429
+  - `function` `skill_add` — line 432
+  - `function` `skill_list` — line 437
+  - `function` `skill_remove` — line 446
+  - `function` `skill_create` — line 449
+  - `function` `skill_activate` — line 459
+  - `function` `skill_disable` — line 468
+  - `function` `skill_test` — line 477
+  - `function` `skill_run` — line 486
+  - `function` `skill_rollback` — line 495
+  - `function` `skill_export` — line 505
+  - `function` `skill_import` — line 517
+  - `function` `agent_list` — line 528
+  - `function` `agent_info` — line 537
+  - `function` `agent_draft` — line 546
+  - `function` `agent_activate` — line 556
+  - `function` `agent_disable` — line 565
+  - `function` `agent_test` — line 574
+  - `function` `agent_run` — line 583
+  - `function` `agent_export` — line 592
+  - `function` `agent_import` — line 603
+  - `function` `todo_add` — line 613
+  - `function` `todo_list` — line 617
+  - `function` `todo_done` — line 620
+  - `function` `quarantine_list` — line 623
+  - `function` `quarantine_release` — line 626
+  - `function` `quarantine_inspect` — line 637
+  - `function` `quarantine_scan` — line 643
+  - `function` `git_status` — line 652
+  - `function` `git_diff` — line 658
+  - `function` `desktop_screenshot` — line 664
+  - `function` `desktop_clipboard_read` — line 671
+  - `function` `desktop_status` — line 678
+  - `function` `desktop_monitors` — line 682
+  - `function` `desktop_windows` — line 686
+  - `function` `desktop_accessibility` — line 690
+  - `function` `desktop_click` — line 694
+  - `function` `desktop_type` — line 698
+  - `function` `desktop_hotkey` — line 702
+  - `function` `desktop_analyze_screen` — line 706
+  - `function` `security_audit` — line 710
+  - `function` `security_av_status` — line 713
+  - `function` `security_posture` — line 716
+  - `function` `security_findings` — line 720
+  - `function` `security_resolve` — line 724
+  - `function` `security_initialize` — line 728
+  - `function` `security_startup_inventory` — line 735
+  - `function` `security_startup_capture` — line 738
+  - `function` `security_startup_check` — line 741
+  - `function` `security_network_capture` — line 744
+  - `function` `security_network_check` — line 747
+  - `function` `security_process` — line 750
+  - `function` `security_process_triage` — line 753
+  - `function` `security_network_activity` — line 756
+  - `function` `security_file_signature` — line 759
+  - `function` `security_baseline_add` — line 762
+  - `function` `security_baseline_list` — line 767
+  - `function` `security_baseline_check` — line 770
+  - `function` `security_baseline_refresh` — line 773
+  - `function` `security_baseline_remove` — line 776
+  - `function` `security_contain_process` — line 779
+  - `function` `security_sensor_status` — line 783
+  - `function` `security_events` — line 786
+  - `function` `security_correlate` — line 789
+  - `function` `security_dns` — line 792
+  - `function` `security_tls_context` — line 795
+  - `function` `security_yara` — line 798
+  - `function` `security_reputation` — line 802
+  - `function` `security_reputation_process` — line 805
+  - `function` `security_binary_assess` — line 808
+  - `function` `security_binary_trust` — line 811
+  - `function` `security_binary_check` — line 814
+  - `function` `security_usb_check` — line 817
+  - `function` `security_usb_capture` — line 820
+  - `function` `security_extensions_check` — line 823
+  - `function` `security_extensions_capture` — line 826
+  - `function` `security_backup_capture` — line 829
+  - `function` `security_backup_list` — line 832
+  - `function` `security_backup_check` — line 835
+  - `function` `security_network_isolate` — line 838
+  - `function` `security_network_restore` — line 841
+  - `function` `browser_live` — line 846
+  - `function` `browser_sessions` — line 879
+  - `function` `browser_start` — line 883
+  - `function` `browser_snapshot` — line 889
+  - `function` `browser_navigate` — line 893
+  - `function` `browser_click` — line 897
+  - `function` `browser_fill` — line 901
+  - `function` `browser_close` — line 905
+  - `function` `voice_status` — line 909
+  - `function` `voice_record` — line 914
+  - `function` `voice_record_utterance` — line 919
+  - `function` `voice_transcribe` — line 928
+  - `function` `voice_wake` — line 936
+  - `function` `voice_wake_model_download` — line 947
+  - `function` `voice_ask` — line 955
+  - `function` `voice_presence` — line 973
+  - `function` `routine_list` — line 1036
+  - `function` `routine_add_event_notify` — line 1040
+  - `function` `routine_add_interval_notify` — line 1045
+  - `function` `routine_add_interval_todo` — line 1050
+  - `function` `routine_add_daily_notify` — line 1055
+  - `function` `routine_add_daily_todo` — line 1060
+  - `function` `routine_add_weekly_notify` — line 1065
+  - `function` `routine_add_prompt` — line 1070
+  - `function` `routine_enable` — line 1077
+  - `function` `routine_disable` — line 1081
+  - `function` `routine_remove` — line 1085
+  - `function` `improve_list` — line 1089
+  - `function` `improve_show` — line 1093
+  - `function` `improve_propose` — line 1097
+  - `function` `improve_apply` — line 1104
+  - `function` `improve_rollback` — line 1108
+  - `function` `improve_reject` — line 1112
+  - `function` `improve_suite_add` — line 1116
+  - `function` `improve_suite_list` — line 1131
+  - `function` `improve_suite_remove` — line 1135
+  - `function` `improve_evaluate` — line 1139
+  - `function` `improve_evaluations` — line 1155
+  - `function` `improve_report` — line 1159
+  - `function` `improve_sandbox_status` — line 1164
+  - `function` `improve_canary_run` — line 1169
+  - `function` `improve_canaries` — line 1179
+  - `function` `improve_canary_report` — line 1183
+  - `function` `improve_promote` — line 1187
+  - `function` `improve_revert_promotion` — line 1191
+  - `function` `improve_cleanup_evaluation` — line 1195
+  - `function` `calendar_add` — line 1200
+  - `function` `calendar_list` — line 1204
+  - `function` `calendar_upcoming` — line 1208
+  - `function` `calendar_cancel` — line 1212
+  - `function` `calendar_export` — line 1216
+  - `function` `personal_status` — line 1221
+  - `function` `personal_quiet` — line 1225
+  - `function` `personal_quiet_off` — line 1229
+  - `function` `personal_focus` — line 1233
+  - `function` `personal_focus_off` — line 1237
+  - `function` `personal_flush_notifications` — line 1241
+  - `function` `briefing_now` — line 1245
+  - `function` `session_list` — line 1252
+  - `function` `session_show` — line 1256
+  - `function` `session_search` — line 1260
+  - `function` `session_delete` — line 1264
+  - `function` `integration_list` — line 1269
+  - `function` `integration_providers` — line 1273
+  - `function` `integration_add` — line 1278
+  - `function` `integration_status` — line 1289
+  - `function` `integration_call` — line 1293
+  - `function` `integration_auth` — line 1302
+  - `function` `integration_clear_credentials` — line 1326
+  - `function` `integration_enable` — line 1334
+  - `function` `integration_disable` — line 1338
+  - `function` `integration_remove` — line 1342
+  - `function` `experience_add` — line 1347
+  - `function` `experience_list` — line 1363
+  - `function` `experience_show` — line 1368
+  - `function` `experience_search` — line 1372
+  - `function` `experience_confirm` — line 1376
+  - `function` `experience_verify` — line 1381
+  - `function` `experience_reject` — line 1385
+  - `function` `experience_supersede` — line 1389
+  - `function` `experience_episodes` — line 1393
+  - `function` `experience_patterns` — line 1397
+  - `function` `experience_stats` — line 1401
+  - `function` `experience_maintenance` — line 1405
 - imports:
   - `__future__`
   - `helpers`
@@ -902,8 +1302,8 @@
 ## `src/living_assistant/cli/helpers.py`
 
 - language: `py`
-- size: 2790 bytes
-- hash: `9bdd99f2a277`
+- size: 2952 bytes
+- hash: `54875526b622`
 - imports:
   - `__future__`
   - `rich.console`
@@ -912,8 +1312,8 @@
 ## `src/living_assistant/config.py`
 
 - language: `py`
-- size: 240 bytes
-- hash: `6bd82a905663`
+- size: 245 bytes
+- hash: `c35158bc7ce0`
 - imports:
   - `importlib`
   - `sys`
@@ -921,8 +1321,8 @@
 ## `src/living_assistant/connector_credentials.py`
 
 - language: `py`
-- size: 282 bytes
-- hash: `d7a2fc8efcd4`
+- size: 287 bytes
+- hash: `01fb3dca4713`
 - imports:
   - `importlib`
   - `sys`
@@ -930,8 +1330,8 @@
 ## `src/living_assistant/connector_oauth.py`
 
 - language: `py`
-- size: 270 bytes
-- hash: `31fc1312340a`
+- size: 275 bytes
+- hash: `b01898e3e8d0`
 - imports:
   - `importlib`
   - `sys`
@@ -939,8 +1339,8 @@
 ## `src/living_assistant/connectors/__init__.py`
 
 - language: `py`
-- size: 270 bytes
-- hash: `0956d15cda6d`
+- size: 277 bytes
+- hash: `7141c929f808`
 - imports:
   - `connectors`
   - `mobile_bridge`
@@ -948,20 +1348,21 @@
 ## `src/living_assistant/connectors/connector_credentials.py`
 
 - language: `py`
-- size: 3605 bytes
-- hash: `df41dafeb76e`
+- size: 3661 bytes
+- hash: `d3104e5a8727`
 - symbols:
   - `function` `_norm` — line 14
   - `class` `CredentialStore` — line 19
-  - `method` `CredentialStore.prefix_for` — line 26
-  - `method` `CredentialStore.env` — line 29
-  - `method` `CredentialStore._keyring` — line 33
-  - `method` `CredentialStore.load_bundle` — line 42
-  - `method` `CredentialStore.save_bundle` — line 55
-  - `method` `CredentialStore.delete_bundle` — line 64
-  - `method` `CredentialStore.secret` — line 73
-  - `method` `CredentialStore.status` — line 85
-  - `method` `CredentialStore.safe_error` — line 101
+  - `method` `CredentialStore.__post_init__` — line 27
+  - `method` `CredentialStore.prefix_for` — line 32
+  - `method` `CredentialStore.env` — line 35
+  - `method` `CredentialStore._keyring` — line 39
+  - `method` `CredentialStore.load_bundle` — line 44
+  - `method` `CredentialStore.save_bundle` — line 54
+  - `method` `CredentialStore.delete_bundle` — line 59
+  - `method` `CredentialStore.secret` — line 65
+  - `method` `CredentialStore.status` — line 77
+  - `method` `CredentialStore.safe_error` — line 94
 - imports:
   - `__future__`
   - `dataclasses`
@@ -974,8 +1375,8 @@
 ## `src/living_assistant/connectors/connector_oauth.py`
 
 - language: `py`
-- size: 10238 bytes
-- hash: `260020d5f19c`
+- size: 10415 bytes
+- hash: `08d6afd73d2e`
 - symbols:
   - `class` `OAuthManager` — line 25
   - `method` `OAuthManager._client` — line 30
@@ -1007,8 +1408,8 @@
 ## `src/living_assistant/connectors/connectors.py`
 
 - language: `py`
-- size: 24393 bytes
-- hash: `947e3d458ed8`
+- size: 24783 bytes
+- hash: `fea28e3ef7e9`
 - symbols:
   - `function` `_safe_settings` — line 73
   - `function` `_json_external` — line 93
@@ -1066,8 +1467,8 @@
 ## `src/living_assistant/connectors/mobile_bridge.py`
 
 - language: `py`
-- size: 8861 bytes
-- hash: `cab35c0fb026`
+- size: 9052 bytes
+- hash: `69dcfd954fbc`
 - symbols:
   - `class` `MobileBridge` — line 13
   - `method` `MobileBridge.__init__` — line 22
@@ -1093,14 +1494,14 @@
 ## `src/living_assistant/core/__init__.py`
 
 - language: `py`
-- size: 48 bytes
-- hash: `db571169f5e3`
+- size: 49 bytes
+- hash: `b6fcb4dac9f2`
 
 ## `src/living_assistant/core/approval.py`
 
 - language: `py`
-- size: 7651 bytes
-- hash: `11bd0cb5ccbd`
+- size: 7821 bytes
+- hash: `d0cde3aa8c25`
 - symbols:
   - `class` `ApprovalStore` — line 27
   - `method` `ApprovalStore.__init__` — line 28
@@ -1131,8 +1532,8 @@
 ## `src/living_assistant/core/briefing.py`
 
 - language: `py`
-- size: 6724 bytes
-- hash: `7b1cadadd68d`
+- size: 6832 bytes
+- hash: `dc8dc55c2c77`
 - symbols:
   - `class` `BriefingEngine` — line 5
   - `method` `BriefingEngine.__init__` — line 6
@@ -1148,8 +1549,8 @@
 ## `src/living_assistant/core/calendar_store.py`
 
 - language: `py`
-- size: 4890 bytes
-- hash: `5c4ce581daa8`
+- size: 4987 bytes
+- hash: `d799197f191a`
 - symbols:
   - `class` `CalendarStore` — line 23
   - `method` `CalendarStore.__init__` — line 24
@@ -1173,20 +1574,30 @@
 ## `src/living_assistant/core/config.py`
 
 - language: `py`
-- size: 2812 bytes
-- hash: `abb27eee963b`
+- size: 4613 bytes
+- hash: `8c142fe2233f`
 - symbols:
-  - `function` `_expand_env` — line 10
-  - `function` `source_root` — line 23
-  - `function` `data_dir` — line 32
-  - `function` `user_config_path` — line 44
-  - `function` `active_config_path` — line 48
-  - `function` `project_root` — line 60
-  - `function` `_default_config_text` — line 69
-  - `function` `load_config` — line 76
+  - `function` `_expand_env` — line 18
+  - `function` `source_root` — line 31
+  - `function` `data_dir` — line 40
+  - `function` `config_dir` — line 51
+  - `function` `cache_dir` — line 62
+  - `function` `log_dir` — line 68
+  - `function` `state_dir` — line 74
+  - `function` `venvs_dir` — line 80
+  - `function` `user_config_path` — line 87
+  - `function` `model_preferences_path` — line 91
+  - `function` `load_model_preferences` — line 95
+  - `function` `save_model_preference` — line 106
+  - `function` `active_config_path` — line 116
+  - `function` `project_root` — line 128
+  - `function` `_default_config_text` — line 137
+  - `function` `load_config` — line 144
 - imports:
   - `__future__`
   - `importlib`
+  - `json`
+  - `living_assistant.core.storage_utils`
   - `os`
   - `pathlib`
   - `platformdirs`
@@ -1196,8 +1607,8 @@
 ## `src/living_assistant/core/event_bus.py`
 
 - language: `py`
-- size: 4639 bytes
-- hash: `1a5d2a1fd749`
+- size: 4761 bytes
+- hash: `1bf4b3a1b5d8`
 - symbols:
   - `class` `ActivityEvent` — line 16
   - `method` `ActivityEvent.to_dict` — line 22
@@ -1222,8 +1633,8 @@
 ## `src/living_assistant/core/memory.py`
 
 - language: `py`
-- size: 5789 bytes
-- hash: `351ec168527d`
+- size: 5920 bytes
+- hash: `5d37c6c1fb8a`
 - symbols:
   - `class` `MemoryStore` — line 47
   - `method` `MemoryStore.__init__` — line 48
@@ -1250,72 +1661,76 @@
 ## `src/living_assistant/core/model_provider.py`
 
 - language: `py`
-- size: 42878 bytes
-- hash: `f13b3a22f60e`
+- size: 50523 bytes
+- hash: `d62b351913cb`
 - symbols:
   - `class` `ModelError` — line 15
-  - `class` `OllamaProvider` — line 19
-  - `method` `OllamaProvider.__post_init__` — line 25
-  - `method` `OllamaProvider._client` — line 38
-  - `method` `OllamaProvider._validate_model_name` — line 42
-  - `method` `OllamaProvider.available_models` — line 61
-  - `method` `OllamaProvider.model_inventory` — line 64
-  - `method` `OllamaProvider.model_size_bytes` — line 79
-  - `method` `OllamaProvider.running_models` — line 89
-  - `method` `OllamaProvider.pull` — line 100
-  - `method` `OllamaProvider.delete` — line 120
-  - `method` `OllamaProvider.preload` — line 140
-  - `method` `OllamaProvider.chat_stream` — line 154
-  - `method` `OllamaProvider.chat` — line 183
-  - `method` `OllamaProvider.unload` — line 201
-  - `class` `AirLLMProvider` — line 209
-  - `method` `AirLLMProvider.__init__` — line 225
-  - `method` `AirLLMProvider.is_airllm_model` — line 254
-  - `method` `AirLLMProvider.normalize_model` — line 258
-  - `method` `AirLLMProvider.external_name` — line 267
-  - `method` `AirLLMProvider._airllm_module` — line 270
-  - `method` `AirLLMProvider._load_model` — line 278
-  - `method` `AirLLMProvider._prompt` — line 315
-  - `method` `AirLLMProvider._sequence_length` — line 348
-  - `method` `AirLLMProvider.available_models` — line 360
-  - `method` `AirLLMProvider.model_inventory` — line 364
-  - `method` `AirLLMProvider.model_size_bytes` — line 375
-  - `method` `AirLLMProvider.running_models` — line 383
-  - `method` `AirLLMProvider.preload` — line 390
-  - `method` `AirLLMProvider.chat` — line 395
-  - `method` `AirLLMProvider.chat_stream` — line 457
-  - `method` `AirLLMProvider.unload` — line 464
-  - `class` `CompositeModelProvider` — line 478
-  - `method` `CompositeModelProvider.__init__` — line 481
-  - `method` `CompositeModelProvider._route` — line 489
-  - `method` `CompositeModelProvider.available_models` — line 494
-  - `method` `CompositeModelProvider.model_inventory` — line 504
-  - `method` `CompositeModelProvider.model_size_bytes` — line 515
-  - `method` `CompositeModelProvider.running_models` — line 519
-  - `method` `CompositeModelProvider.preload` — line 529
-  - `method` `CompositeModelProvider.chat_stream` — line 533
-  - `method` `CompositeModelProvider.chat` — line 540
-  - `method` `CompositeModelProvider.unload` — line 545
-  - `class` `ModelManager` — line 550
-  - `method` `ModelManager.__init__` — line 558
-  - `method` `ModelManager._publish` — line 575
-  - `method` `ModelManager._model_sem` — line 582
-  - `method` `ModelManager._touch_locked` — line 590
-  - `method` `ModelManager._evict_one_locked` — line 604
-  - `method` `ModelManager._prepare_locked` — line 627
-  - `method` `ModelManager.activate` — line 681
-  - `method` `ModelManager.effective_keep_alive` — line 686
-  - `method` `ModelManager._wait_for_thermal_slot` — line 691
-  - `method` `ModelManager.lease` — line 717
-  - `method` `ModelManager._ollama_provider` — line 749
-  - `method` `ModelManager.local_model_catalog` — line 756
-  - `method` `ModelManager.pull_local_model` — line 831
-  - `method` `ModelManager.delete_local_model` — line 838
-  - `method` `ModelManager.preload` — line 856
-  - `method` `ModelManager.unload` — line 862
-  - `method` `ModelManager.sleep` — line 875
-  - `method` `ModelManager.sync_running_models` — line 890
-  - `method` `ModelManager.status` — line 917
+  - `function` `model_provider_info` — line 41
+  - `class` `OllamaProvider` — line 88
+  - `method` `OllamaProvider.__post_init__` — line 94
+  - `method` `OllamaProvider._client` — line 107
+  - `method` `OllamaProvider._validate_model_name` — line 111
+  - `method` `OllamaProvider.available_models` — line 130
+  - `method` `OllamaProvider.model_inventory` — line 133
+  - `method` `OllamaProvider.model_size_bytes` — line 148
+  - `method` `OllamaProvider.running_models` — line 158
+  - `method` `OllamaProvider.pull` — line 169
+  - `method` `OllamaProvider.delete` — line 189
+  - `method` `OllamaProvider.preload` — line 209
+  - `method` `OllamaProvider.chat_stream` — line 223
+  - `method` `OllamaProvider.chat` — line 252
+  - `method` `OllamaProvider.unload` — line 270
+  - `class` `AirLLMProvider` — line 278
+  - `method` `AirLLMProvider.__init__` — line 294
+  - `method` `AirLLMProvider.is_airllm_model` — line 323
+  - `method` `AirLLMProvider.normalize_model` — line 327
+  - `method` `AirLLMProvider.external_name` — line 336
+  - `method` `AirLLMProvider._airllm_module` — line 339
+  - `method` `AirLLMProvider._load_model` — line 347
+  - `method` `AirLLMProvider._prompt` — line 384
+  - `method` `AirLLMProvider._sequence_length` — line 417
+  - `method` `AirLLMProvider.available_models` — line 429
+  - `method` `AirLLMProvider.model_inventory` — line 433
+  - `method` `AirLLMProvider.model_size_bytes` — line 444
+  - `method` `AirLLMProvider.running_models` — line 452
+  - `method` `AirLLMProvider.preload` — line 459
+  - `method` `AirLLMProvider.chat` — line 464
+  - `method` `AirLLMProvider.chat_stream` — line 526
+  - `method` `AirLLMProvider.unload` — line 533
+  - `class` `CompositeModelProvider` — line 547
+  - `method` `CompositeModelProvider.__init__` — line 550
+  - `method` `CompositeModelProvider._route` — line 558
+  - `method` `CompositeModelProvider.available_models` — line 563
+  - `method` `CompositeModelProvider.model_inventory` — line 573
+  - `method` `CompositeModelProvider.model_size_bytes` — line 584
+  - `method` `CompositeModelProvider.running_models` — line 588
+  - `method` `CompositeModelProvider.preload` — line 598
+  - `method` `CompositeModelProvider.chat_stream` — line 602
+  - `method` `CompositeModelProvider.chat` — line 609
+  - `method` `CompositeModelProvider.unload` — line 614
+  - `class` `ModelManager` — line 619
+  - `method` `ModelManager.__init__` — line 627
+  - `method` `ModelManager._publish` — line 644
+  - `method` `ModelManager._model_sem` — line 651
+  - `method` `ModelManager._touch_locked` — line 659
+  - `method` `ModelManager._evict_one_locked` — line 673
+  - `method` `ModelManager._prepare_locked` — line 696
+  - `method` `ModelManager.activate` — line 750
+  - `method` `ModelManager.effective_keep_alive` — line 755
+  - `method` `ModelManager._wait_for_thermal_slot` — line 760
+  - `method` `ModelManager.lease` — line 786
+  - `method` `ModelManager._ollama_provider` — line 818
+  - `method` `ModelManager.resolve_local_model` — line 825
+  - `method` `ModelManager.local_model_catalog` — line 848
+  - `method` `ModelManager.pull_local_model` — line 923
+  - `method` `ModelManager.delete_local_model` — line 930
+  - `method` `ModelManager.preload` — line 948
+  - `method` `ModelManager.unload` — line 954
+  - `method` `ModelManager.sleep` — line 967
+  - `method` `ModelManager.sync_running_models` — line 982
+  - `method` `ModelManager.status` — line 1009
+  - `method` `ModelManager.provider_info` — line 1039
+  - `method` `ModelManager.validate_model_selection` — line 1101
 - imports:
   - `__future__`
   - `collections`
@@ -1334,8 +1749,8 @@
 ## `src/living_assistant/core/models.py`
 
 - language: `py`
-- size: 2283 bytes
-- hash: `a0d0c6774c27`
+- size: 2309 bytes
+- hash: `ddbf781d8f03`
 - symbols:
   - `class` `ExecutivePlan` — line 4
   - `class` `ProposedMutation` — line 12
@@ -1347,8 +1762,8 @@
 ## `src/living_assistant/core/personal_state.py`
 
 - language: `py`
-- size: 6108 bytes
-- hash: `2773682d8575`
+- size: 6251 bytes
+- hash: `943a68c63ab4`
 - symbols:
   - `function` `_parse_hhmm` — line 10
   - `class` `PersonalState` — line 18
@@ -1377,13 +1792,13 @@
 ## `src/living_assistant/core/runtime.py`
 
 - language: `py`
-- size: 15800 bytes
-- hash: `4f999738a1cb`
+- size: 28293 bytes
+- hash: `1ed1e9effcbc`
 - symbols:
-  - `class` `Runtime` — line 72
-  - `method` `Runtime.dispatch` — line 112
-  - `function` `get_runtime` — line 126
-  - `function` `build_runtime` — line 133
+  - `class` `Runtime` — line 90
+  - `method` `Runtime.dispatch` — line 130
+  - `function` `get_runtime` — line 151
+  - `function` `build_runtime` — line 158
 - imports:
   - `__future__`
   - `dataclasses`
@@ -1408,6 +1823,7 @@
   - `living_assistant.desktop.browser`
   - `living_assistant.desktop.desktop_intelligence`
   - `living_assistant.desktop.voice`
+  - `living_assistant.integrations`
   - `living_assistant.learning.canary`
   - `living_assistant.learning.evaluation`
   - `living_assistant.learning.experience`
@@ -1424,13 +1840,12 @@
   - `living_assistant.system.model_usage`
   - `living_assistant.system.notifications`
   - `living_assistant.system.peer_agents`
-  - `living_assistant.system.resource_manager`
 
 ## `src/living_assistant/core/sessions.py`
 
 - language: `py`
-- size: 7676 bytes
-- hash: `e8c139942e96`
+- size: 7826 bytes
+- hash: `03254166c2e8`
 - symbols:
   - `class` `SessionStore` — line 45
   - `method` `SessionStore.__init__` — line 46
@@ -1459,18 +1874,18 @@
 ## `src/living_assistant/core/skills.py`
 
 - language: `py`
-- size: 2850 bytes
-- hash: `896cb9f727e6`
+- size: 4858 bytes
+- hash: `e84ad512c3f1`
 - symbols:
-  - `class` `Skill` — line 10
-  - `class` `SkillRegistry` — line 16
-  - `method` `SkillRegistry.__init__` — line 18
-  - `method` `SkillRegistry._load` — line 33
-  - `method` `SkillRegistry._save` — line 39
-  - `method` `SkillRegistry.add` — line 42
-  - `method` `SkillRegistry.remove` — line 55
-  - `method` `SkillRegistry.list` — line 58
-  - `method` `SkillRegistry.match` — line 61
+  - `class` `Skill` — line 14
+  - `class` `SkillRegistry` — line 20
+  - `method` `SkillRegistry.__init__` — line 26
+  - `method` `SkillRegistry._load` — line 42
+  - `method` `SkillRegistry._save` — line 48
+  - `method` `SkillRegistry.add` — line 51
+  - `method` `SkillRegistry.remove` — line 64
+  - `method` `SkillRegistry.list` — line 67
+  - `method` `SkillRegistry.match` — line 85
 - imports:
   - `__future__`
   - `dataclasses`
@@ -1481,12 +1896,13 @@
   - `pathlib`
   - `re`
   - `time`
+  - `typing`
 
 ## `src/living_assistant/core/sqlite_utils.py`
 
 - language: `py`
-- size: 4935 bytes
-- hash: `d27fa85202fa`
+- size: 5264 bytes
+- hash: `e71dbd77ee3c`
 - symbols:
   - `class` `ThreadLocalSQLite` — line 8
   - `method` `ThreadLocalSQLite.__init__` — line 16
@@ -1501,7 +1917,9 @@
   - `method` `ThreadLocalSQLite.rollback` — line 86
   - `method` `ThreadLocalSQLite.close` — line 89
   - `method` `ThreadLocalSQLite.close_all` — line 100
-  - `method` `ThreadLocalSQLite.__getattr__` — line 126
+  - `method` `ThreadLocalSQLite.__enter__` — line 126
+  - `method` `ThreadLocalSQLite.__exit__` — line 129
+  - `method` `ThreadLocalSQLite.__getattr__` — line 132
 - imports:
   - `__future__`
   - `pathlib`
@@ -1511,8 +1929,8 @@
 ## `src/living_assistant/core/storage_utils.py`
 
 - language: `py`
-- size: 1356 bytes
-- hash: `9b5903e5164c`
+- size: 1398 bytes
+- hash: `ac010667a969`
 - symbols:
   - `function` `atomic_write_text` — line 9
   - `function` `atomic_write_json` — line 41
@@ -1523,11 +1941,42 @@
   - `pathlib`
   - `tempfile`
 
+## `src/living_assistant/core/typesafe.py`
+
+- language: `py`
+- size: 17202 bytes
+- hash: `faf2f8548955`
+- symbols:
+  - `class` `JevClient` — line 44
+  - `method` `JevClient.__init__` — line 79
+  - `method` `JevClient.choice` — line 94
+  - `method` `JevClient.noul` — line 105
+  - `method` `JevClient.score` — line 114
+  - `method` `JevClient.goal_achieved` — line 129
+  - `method` `JevClient.is_lesson_relevant` — line 146
+  - `method` `JevClient.link_incident` — line 165
+  - `method` `JevClient.score_secret_risk` — line 193
+  - `method` `JevClient.score_knowledge_value` — line 205
+  - `method` `JevClient._live_choice` — line 227
+  - `method` `JevClient._live_noul` — line 249
+  - `method` `JevClient._live_score` — line 269
+  - `method` `JevClient._mock_choice` — line 295
+  - `method` `JevClient._mock_noul` — line 307
+  - `method` `JevClient._mock_score` — line 338
+  - `method` `JevClient._days_since` — line 393
+- imports:
+  - `__future__`
+  - `json`
+  - `logging`
+  - `os`
+  - `re`
+  - `typing`
+
 ## `src/living_assistant/core/workspace.py`
 
 - language: `py`
-- size: 2206 bytes
-- hash: `3aae3d171878`
+- size: 2260 bytes
+- hash: `097a2c4b7d2c`
 - symbols:
   - `class` `WorkspaceViolation` — line 4
   - `class` `Workspace` — line 7
@@ -1543,8 +1992,8 @@
 ## `src/living_assistant/daemon.py`
 
 - language: `py`
-- size: 244 bytes
-- hash: `91c37aeb2455`
+- size: 249 bytes
+- hash: `a77a386d5813`
 - imports:
   - `importlib`
   - `sys`
@@ -1552,26 +2001,26 @@
 ## `src/living_assistant/default_config.yaml`
 
 - language: `yaml`
-- size: 8783 bytes
-- hash: `335b36614c11`
+- size: 10834 bytes
+- hash: `4605de4acbea`
 
 ## `src/living_assistant/default_skills.json`
 
 - language: `json`
-- size: 1717 bytes
-- hash: `923ebf485f83`
+- size: 1740 bytes
+- hash: `40ae87d020bc`
 
 ## `src/living_assistant/desktop/__init__.py`
 
 - language: `py`
-- size: 51 bytes
-- hash: `fce320ce8e55`
+- size: 52 bytes
+- hash: `66de8a485787`
 
 ## `src/living_assistant/desktop/approval_ui.py`
 
 - language: `py`
-- size: 2279 bytes
-- hash: `59eb46f19399`
+- size: 2322 bytes
+- hash: `34cfadbc0b1c`
 - symbols:
   - `function` `run_approval_ui` — line 4
 - imports:
@@ -1580,8 +2029,8 @@
 ## `src/living_assistant/desktop/browser.py`
 
 - language: `py`
-- size: 27867 bytes
-- hash: `f770b3901c57`
+- size: 28395 bytes
+- hash: `425a9c6dc964`
 - symbols:
   - `function` `safe_browser_url` — line 16
   - `function` `_safe_name` — line 25
@@ -1622,8 +2071,8 @@
 ## `src/living_assistant/desktop/desktop_intelligence.py`
 
 - language: `py`
-- size: 18027 bytes
-- hash: `a4cfbd5a225c`
+- size: 18375 bytes
+- hash: `97faf68ce9e4`
 - symbols:
   - `class` `DesktopError` — line 17
   - `class` `MonitorInfo` — line 22
@@ -1670,8 +2119,8 @@
 ## `src/living_assistant/desktop/overlay.py`
 
 - language: `py`
-- size: 37647 bytes
-- hash: `dbc17fba5ef7`
+- size: 38476 bytes
+- hash: `ee09d52569a2`
 - symbols:
   - `function` `_get_active_window_title` — line 17
   - `class` `FloatingOverlay` — line 32
@@ -1734,8 +2183,8 @@
 ## `src/living_assistant/desktop/tray.py`
 
 - language: `py`
-- size: 2012 bytes
-- hash: `b39b543c487f`
+- size: 2054 bytes
+- hash: `3436883b3d9f`
 - symbols:
   - `function` `run_tray` — line 5
 - imports:
@@ -1747,30 +2196,32 @@
 ## `src/living_assistant/desktop/voice.py`
 
 - language: `py`
-- size: 29139 bytes
-- hash: `0367fdfca79b`
+- size: 32450 bytes
+- hash: `78cbcb6208b0`
 - symbols:
   - `class` `VoiceEngine` — line 18
-  - `method` `VoiceEngine._cfg` — line 37
-  - `method` `VoiceEngine.enabled` — line 40
-  - `method` `VoiceEngine.hands_free_enabled` — line 46
-  - `method` `VoiceEngine._module_available` — line 55
-  - `method` `VoiceEngine.status` — line 61
-  - `method` `VoiceEngine._ensure_microphone_approval` — line 81
-  - `method` `VoiceEngine._import_audio` — line 92
-  - `method` `VoiceEngine._write_wav` — line 101
-  - `method` `VoiceEngine.record` — line 109
-  - `method` `VoiceEngine.record_until_silence` — line 132
-  - `method` `VoiceEngine._load_stt` — line 235
-  - `method` `VoiceEngine.transcribe` — line 249
-  - `method` `VoiceEngine._wake_model_paths` — line 280
-  - `method` `VoiceEngine.download_wake_model` — line 314
-  - `method` `VoiceEngine.clean_command_text` — line 343
-  - `method` `VoiceEngine._load_wake_model` — line 362
-  - `method` `VoiceEngine.listen_for_wake_word` — line 385
-  - `method` `VoiceEngine.listen_for_command` — line 432
-  - `method` `VoiceEngine.speak` — line 542
-  - `method` `VoiceEngine.sleep` — line 610
+  - `method` `VoiceEngine._cfg` — line 39
+  - `method` `VoiceEngine.enabled` — line 42
+  - `method` `VoiceEngine.hands_free_enabled` — line 48
+  - `method` `VoiceEngine._module_available` — line 57
+  - `method` `VoiceEngine.status` — line 63
+  - `method` `VoiceEngine.start_hands_free` — line 84
+  - `method` `VoiceEngine.stop_hands_free` — line 128
+  - `method` `VoiceEngine._ensure_microphone_approval` — line 139
+  - `method` `VoiceEngine._import_audio` — line 150
+  - `method` `VoiceEngine._write_wav` — line 159
+  - `method` `VoiceEngine.record` — line 167
+  - `method` `VoiceEngine.record_until_silence` — line 190
+  - `method` `VoiceEngine._load_stt` — line 293
+  - `method` `VoiceEngine.transcribe` — line 307
+  - `method` `VoiceEngine._wake_model_paths` — line 338
+  - `method` `VoiceEngine.download_wake_model` — line 372
+  - `method` `VoiceEngine.clean_command_text` — line 401
+  - `method` `VoiceEngine._load_wake_model` — line 420
+  - `method` `VoiceEngine.listen_for_wake_word` — line 443
+  - `method` `VoiceEngine.listen_for_command` — line 490
+  - `method` `VoiceEngine.speak` — line 600
+  - `method` `VoiceEngine.sleep` — line 668
 - imports:
   - `__future__`
   - `collections`
@@ -1788,8 +2239,8 @@
 ## `src/living_assistant/desktop_intelligence.py`
 
 - language: `py`
-- size: 274 bytes
-- hash: `9a35d9c4d6e3`
+- size: 279 bytes
+- hash: `e51ed535353e`
 - imports:
   - `importlib`
   - `sys`
@@ -1797,8 +2248,8 @@
 ## `src/living_assistant/evaluation.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `a1c401a697c8`
+- size: 261 bytes
+- hash: `3a0a79af64ca`
 - imports:
   - `importlib`
   - `sys`
@@ -1806,8 +2257,8 @@
 ## `src/living_assistant/event_bus.py`
 
 - language: `py`
-- size: 246 bytes
-- hash: `76b5c60af46b`
+- size: 251 bytes
+- hash: `c0cd6cd5d621`
 - imports:
   - `importlib`
   - `sys`
@@ -1815,8 +2266,8 @@
 ## `src/living_assistant/experience.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `a9d63c07df82`
+- size: 261 bytes
+- hash: `b92b369f1bb4`
 - imports:
   - `importlib`
   - `sys`
@@ -1824,8 +2275,8 @@
 ## `src/living_assistant/groups.py`
 
 - language: `py`
-- size: 244 bytes
-- hash: `45f066ef6a39`
+- size: 249 bytes
+- hash: `136c12f64a91`
 - imports:
   - `importlib`
   - `sys`
@@ -1833,8 +2284,8 @@
 ## `src/living_assistant/hardware.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `a01a163a4b8f`
+- size: 253 bytes
+- hash: `3634b7fbe3d6`
 - imports:
   - `importlib`
   - `sys`
@@ -1842,23 +2293,405 @@
 ## `src/living_assistant/improvements.py`
 
 - language: `py`
-- size: 260 bytes
-- hash: `fc5ed8236923`
+- size: 265 bytes
+- hash: `b4291c597e0b`
 - imports:
   - `importlib`
   - `sys`
 
+## `src/living_assistant/integrations/__init__.py`
+
+- language: `py`
+- size: 1094 bytes
+- hash: `39f668c92626`
+- imports:
+  - `agency_agents`
+  - `agentmemory`
+  - `awesome_agent_tools`
+  - `awesome_harness`
+  - `browser_use`
+  - `codebase_memory`
+  - `cybersecurity_skills`
+  - `diagram_design`
+  - `edge0`
+  - `external`
+  - `graft`
+  - `openmontage`
+  - `openviking`
+  - `scientific_skills`
+
+## `src/living_assistant/integrations/agency_agents.py`
+
+- language: `py`
+- size: 4114 bytes
+- hash: `d5ee2c76a194`
+- symbols:
+  - `class` `AgencyAgentsAdapter` — line 10
+  - `method` `AgencyAgentsAdapter.__init__` — line 19
+  - `method` `AgencyAgentsAdapter.list_categories` — line 26
+  - `method` `AgencyAgentsAdapter.list_agents` — line 41
+  - `method` `AgencyAgentsAdapter.get_agent` — line 62
+  - `method` `AgencyAgentsAdapter.search_agents` — line 83
+- imports:
+  - `__future__`
+  - `logging`
+  - `pathlib`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/agentmemory.py`
+
+- language: `py`
+- size: 9190 bytes
+- hash: `c65e3e2eeca5`
+- symbols:
+  - `class` `AgentMemoryAdapter` — line 18
+  - `method` `AgentMemoryAdapter.__init__` — line 30
+  - `method` `AgentMemoryAdapter.available` — line 49
+  - `method` `AgentMemoryAdapter._ping_server` — line 60
+  - `method` `AgentMemoryAdapter.health` — line 69
+  - `method` `AgentMemoryAdapter.recall` — line 88
+  - `method` `AgentMemoryAdapter.save` — line 109
+  - `method` `AgentMemoryAdapter.file_history` — line 132
+  - `method` `AgentMemoryAdapter.smart_search` — line 145
+  - `method` `AgentMemoryAdapter.list_memories` — line 164
+  - `method` `AgentMemoryAdapter._call_api` — line 182
+  - `method` `AgentMemoryAdapter._cli_recall` — line 207
+  - `method` `AgentMemoryAdapter._resolve_cli_command` — line 230
+- imports:
+  - `__future__`
+  - `importlib.util`
+  - `json`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `pathlib`
+  - `shutil`
+  - `subprocess`
+  - `sys`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/awesome_agent_tools.py`
+
+- language: `py`
+- size: 1843 bytes
+- hash: `51cd03bf0364`
+- symbols:
+  - `class` `AwesomeAgentToolsAdapter` — line 9
+  - `method` `AwesomeAgentToolsAdapter.__init__` — line 12
+  - `method` `AwesomeAgentToolsAdapter.read_reference` — line 19
+  - `method` `AwesomeAgentToolsAdapter.list_categories` — line 36
+- imports:
+  - `__future__`
+  - `logging`
+  - `pathlib`
+  - `typing`
+
+## `src/living_assistant/integrations/awesome_harness.py`
+
+- language: `py`
+- size: 1219 bytes
+- hash: `7df856743964`
+- symbols:
+  - `class` `AwesomeHarnessAdapter` — line 9
+  - `method` `AwesomeHarnessAdapter.__init__` — line 12
+  - `method` `AwesomeHarnessAdapter.read_reference` — line 19
+- imports:
+  - `__future__`
+  - `logging`
+  - `pathlib`
+  - `typing`
+
+## `src/living_assistant/integrations/browser_use.py`
+
+- language: `py`
+- size: 18779 bytes
+- hash: `657cd4dd3260`
+- symbols:
+  - `class` `BrowserUseAdapter` — line 20
+  - `method` `BrowserUseAdapter.__init__` — line 43
+  - `method` `BrowserUseAdapter._repository_version` — line 76
+  - `method` `BrowserUseAdapter._imports` — line 86
+  - `method` `BrowserUseAdapter.available` — line 140
+  - `method` `BrowserUseAdapter._bounded_text` — line 154
+  - `method` `BrowserUseAdapter._safe_error` — line 161
+  - `method` `BrowserUseAdapter._safe_call` — line 168
+  - `method` `BrowserUseAdapter._sha256` — line 182
+  - `method` `BrowserUseAdapter._path_is_within` — line 190
+  - `method` `BrowserUseAdapter._verify_download` — line 197
+  - `method` `BrowserUseAdapter._capture_download_state` — line 237
+  - `method` `BrowserUseAdapter._download_results` — line 267
+  - `method` `BrowserUseAdapter._history_result` — line 277
+  - `method` `BrowserUseAdapter._execute` — line 333
+  - `method` `BrowserUseAdapter._run_coroutine_factory` — line 401
+  - `method` `BrowserUseAdapter.run` — line 422
+- imports:
+  - `__future__`
+  - `asyncio`
+  - `concurrent.futures`
+  - `hashlib`
+  - `importlib`
+  - `living_assistant.security.security_utils`
+  - `pathlib`
+  - `sys`
+  - `threading`
+  - `time`
+  - `tomllib`
+  - `typing`
+
+## `src/living_assistant/integrations/codebase_memory.py`
+
+- language: `py`
+- size: 6328 bytes
+- hash: `cf23e404307a`
+- symbols:
+  - `class` `CodebaseMemoryAdapter` — line 16
+  - `method` `CodebaseMemoryAdapter.__init__` — line 28
+  - `method` `CodebaseMemoryAdapter.available` — line 43
+  - `method` `CodebaseMemoryAdapter._resolve_executable` — line 54
+  - `method` `CodebaseMemoryAdapter.index_repository` — line 87
+  - `method` `CodebaseMemoryAdapter.get_architecture` — line 91
+  - `method` `CodebaseMemoryAdapter.query_graph` — line 95
+  - `method` `CodebaseMemoryAdapter.find_callers` — line 101
+  - `method` `CodebaseMemoryAdapter.find_callees` — line 107
+  - `method` `CodebaseMemoryAdapter.manage_adr` — line 113
+  - `method` `CodebaseMemoryAdapter._run_command` — line 133
+- imports:
+  - `__future__`
+  - `json`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `pathlib`
+  - `shutil`
+  - `subprocess`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/cybersecurity_skills.py`
+
+- language: `py`
+- size: 16107 bytes
+- hash: `d719c6425b94`
+- symbols:
+  - `class` `CybersecuritySkillsAdapter` — line 53
+  - `method` `CybersecuritySkillsAdapter.__init__` — line 62
+  - `method` `CybersecuritySkillsAdapter.available` — line 77
+  - `method` `CybersecuritySkillsAdapter._ensure_index` — line 83
+  - `method` `CybersecuritySkillsAdapter.get_catalog_info` — line 118
+  - `method` `CybersecuritySkillsAdapter.search_skills` — line 133
+  - `method` `CybersecuritySkillsAdapter.get_skill` — line 187
+  - `method` `CybersecuritySkillsAdapter.audit_prompt_injection` — line 245
+  - `method` `CybersecuritySkillsAdapter.threat_model_component` — line 321
+- imports:
+  - `__future__`
+  - `json`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `os`
+  - `pathlib`
+  - `re`
+  - `threading`
+  - `typing`
+  - `yaml`
+
+## `src/living_assistant/integrations/diagram_design.py`
+
+- language: `py`
+- size: 20890 bytes
+- hash: `a8d928fa2e00`
+- symbols:
+  - `class` `DiagramDesignAdapter` — line 65
+  - `method` `DiagramDesignAdapter.__init__` — line 75
+  - `method` `DiagramDesignAdapter._resolve_paths` — line 85
+  - `method` `DiagramDesignAdapter.available` — line 104
+  - `method` `DiagramDesignAdapter.list_types` — line 111
+  - `method` `DiagramDesignAdapter.extract_mermaid` — line 119
+  - `method` `DiagramDesignAdapter.extract_drawio` — line 161
+  - `method` `DiagramDesignAdapter.extract_excalidraw` — line 189
+  - `method` `DiagramDesignAdapter.validate_diagram` — line 219
+  - `method` `DiagramDesignAdapter.generate_html` — line 272
+  - `method` `DiagramDesignAdapter.export_svg` — line 375
+  - `method` `DiagramDesignAdapter._get_script` — line 400
+  - `method` `DiagramDesignAdapter._run_proc` — line 408
+- imports:
+  - `__future__`
+  - `json`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `os`
+  - `pathlib`
+  - `re`
+  - `shutil`
+  - `subprocess`
+  - `sys`
+  - `tempfile`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/edge0.py`
+
+- language: `py`
+- size: 3133 bytes
+- hash: `919d4b0f60f1`
+- symbols:
+  - `class` `Edge0Adapter` — line 17
+  - `method` `Edge0Adapter.__init__` — line 22
+  - `method` `Edge0Adapter._sdk` — line 30
+  - `method` `Edge0Adapter.list_models` — line 50
+  - `method` `Edge0Adapter.generate` — line 62
+  - `method` `Edge0Adapter.chat` — line 77
+- imports:
+  - `__future__`
+  - `importlib.util`
+  - `logging`
+  - `pathlib`
+  - `sys`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/external.py`
+
+- language: `py`
+- size: 7600 bytes
+- hash: `5b2456e1112a`
+- symbols:
+  - `class` `IntegrationSpec` — line 12
+  - `function` `_path_status` — line 61
+  - `class` `ExternalIntegrationRegistry` — line 68
+  - `method` `ExternalIntegrationRegistry.__init__` — line 76
+  - `method` `ExternalIntegrationRegistry._enabled` — line 80
+  - `method` `ExternalIntegrationRegistry.status` — line 84
+  - `method` `ExternalIntegrationRegistry.role_status` — line 155
+  - `method` `ExternalIntegrationRegistry.environment_status` — line 158
+- imports:
+  - `__future__`
+  - `dataclasses`
+  - `importlib.util`
+  - `os`
+  - `pathlib`
+  - `shutil`
+  - `typing`
+
+## `src/living_assistant/integrations/graft.py`
+
+- language: `py`
+- size: 21892 bytes
+- hash: `9d6572288a59`
+- symbols:
+  - `class` `GraftAdapter` — line 36
+  - `method` `GraftAdapter.__init__` — line 46
+  - `method` `GraftAdapter._resolve_binary` — line 70
+  - `method` `GraftAdapter.available` — line 99
+  - `method` `GraftAdapter._init_embedded_db` — line 112
+  - `method` `GraftAdapter.query` — line 156
+  - `method` `GraftAdapter.retrieve` — line 168
+  - `method` `GraftAdapter.insert` — line 180
+  - `method` `GraftAdapter.explore` — line 201
+  - `method` `GraftAdapter.list_memories` — line 213
+  - `method` `GraftAdapter.delete` — line 224
+  - `method` `GraftAdapter.stats` — line 235
+  - `method` `GraftAdapter._run_cli` — line 250
+  - `method` `GraftAdapter._embedded_insert` — line 291
+  - `method` `GraftAdapter._embedded_query` — line 318
+  - `method` `GraftAdapter._embedded_retrieve` — line 346
+  - `method` `GraftAdapter._embedded_explore` — line 357
+  - `method` `GraftAdapter._embedded_list` — line 400
+  - `method` `GraftAdapter._embedded_delete` — line 412
+  - `method` `GraftAdapter._embedded_stats` — line 424
+  - `method` `GraftAdapter._embedded_search` — line 439
+- imports:
+  - `__future__`
+  - `json`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `os`
+  - `pathlib`
+  - `re`
+  - `shutil`
+  - `sqlite3`
+  - `subprocess`
+  - `threading`
+  - `time`
+  - `typing`
+
+## `src/living_assistant/integrations/openmontage.py`
+
+- language: `py`
+- size: 3841 bytes
+- hash: `47b9ecbbf416`
+- symbols:
+  - `class` `OpenMontageAdapter` — line 17
+  - `method` `OpenMontageAdapter.__init__` — line 22
+  - `method` `OpenMontageAdapter._sdk` — line 30
+  - `method` `OpenMontageAdapter.list_pipelines` — line 54
+  - `method` `OpenMontageAdapter.get_pipeline` — line 63
+  - `method` `OpenMontageAdapter.list_tools` — line 72
+  - `method` `OpenMontageAdapter.execute_tool` — line 85
+- imports:
+  - `__future__`
+  - `importlib.util`
+  - `logging`
+  - `pathlib`
+  - `sys`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/openviking.py`
+
+- language: `py`
+- size: 9315 bytes
+- hash: `a1349f22d51b`
+- symbols:
+  - `class` `OpenVikingAdapter` — line 18
+  - `method` `OpenVikingAdapter.__init__` — line 29
+  - `method` `OpenVikingAdapter._sdk` — line 52
+  - `method` `OpenVikingAdapter._ensure_client` — line 71
+  - `method` `OpenVikingAdapter._safe` — line 99
+  - `method` `OpenVikingAdapter.available` — line 113
+  - `method` `OpenVikingAdapter.health` — line 120
+  - `method` `OpenVikingAdapter.recall` — line 128
+  - `method` `OpenVikingAdapter.remember` — line 154
+  - `method` `OpenVikingAdapter.search` — line 180
+  - `method` `OpenVikingAdapter.capture_session` — line 205
+- imports:
+  - `__future__`
+  - `importlib.util`
+  - `logging`
+  - `pathlib`
+  - `sys`
+  - `threading`
+  - `typing`
+
+## `src/living_assistant/integrations/scientific_skills.py`
+
+- language: `py`
+- size: 5110 bytes
+- hash: `aadb24c70751`
+- symbols:
+  - `class` `ScientificSkillsAdapter` — line 11
+  - `method` `ScientificSkillsAdapter.__init__` — line 20
+  - `method` `ScientificSkillsAdapter._ensure_index` — line 30
+  - `method` `ScientificSkillsAdapter.search_skills` — line 65
+  - `method` `ScientificSkillsAdapter.get_skill` — line 102
+- imports:
+  - `__future__`
+  - `logging`
+  - `pathlib`
+  - `threading`
+  - `typing`
+  - `yaml`
+
 ## `src/living_assistant/learning/__init__.py`
 
 - language: `py`
-- size: 52 bytes
-- hash: `e755ede6797e`
+- size: 53 bytes
+- hash: `4fd27a6eb242`
 
 ## `src/living_assistant/learning/canary.py`
 
 - language: `py`
-- size: 21000 bytes
-- hash: `5eefae43d1b6`
+- size: 21326 bytes
+- hash: `f987f2e8145b`
 - symbols:
   - `function` `_now` — line 50
   - `function` `_json` — line 54
@@ -1911,8 +2744,8 @@
 ## `src/living_assistant/learning/eval_engine.py`
 
 - language: `py`
-- size: 39450 bytes
-- hash: `6293108bf299`
+- size: 40055 bytes
+- hash: `0255bc6437d3`
 - symbols:
   - `class` `_RepairEvaluationAuthorization` — line 24
   - `method` `_RepairEvaluationAuthorization.__init__` — line 32
@@ -1956,8 +2789,8 @@
 ## `src/living_assistant/learning/eval_measure.py`
 
 - language: `py`
-- size: 6952 bytes
-- hash: `e97659bf3aff`
+- size: 7120 bytes
+- hash: `8ea3eb20572b`
 - symbols:
   - `function` `_kill_tree` — line 16
   - `function` `measure_command` — line 38
@@ -1979,8 +2812,8 @@
 ## `src/living_assistant/learning/eval_store.py`
 
 - language: `py`
-- size: 8449 bytes
-- hash: `b5e82a06876c`
+- size: 8625 bytes
+- hash: `cc921667c4ce`
 - symbols:
   - `function` `_now` — line 63
   - `function` `_json` — line 66
@@ -2009,8 +2842,8 @@
 ## `src/living_assistant/learning/evaluation.py`
 
 - language: `py`
-- size: 602 bytes
-- hash: `a70731a8290c`
+- size: 621 bytes
+- hash: `30ef954b2489`
 - imports:
   - `eval_engine`
   - `eval_measure`
@@ -2020,58 +2853,14 @@
 ## `src/living_assistant/learning/experience.py`
 
 - language: `py`
-- size: 26494 bytes
-- hash: `0c238af780d2`
-- symbols:
-  - `function` `_now` — line 67
-  - `function` `_redact` — line 71
-  - `function` `_safe_json` — line 75
-  - `function` `_norm` — line 95
-  - `function` `_fingerprint` — line 99
-  - `function` `_tokens` — line 104
-  - `class` `ExperienceEngine` — line 109
-  - `method` `ExperienceEngine.__init__` — line 116
-  - `method` `ExperienceEngine._row` — line 140
-  - `method` `ExperienceEngine.get` — line 151
-  - `method` `ExperienceEngine.list` — line 154
-  - `method` `ExperienceEngine.effective_confidence` — line 163
-  - `method` `ExperienceEngine._conflicts` — line 176
-  - `method` `ExperienceEngine._mark_conflicts` — line 185
-  - `method` `ExperienceEngine.record` — line 190
-  - `method` `ExperienceEngine.confirm` — line 226
-  - `method` `ExperienceEngine.verify` — line 236
-  - `method` `ExperienceEngine.reject` — line 253
-  - `method` `ExperienceEngine.supersede` — line 261
-  - `method` `ExperienceEngine.search` — line 267
-  - `method` `ExperienceEngine.context_for` — line 289
-  - `method` `ExperienceEngine.result_success` — line 323
-  - `method` `ExperienceEngine.record_episode` — line 330
-  - `method` `ExperienceEngine.learn_from_trace` — line 339
-  - `method` `ExperienceEngine._failure_signature` — line 362
-  - `method` `ExperienceEngine.failure_patterns` — line 376
-  - `method` `ExperienceEngine.episodes` — line 389
-  - `method` `ExperienceEngine.maintenance` — line 396
-  - `method` `ExperienceEngine.stats` — line 442
-- imports:
-  - `__future__`
-  - `datetime`
-  - `hashlib`
-  - `json`
-  - `living_assistant.core.config`
-  - `living_assistant.core.sqlite_utils`
-  - `living_assistant.security.security_utils`
-  - `math`
-  - `pathlib`
-  - `re`
-  - `sqlite3`
-  - `typing`
-  - `uuid`
+- size: 27634 bytes
+- hash: `a999645c8f7e`
 
 ## `src/living_assistant/learning/improvements.py`
 
 - language: `py`
-- size: 14507 bytes
-- hash: `d29e1b3fe3c0`
+- size: 14787 bytes
+- hash: `7be006158e1c`
 - symbols:
   - `function` `_assistant_repo_root_for` — line 35
   - `function` `is_protected_core_path` — line 50
@@ -2109,8 +2898,8 @@
 ## `src/living_assistant/learning/knowledge_gap_detection.py`
 
 - language: `py`
-- size: 6512 bytes
-- hash: `e23461f9e513`
+- size: 6657 bytes
+- hash: `525b1514ef64`
 - symbols:
   - `function` `_task_tokens` — line 19
   - `class` `KnowledgeGapDetector` — line 27
@@ -2129,8 +2918,8 @@
 ## `src/living_assistant/learning/patch_engine.py`
 
 - language: `py`
-- size: 3120 bytes
-- hash: `76b1d61aef04`
+- size: 3212 bytes
+- hash: `c5e4fee51f4a`
 - symbols:
   - `class` `ASTSafePatchEngine` — line 8
   - `method` `ASTSafePatchEngine._symbols` — line 12
@@ -2144,8 +2933,8 @@
 ## `src/living_assistant/learning/regression_detection.py`
 
 - language: `py`
-- size: 4692 bytes
-- hash: `fb02d4e9bad7`
+- size: 4808 bytes
+- hash: `c62de4d33817`
 - symbols:
   - `function` `_clean` — line 8
   - `function` `_robust_sigma` — line 22
@@ -2159,8 +2948,8 @@
 ## `src/living_assistant/learning/repair_loop.py`
 
 - language: `py`
-- size: 12419 bytes
-- hash: `033338674617`
+- size: 12678 bytes
+- hash: `448a76c92d67`
 - symbols:
   - `class` `AutonomousRepairLoop` — line 16
   - `method` `AutonomousRepairLoop.__init__` — line 26
@@ -2182,8 +2971,8 @@
 ## `src/living_assistant/learning/run_history.py`
 
 - language: `py`
-- size: 9776 bytes
-- hash: `4eee9df47209`
+- size: 10026 bytes
+- hash: `07bb20ff9236`
 - symbols:
   - `class` `RunHistoryStore` — line 44
   - `method` `RunHistoryStore.__init__` — line 47
@@ -2212,8 +3001,8 @@
 ## `src/living_assistant/memory.py`
 
 - language: `py`
-- size: 240 bytes
-- hash: `60f1a169a53d`
+- size: 245 bytes
+- hash: `cf759eb273d8`
 - imports:
   - `importlib`
   - `sys`
@@ -2221,8 +3010,8 @@
 ## `src/living_assistant/model_provider.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `fd0396c698e5`
+- size: 261 bytes
+- hash: `6508a2d8153a`
 - imports:
   - `importlib`
   - `sys`
@@ -2230,8 +3019,8 @@
 ## `src/living_assistant/models.py`
 
 - language: `py`
-- size: 240 bytes
-- hash: `acd2d221b29b`
+- size: 245 bytes
+- hash: `382af649e260`
 - imports:
   - `importlib`
   - `sys`
@@ -2239,8 +3028,8 @@
 ## `src/living_assistant/notifications.py`
 
 - language: `py`
-- size: 258 bytes
-- hash: `a255f3ec2bd1`
+- size: 263 bytes
+- hash: `5b7564e5f4d3`
 - imports:
   - `importlib`
   - `sys`
@@ -2248,8 +3037,8 @@
 ## `src/living_assistant/observer.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `e7dd22aed160`
+- size: 253 bytes
+- hash: `d8d1c6a36344`
 - imports:
   - `importlib`
   - `sys`
@@ -2257,8 +3046,8 @@
 ## `src/living_assistant/orchestrator.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `916d16dc3056`
+- size: 261 bytes
+- hash: `f1cff405faf8`
 - imports:
   - `importlib`
   - `sys`
@@ -2266,8 +3055,8 @@
 ## `src/living_assistant/orchestrator_teams.py`
 
 - language: `py`
-- size: 268 bytes
-- hash: `8d27b031ae4e`
+- size: 273 bytes
+- hash: `70789c0169f9`
 - imports:
   - `importlib`
   - `sys`
@@ -2275,8 +3064,8 @@
 ## `src/living_assistant/overlay.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `236630c0d1f6`
+- size: 253 bytes
+- hash: `36f75643dea2`
 - imports:
   - `importlib`
   - `sys`
@@ -2284,8 +3073,8 @@
 ## `src/living_assistant/personal_state.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `83836529262d`
+- size: 261 bytes
+- hash: `b6fbdea8a988`
 - imports:
   - `importlib`
   - `sys`
@@ -2293,8 +3082,8 @@
 ## `src/living_assistant/platform_hardening.py`
 
 - language: `py`
-- size: 268 bytes
-- hash: `9001d593eacd`
+- size: 273 bytes
+- hash: `7f47b38eba14`
 - imports:
   - `importlib`
   - `sys`
@@ -2302,8 +3091,8 @@
 ## `src/living_assistant/prompts.py`
 
 - language: `py`
-- size: 246 bytes
-- hash: `6c7bb925e097`
+- size: 251 bytes
+- hash: `24eb49eb50b6`
 - imports:
   - `importlib`
   - `sys`
@@ -2311,8 +3100,8 @@
 ## `src/living_assistant/quarantine.py`
 
 - language: `py`
-- size: 256 bytes
-- hash: `ec887a364fa7`
+- size: 261 bytes
+- hash: `6748aa1f8a5b`
 - imports:
   - `importlib`
   - `sys`
@@ -2320,8 +3109,8 @@
 ## `src/living_assistant/release_manager.py`
 
 - language: `py`
-- size: 262 bytes
-- hash: `88999c7b5952`
+- size: 267 bytes
+- hash: `230dc86aba53`
 - imports:
   - `importlib`
   - `sys`
@@ -2329,8 +3118,8 @@
 ## `src/living_assistant/resource_manager.py`
 
 - language: `py`
-- size: 264 bytes
-- hash: `0119d29d1f25`
+- size: 269 bytes
+- hash: `57fb5657f4f5`
 - imports:
   - `importlib`
   - `sys`
@@ -2338,8 +3127,8 @@
 ## `src/living_assistant/routines.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `1397945dc430`
+- size: 253 bytes
+- hash: `63d32d762aea`
 - imports:
   - `importlib`
   - `sys`
@@ -2347,8 +3136,8 @@
 ## `src/living_assistant/runtime.py`
 
 - language: `py`
-- size: 242 bytes
-- hash: `7b032f4b910b`
+- size: 247 bytes
+- hash: `91af3b495db7`
 - imports:
   - `importlib`
   - `sys`
@@ -2356,8 +3145,8 @@
 ## `src/living_assistant/sandbox.py`
 
 - language: `py`
-- size: 250 bytes
-- hash: `87cf2ac51319`
+- size: 255 bytes
+- hash: `067b8f32db08`
 - imports:
   - `importlib`
   - `sys`
@@ -2365,14 +3154,14 @@
 ## `src/living_assistant/security/__init__.py`
 
 - language: `py`
-- size: 52 bytes
-- hash: `3b2fc361499d`
+- size: 53 bytes
+- hash: `e8d85cc8fd53`
 
 ## `src/living_assistant/security/api_auth.py`
 
 - language: `py`
-- size: 1161 bytes
-- hash: `b95391da8dc2`
+- size: 1193 bytes
+- hash: `ad28aa4a3c2b`
 - symbols:
   - `function` `ensure_api_token` — line 7
   - `function` `get_api_token` — line 30
@@ -2383,11 +3172,63 @@
   - `secrets`
   - `string`
 
+## `src/living_assistant/security/keyring_vault.py`
+
+- language: `py`
+- size: 10761 bytes
+- hash: `7a67ce16a931`
+- symbols:
+  - `function` `_machine_entropy` — line 23
+  - `class` `MemoryVault` — line 34
+  - `method` `MemoryVault.__init__` — line 37
+  - `method` `MemoryVault.get_password` — line 40
+  - `method` `MemoryVault.set_password` — line 43
+  - `method` `MemoryVault.delete_password` — line 48
+  - `method` `MemoryVault.list_keys` — line 54
+  - `class` `EncryptedFileVault` — line 58
+  - `method` `EncryptedFileVault.__init__` — line 61
+  - `method` `EncryptedFileVault._derive_keys` — line 65
+  - `method` `EncryptedFileVault._xor_keystream` — line 75
+  - `method` `EncryptedFileVault._read_vault` — line 89
+  - `method` `EncryptedFileVault._write_vault` — line 113
+  - `method` `EncryptedFileVault.get_password` — line 133
+  - `method` `EncryptedFileVault.set_password` — line 137
+  - `method` `EncryptedFileVault.delete_password` — line 144
+  - `method` `EncryptedFileVault.list_keys` — line 152
+  - `class` `KeyringVault` — line 157
+  - `method` `KeyringVault.__init__` — line 160
+  - `method` `KeyringVault._detect_keyring` — line 172
+  - `method` `KeyringVault.backend_type` — line 187
+  - `method` `KeyringVault.status` — line 196
+  - `method` `KeyringVault.get_password` — line 211
+  - `method` `KeyringVault.set_password` — line 226
+  - `method` `KeyringVault.delete_password` — line 244
+  - `method` `KeyringVault.get_secret` — line 260
+  - `method` `KeyringVault.set_secret` — line 263
+  - `method` `KeyringVault.delete_secret` — line 266
+  - `method` `KeyringVault.list_secrets` — line 269
+  - `function` `get_keyring_vault` — line 278
+- imports:
+  - `__future__`
+  - `base64`
+  - `dataclasses`
+  - `hashlib`
+  - `hmac`
+  - `json`
+  - `living_assistant.core.config`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `os`
+  - `pathlib`
+  - `platform`
+  - `secrets`
+  - `typing`
+
 ## `src/living_assistant/security/quarantine.py`
 
 - language: `py`
-- size: 5583 bytes
-- hash: `e60ba359c454`
+- size: 5698 bytes
+- hash: `97542aebabce`
 - symbols:
   - `function` `_sanitize_source_url` — line 21
   - `function` `sha256_file` — line 31
@@ -2420,8 +3261,8 @@
 ## `src/living_assistant/security/safe_commands.py`
 
 - language: `py`
-- size: 4537 bytes
-- hash: `997302238abb`
+- size: 4640 bytes
+- hash: `85ad70a9314e`
 - symbols:
   - `class` `CommandExplanation` — line 12
   - `method` `CommandExplanation.to_dict` — line 23
@@ -2438,8 +3279,8 @@
 ## `src/living_assistant/security/sandbox.py`
 
 - language: `py`
-- size: 12253 bytes
-- hash: `6b66f475ce62`
+- size: 12487 bytes
+- hash: `5e3d87ca50ca`
 - symbols:
   - `function` `sanitized_env` — line 23
   - `function` `_size_bytes` — line 36
@@ -2478,8 +3319,8 @@
 ## `src/living_assistant/security/security_guardian.py`
 
 - language: `py`
-- size: 41608 bytes
-- hash: `c3db2d188fa1`
+- size: 42312 bytes
+- hash: `e04cca20f3f9`
 - symbols:
   - `function` `_now` — line 71
   - `function` `_json_hash` — line 75
@@ -2558,8 +3399,8 @@
 ## `src/living_assistant/security/security_policy.py`
 
 - language: `py`
-- size: 8165 bytes
-- hash: `1f688cfb470f`
+- size: 8408 bytes
+- hash: `77e11b20d975`
 - symbols:
   - `class` `Risk` — line 7
   - `class` `Decision` — line 20
@@ -2578,8 +3419,8 @@
 ## `src/living_assistant/security/security_sensors.py`
 
 - language: `py`
-- size: 48207 bytes
-- hash: `3883591f9dec`
+- size: 48934 bytes
+- hash: `006c3292027f`
 - symbols:
   - `function` `parse_auditd_text` — line 76
   - `function` `collect_linux_audit` — line 109
@@ -2652,8 +3493,8 @@
 ## `src/living_assistant/security/security_utils.py`
 
 - language: `py`
-- size: 8375 bytes
-- hash: `6e1682cac0a9`
+- size: 8575 bytes
+- hash: `09a51f6f3850`
 - symbols:
   - `function` `is_sensitive_path` — line 25
   - `function` `redact_secrets` — line 46
@@ -2675,8 +3516,8 @@
 ## `src/living_assistant/security/sensor_shared.py`
 
 - language: `py`
-- size: 332 bytes
-- hash: `01d10de9de72`
+- size: 349 bytes
+- hash: `1926c69d98ff`
 - symbols:
   - `function` `_safe_json` — line 7
   - `function` `_event_time` — line 13
@@ -2688,8 +3529,8 @@
 ## `src/living_assistant/security/sensors_macos.py`
 
 - language: `py`
-- size: 1353 bytes
-- hash: `45272620048d`
+- size: 1375 bytes
+- hash: `9150ccda1dcd`
 - symbols:
   - `function` `collect_macos_unified_log` — line 9
 - imports:
@@ -2702,8 +3543,8 @@
 ## `src/living_assistant/security/sensors_windows.py`
 
 - language: `py`
-- size: 5677 bytes
-- hash: `6723a30fe356`
+- size: 5767 bytes
+- hash: `14cfe1d17a70`
 - symbols:
   - `function` `normalize_sysmon_event` — line 12
   - `function` `_powershell_event_script` — line 43
@@ -2718,8 +3559,8 @@
 ## `src/living_assistant/security/verifier.py`
 
 - language: `py`
-- size: 2854 bytes
-- hash: `c3581d90e130`
+- size: 2915 bytes
+- hash: `693eac7b70ce`
 - symbols:
   - `class` `VerificationResult` — line 7
   - `class` `Verifier` — line 25
@@ -2735,8 +3576,8 @@
 ## `src/living_assistant/security_guardian.py`
 
 - language: `py`
-- size: 270 bytes
-- hash: `92c4ec85ef4a`
+- size: 275 bytes
+- hash: `1592c27db728`
 - imports:
   - `importlib`
   - `sys`
@@ -2744,8 +3585,8 @@
 ## `src/living_assistant/security_policy.py`
 
 - language: `py`
-- size: 266 bytes
-- hash: `5559e0209e6f`
+- size: 271 bytes
+- hash: `ac4600ec3949`
 - imports:
   - `importlib`
   - `sys`
@@ -2753,8 +3594,8 @@
 ## `src/living_assistant/security_sensors.py`
 
 - language: `py`
-- size: 268 bytes
-- hash: `0bef830e4478`
+- size: 273 bytes
+- hash: `bf070305e395`
 - imports:
   - `importlib`
   - `sys`
@@ -2762,8 +3603,8 @@
 ## `src/living_assistant/security_utils.py`
 
 - language: `py`
-- size: 264 bytes
-- hash: `40613db42b10`
+- size: 269 bytes
+- hash: `92b743123658`
 - imports:
   - `importlib`
   - `sys`
@@ -2771,8 +3612,8 @@
 ## `src/living_assistant/sessions.py`
 
 - language: `py`
-- size: 244 bytes
-- hash: `8cd7c56dffc1`
+- size: 249 bytes
+- hash: `f4372e1466a5`
 - imports:
   - `importlib`
   - `sys`
@@ -2780,17 +3621,370 @@
 ## `src/living_assistant/skills.py`
 
 - language: `py`
-- size: 240 bytes
-- hash: `dbffab8da461`
+- size: 116 bytes
+- hash: `aea15e197d80`
 - imports:
-  - `importlib`
-  - `sys`
+  - `living_assistant.skills`
+
+## `src/living_assistant/skills/__init__.py`
+
+- language: `py`
+- size: 1491 bytes
+- hash: `590999e73dbb`
+- imports:
+  - `living_assistant.core.skills`
+  - `living_assistant.skills.adapters`
+  - `living_assistant.skills.collections`
+  - `living_assistant.skills.creator`
+  - `living_assistant.skills.extractor`
+  - `living_assistant.skills.guards`
+  - `living_assistant.skills.manager`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.package`
+  - `living_assistant.skills.runner`
+  - `living_assistant.skills.store`
+
+## `src/living_assistant/skills/adapters.py`
+
+- language: `py`
+- size: 11692 bytes
+- hash: `72e693913f27`
+- symbols:
+  - `class` `PortableToolAdapter` — line 13
+  - `method` `PortableToolAdapter.__init__` — line 18
+  - `method` `PortableToolAdapter.set_step_context` — line 39
+  - `method` `PortableToolAdapter._resolve` — line 42
+  - `method` `PortableToolAdapter.files_list` — line 50
+  - `method` `PortableToolAdapter.files_read` — line 75
+  - `method` `PortableToolAdapter.files_move` — line 82
+  - `method` `PortableToolAdapter.files_write` — line 182
+  - `method` `PortableToolAdapter.documents_extract` — line 193
+  - `method` `PortableToolAdapter.notifications_show` — line 216
+  - `method` `PortableToolAdapter.undo_action` — line 229
+- imports:
+  - `__future__`
+  - `living_assistant.core.workspace`
+  - `living_assistant.skills.extractor`
+  - `living_assistant.skills.guards`
+  - `os`
+  - `pathlib`
+  - `shutil`
+  - `typing`
+
+## `src/living_assistant/skills/collections.py`
+
+- language: `py`
+- size: 4908 bytes
+- hash: `bf6ebc533744`
+- symbols:
+  - `class` `ExternalSkillCollections` — line 16
+  - `method` `ExternalSkillCollections.__init__` — line 25
+  - `method` `ExternalSkillCollections.scan_collections` — line 29
+  - `method` `ExternalSkillCollections.import_skill` — line 63
+- imports:
+  - `__future__`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.package`
+  - `living_assistant.skills.store`
+  - `os`
+  - `pathlib`
+  - `typing`
+
+## `src/living_assistant/skills/creator.py`
+
+- language: `py`
+- size: 11180 bytes
+- hash: `b1cb27e6ce34`
+- symbols:
+  - `class` `SkillCreator` — line 21
+  - `method` `SkillCreator.__init__` — line 24
+  - `method` `SkillCreator._generate_skill_id` — line 36
+  - `method` `SkillCreator._build_deterministic_draft` — line 43
+  - `method` `SkillCreator.create_draft` — line 241
+- imports:
+  - `__future__`
+  - `datetime`
+  - `json`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.package`
+  - `living_assistant.skills.store`
+  - `living_assistant.tools.registry`
+  - `re`
+  - `typing`
+
+## `src/living_assistant/skills/evaluator.py`
+
+- language: `py`
+- size: 9870 bytes
+- hash: `705fceeb4a5a`
+- symbols:
+  - `class` `DeclarativeEvaluationError` — line 8
+  - `function` `_resolve_context_path` — line 12
+  - `function` `interpolate_variables` — line 29
+  - `class` `_SafeConditionVisitor` — line 61
+  - `method` `_SafeConditionVisitor.__init__` — line 93
+  - `method` `_SafeConditionVisitor.visit` — line 96
+  - `method` `_SafeConditionVisitor.visit_Expression` — line 103
+  - `method` `_SafeConditionVisitor.visit_Constant` — line 106
+  - `method` `_SafeConditionVisitor.visit_Name` — line 109
+  - `method` `_SafeConditionVisitor.visit_Attribute` — line 119
+  - `method` `_SafeConditionVisitor.visit_Subscript` — line 125
+  - `method` `_SafeConditionVisitor.visit_Index` — line 133
+  - `method` `_SafeConditionVisitor.visit_UnaryOp` — line 136
+  - `method` `_SafeConditionVisitor.visit_BoolOp` — line 144
+  - `method` `_SafeConditionVisitor.visit_BinOp` — line 157
+  - `method` `_SafeConditionVisitor.visit_Compare` — line 166
+  - `method` `_SafeConditionVisitor._apply_cmp` — line 176
+  - `function` `evaluate_condition` — line 200
+  - `function` `validate_workflow_contract` — line 228
+- imports:
+  - `__future__`
+  - `ast`
+  - `re`
+  - `typing`
+
+## `src/living_assistant/skills/examples.py`
+
+- language: `py`
+- size: 7407 bytes
+- hash: `6637769d2210`
+- symbols:
+  - `function` `get_daily_briefing_manifest` — line 15
+  - `function` `get_downloads_organizer_manifest` — line 62
+  - `function` `get_invoice_organizer_manifest` — line 110
+  - `function` `seed_reference_skills` — line 165
+- imports:
+  - `__future__`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.package`
+  - `pathlib`
+
+## `src/living_assistant/skills/extractor.py`
+
+- language: `py`
+- size: 13280 bytes
+- hash: `b20e6b01ea36`
+- symbols:
+  - `class` `_HTMLTextExtractor` — line 10
+  - `method` `_HTMLTextExtractor.__init__` — line 11
+  - `method` `_HTMLTextExtractor.handle_data` — line 15
+  - `method` `_HTMLTextExtractor.get_text` — line 19
+  - `class` `DocumentExtractor` — line 23
+  - `method` `DocumentExtractor.sanitize_for_path` — line 55
+  - `method` `DocumentExtractor.extract_text` — line 64
+  - `method` `DocumentExtractor.extract_invoice_fields` — line 121
+- imports:
+  - `__future__`
+  - `hashlib`
+  - `html.parser`
+  - `pathlib`
+  - `re`
+  - `typing`
+
+## `src/living_assistant/skills/guards.py`
+
+- language: `py`
+- size: 5696 bytes
+- hash: `5d00f76b0df6`
+- symbols:
+  - `class` `SkillPermissionViolation` — line 13
+  - `class` `SkillPermissionGuard` — line 17
+  - `method` `SkillPermissionGuard.__init__` — line 20
+  - `method` `SkillPermissionGuard.check_tool_allowlist` — line 28
+  - `method` `SkillPermissionGuard.validate_path` — line 37
+  - `method` `SkillPermissionGuard.check_network` — line 96
+  - `method` `SkillPermissionGuard.check_subprocess` — line 104
+- imports:
+  - `__future__`
+  - `living_assistant.core.approval`
+  - `living_assistant.core.workspace`
+  - `living_assistant.security.security_utils`
+  - `living_assistant.skills.manifest`
+  - `os`
+  - `pathlib`
+  - `typing`
+
+## `src/living_assistant/skills/manager.py`
+
+- language: `py`
+- size: 12194 bytes
+- hash: `a523866cf7ee`
+- symbols:
+  - `class` `SkillManager` — line 22
+  - `method` `SkillManager.__init__` — line 25
+  - `method` `SkillManager._seed_builtins_if_needed` — line 49
+  - `method` `SkillManager.list_skills` — line 69
+  - `method` `SkillManager.get_skill` — line 91
+  - `method` `SkillManager.create_draft` — line 112
+  - `method` `SkillManager.update_skill` — line 115
+  - `method` `SkillManager.activate_skill` — line 136
+  - `method` `SkillManager.disable_skill` — line 169
+  - `method` `SkillManager.archive_skill` — line 172
+  - `method` `SkillManager.rollback_skill` — line 175
+  - `method` `SkillManager.export_skill` — line 182
+  - `method` `SkillManager.import_skill_archive` — line 189
+  - `method` `SkillManager.execute_skill` — line 195
+  - `method` `SkillManager.undo_execution` — line 226
+  - `method` `SkillManager.reconcile_execution` — line 254
+  - `method` `SkillManager.match_active_skills` — line 258
+  - `method` `SkillManager.get_orchestrator_summary` — line 271
+- imports:
+  - `__future__`
+  - `datetime`
+  - `living_assistant.core.approval`
+  - `living_assistant.core.workspace`
+  - `living_assistant.skills.creator`
+  - `living_assistant.skills.examples`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.package`
+  - `living_assistant.skills.runner`
+  - `living_assistant.skills.store`
+  - `living_assistant.tools.registry`
+  - `pathlib`
+  - `typing`
+
+## `src/living_assistant/skills/manifest.py`
+
+- language: `py`
+- size: 8559 bytes
+- hash: `f2c0b3c7baa5`
+- symbols:
+  - `class` `SkillPermissionScope` — line 14
+  - `method` `SkillPermissionScope.permission_hash` — line 22
+  - `class` `SkillStep` — line 36
+  - `class` `SkillLimits` — line 54
+  - `class` `SkillProvenance` — line 60
+  - `class` `SkillExample` — line 67
+  - `class` `SkillManifest` — line 73
+  - `method` `SkillManifest.validate_id` — line 94
+  - `method` `SkillManifest.validate_version` — line 102
+  - `method` `SkillManifest.validate_against_tools` — line 108
+  - `method` `SkillManifest.to_json` — line 123
+  - `method` `SkillManifest.from_json` — line 127
+  - `function` `convert_legacy_skill` — line 133
+- imports:
+  - `__future__`
+  - `hashlib`
+  - `json`
+  - `pydantic`
+  - `re`
+  - `typing`
+
+## `src/living_assistant/skills/package.py`
+
+- language: `py`
+- size: 8531 bytes
+- hash: `d7dc780c85ea`
+- symbols:
+  - `function` `default_skills_dir` — line 15
+  - `class` `SkillPackage` — line 22
+  - `method` `SkillPackage.__init__` — line 25
+  - `method` `SkillPackage.skill_id` — line 31
+  - `method` `SkillPackage.version` — line 35
+  - `method` `SkillPackage.load` — line 39
+  - `method` `SkillPackage.save` — line 55
+  - `method` `SkillPackage.deterministic_hash` — line 77
+  - `method` `SkillPackage.create_snapshot` — line 96
+  - `method` `SkillPackage.export_zip` — line 106
+  - `method` `SkillPackage.import_zip` — line 117
+- imports:
+  - `__future__`
+  - `io`
+  - `json`
+  - `living_assistant.core.config`
+  - `living_assistant.skills.manifest`
+  - `os`
+  - `pathlib`
+  - `shutil`
+  - `typing`
+  - `zipfile`
+
+## `src/living_assistant/skills/runner.py`
+
+- language: `py`
+- size: 11669 bytes
+- hash: `f8503617b68d`
+- symbols:
+  - `class` `SkillExecutionError` — line 16
+  - `class` `SkillExecutor` — line 20
+  - `method` `SkillExecutor.__init__` — line 25
+  - `method` `SkillExecutor.cancel_execution` — line 40
+  - `method` `SkillExecutor._execute_single_tool_call` — line 43
+  - `method` `SkillExecutor.execute` — line 88
+- imports:
+  - `__future__`
+  - `datetime`
+  - `living_assistant.core.workspace`
+  - `living_assistant.skills.adapters`
+  - `living_assistant.skills.evaluator`
+  - `living_assistant.skills.guards`
+  - `living_assistant.skills.manifest`
+  - `living_assistant.skills.store`
+  - `living_assistant.tools.registry`
+  - `time`
+  - `typing`
+
+## `src/living_assistant/skills/store.py`
+
+- language: `py`
+- size: 19025 bytes
+- hash: `9a829690f200`
+- symbols:
+  - `class` `SkillStore` — line 87
+  - `method` `SkillStore.__init__` — line 90
+  - `method` `SkillStore.register_skill` — line 105
+  - `method` `SkillStore.save_version` — line 126
+  - `method` `SkillStore.get_lifecycle` — line 142
+  - `method` `SkillStore.set_state` — line 146
+  - `method` `SkillStore.approve_skill` — line 158
+  - `method` `SkillStore.is_approved` — line 177
+  - `method` `SkillStore.invalidate_approval` — line 198
+  - `method` `SkillStore.list_skills` — line 211
+  - `method` `SkillStore.get_version` — line 222
+  - `method` `SkillStore.get_versions` — line 228
+  - `method` `SkillStore.rollback_version` — line 235
+  - `method` `SkillStore.record_execution_start` — line 254
+  - `method` `SkillStore.record_execution_finish` — line 267
+  - `method` `SkillStore.record_undo_action` — line 285
+  - `method` `SkillStore.get_undo_actions` — line 294
+  - `method` `SkillStore.get_executions` — line 305
+  - `method` `SkillStore.record_action_planned` — line 324
+  - `method` `SkillStore.record_action_started` — line 361
+  - `method` `SkillStore.record_action_succeeded` — line 369
+  - `method` `SkillStore.record_action_failed` — line 377
+  - `method` `SkillStore.record_action_uncertain` — line 385
+  - `method` `SkillStore.get_action_records` — line 393
+  - `method` `SkillStore.reconcile_interrupted_run` — line 406
+- imports:
+  - `__future__`
+  - `datetime`
+  - `json`
+  - `living_assistant.core.config`
+  - `living_assistant.core.sqlite_utils`
+  - `living_assistant.skills.manifest`
+  - `pathlib`
+  - `sqlite3`
+  - `typing`
+  - `uuid`
+
+## `src/living_assistant/skills/tools.py`
+
+- language: `py`
+- size: 3513 bytes
+- hash: `6656600e3bb5`
+- symbols:
+  - `function` `build_skill_tools` — line 8
+- imports:
+  - `__future__`
+  - `living_assistant.skills.manager`
+  - `living_assistant.tools.base`
+  - `typing`
 
 ## `src/living_assistant/sqlite_utils.py`
 
 - language: `py`
-- size: 252 bytes
-- hash: `5058ed64bf81`
+- size: 257 bytes
+- hash: `057090df8d52`
 - imports:
   - `importlib`
   - `sys`
@@ -2798,8 +3992,8 @@
 ## `src/living_assistant/storage_utils.py`
 
 - language: `py`
-- size: 254 bytes
-- hash: `a55ee68db67c`
+- size: 259 bytes
+- hash: `47ccc846662a`
 - imports:
   - `importlib`
   - `sys`
@@ -2813,8 +4007,8 @@
 ## `src/living_assistant/supervisors/development.py`
 
 - language: `py`
-- size: 4062 bytes
-- hash: `7cbcade40cad`
+- size: 4152 bytes
+- hash: `c1627b6bd268`
 - symbols:
   - `class` `DevelopmentSupervisor` — line 35
   - `method` `DevelopmentSupervisor.__init__` — line 36
@@ -2832,8 +4026,8 @@
 ## `src/living_assistant/supervisors/executive.py`
 
 - language: `py`
-- size: 2663 bytes
-- hash: `4194c6ecf33f`
+- size: 2730 bytes
+- hash: `de0db565c756`
 - symbols:
   - `class` `ExecutiveSupervisor` — line 27
   - `method` `ExecutiveSupervisor.__init__` — line 28
@@ -2849,8 +4043,8 @@
 ## `src/living_assistant/supervisors/knowledge.py`
 
 - language: `py`
-- size: 3626 bytes
-- hash: `3b49c84cc0a0`
+- size: 3712 bytes
+- hash: `68f00da14982`
 - symbols:
   - `class` `KnowledgeSupervisor` — line 31
   - `method` `KnowledgeSupervisor.__init__` — line 32
@@ -2868,8 +4062,8 @@
 ## `src/living_assistant/supervisors/operations.py`
 
 - language: `py`
-- size: 3731 bytes
-- hash: `53dbcfd7b33b`
+- size: 3818 bytes
+- hash: `24d8a1a98528`
 - symbols:
   - `class` `OperationsSupervisor` — line 32
   - `method` `OperationsSupervisor.__init__` — line 33
@@ -2887,8 +4081,8 @@
 ## `src/living_assistant/supervisors/personal.py`
 
 - language: `py`
-- size: 3687 bytes
-- hash: `c1b16f1468dc`
+- size: 3774 bytes
+- hash: `815b105239ae`
 - symbols:
   - `class` `PersonalSupervisor` — line 32
   - `method` `PersonalSupervisor.__init__` — line 33
@@ -2906,8 +4100,8 @@
 ## `src/living_assistant/supervisors/security.py`
 
 - language: `py`
-- size: 3727 bytes
-- hash: `0c14e8935966`
+- size: 3814 bytes
+- hash: `ab124a6d379c`
 - symbols:
   - `class` `SecuritySupervisor` — line 32
   - `method` `SecuritySupervisor.__init__` — line 33
@@ -2925,8 +4119,8 @@
 ## `src/living_assistant/supervisors/upgrade.py`
 
 - language: `py`
-- size: 3611 bytes
-- hash: `8f932878b01d`
+- size: 3697 bytes
+- hash: `ef53a32fd3f3`
 - symbols:
   - `class` `UpgradeSupervisor` — line 31
   - `method` `UpgradeSupervisor.__init__` — line 32
@@ -2944,34 +4138,58 @@
 ## `src/living_assistant/system/__init__.py`
 
 - language: `py`
-- size: 50 bytes
-- hash: `636dd93c0d5b`
+- size: 51 bytes
+- hash: `29f2ffae3c25`
+
+## `src/living_assistant/system/article_extractor.py`
+
+- language: `py`
+- size: 5554 bytes
+- hash: `e8c1e50a12ab`
+- symbols:
+  - `class` `ArticleExtractor` — line 16
+  - `method` `ArticleExtractor.__init__` — line 22
+  - `method` `ArticleExtractor.extract` — line 25
+  - `method` `ArticleExtractor._extract_title_tag` — line 117
+  - `method` `ArticleExtractor._fallback_html_strip` — line 125
+  - `function` `get_article_extractor` — line 143
+- imports:
+  - `__future__`
+  - `hashlib`
+  - `living_assistant.security.security_policy`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `pathlib`
+  - `re`
+  - `typing`
+  - `urllib.parse`
 
 ## `src/living_assistant/system/codebase_index.py`
 
 - language: `py`
-- size: 18830 bytes
-- hash: `5a8187cb09c0`
+- size: 24179 bytes
+- hash: `f4c48c0493c9`
 - symbols:
   - `class` `CodeChunk` — line 45
   - `class` `CodebaseIndex` — line 53
   - `method` `CodebaseIndex.__init__` — line 63
-  - `method` `CodebaseIndex._init_db` — line 85
-  - `method` `CodebaseIndex._project_id` — line 116
-  - `method` `CodebaseIndex._is_binary` — line 120
-  - `method` `CodebaseIndex._iter_source_files` — line 129
-  - `method` `CodebaseIndex._bounded_chunks` — line 153
-  - `method` `CodebaseIndex._python_chunks` — line 181
-  - `method` `CodebaseIndex._markdown_chunks` — line 207
-  - `method` `CodebaseIndex._generic_chunks` — line 226
-  - `method` `CodebaseIndex._chunks_for_file` — line 248
-  - `method` `CodebaseIndex._features` — line 269
-  - `method` `CodebaseIndex._cosine` — line 294
-  - `method` `CodebaseIndex._dump_vector` — line 300
-  - `method` `CodebaseIndex._load_vector` — line 304
-  - `method` `CodebaseIndex.index_project` — line 311
-  - `method` `CodebaseIndex.status` — line 377
-  - `method` `CodebaseIndex.search` — line 396
+  - `method` `CodebaseIndex._init_db` — line 87
+  - `method` `CodebaseIndex._project_id` — line 118
+  - `method` `CodebaseIndex._is_binary` — line 122
+  - `method` `CodebaseIndex._iter_source_files` — line 131
+  - `method` `CodebaseIndex._bounded_chunks` — line 155
+  - `method` `CodebaseIndex._python_chunks` — line 183
+  - `method` `CodebaseIndex._markdown_chunks` — line 209
+  - `method` `CodebaseIndex._generic_chunks` — line 228
+  - `method` `CodebaseIndex._chunks_for_file` — line 250
+  - `method` `CodebaseIndex._features` — line 271
+  - `method` `CodebaseIndex._cosine` — line 313
+  - `method` `CodebaseIndex._dump_vector` — line 319
+  - `method` `CodebaseIndex._load_vector` — line 323
+  - `method` `CodebaseIndex.index_project` — line 330
+  - `method` `CodebaseIndex.status` — line 400
+  - `method` `CodebaseIndex.search` — line 419
+  - `method` `CodebaseIndex.incremental_update` — line 466
 - imports:
   - `__future__`
   - `ast`
@@ -2992,8 +4210,8 @@
 ## `src/living_assistant/system/config_reload.py`
 
 - language: `py`
-- size: 5077 bytes
-- hash: `b04dd7646edb`
+- size: 5220 bytes
+- hash: `81925ef3a51c`
 - symbols:
   - `class` `ConfigReloader` — line 38
   - `method` `ConfigReloader.__init__` — line 45
@@ -3013,8 +4231,8 @@
 ## `src/living_assistant/system/daemon.py`
 
 - language: `py`
-- size: 21594 bytes
-- hash: `8ee3d0d48c26`
+- size: 23340 bytes
+- hash: `07427d454db2`
 - symbols:
   - `class` `NervousSystem` — line 16
   - `method` `NervousSystem.__init__` — line 18
@@ -3023,8 +4241,8 @@
   - `method` `NervousSystem._process_events` — line 60
   - `method` `NervousSystem._todo_events` — line 87
   - `method` `NervousSystem.tick` — line 94
-  - `method` `NervousSystem._event_message` — line 242
-  - `method` `NervousSystem.run_forever` — line 276
+  - `method` `NervousSystem._event_message` — line 263
+  - `method` `NervousSystem.run_forever` — line 297
 - imports:
   - `__future__`
   - `httpx`
@@ -3044,11 +4262,94 @@
   - `time`
   - `traceback`
 
+## `src/living_assistant/system/disk_cache.py`
+
+- language: `py`
+- size: 7399 bytes
+- hash: `ef03c57c446f`
+- symbols:
+  - `class` `MemoryCacheFallback` — line 17
+  - `method` `MemoryCacheFallback.__init__` — line 20
+  - `method` `MemoryCacheFallback.get` — line 25
+  - `method` `MemoryCacheFallback.set` — line 38
+  - `method` `MemoryCacheFallback.delete` — line 43
+  - `method` `MemoryCacheFallback.clear` — line 49
+  - `method` `MemoryCacheFallback.volume` — line 55
+  - `method` `MemoryCacheFallback.__len__` — line 58
+  - `class` `DiskCacheManager` — line 62
+  - `method` `DiskCacheManager.__init__` — line 72
+  - `method` `DiskCacheManager._init_backend` — line 78
+  - `method` `DiskCacheManager.backend` — line 90
+  - `method` `DiskCacheManager._format_key` — line 93
+  - `method` `DiskCacheManager.get` — line 97
+  - `method` `DiskCacheManager.set` — line 106
+  - `method` `DiskCacheManager.delete` — line 124
+  - `method` `DiskCacheManager.clear` — line 132
+  - `method` `DiskCacheManager.stats` — line 158
+  - `method` `DiskCacheManager.cached` — line 171
+  - `function` `get_disk_cache` — line 202
+- imports:
+  - `__future__`
+  - `functools`
+  - `hashlib`
+  - `json`
+  - `living_assistant.core.config`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `pathlib`
+  - `time`
+  - `typing`
+
+## `src/living_assistant/system/environment.py`
+
+- language: `py`
+- size: 16619 bytes
+- hash: `facff5621661`
+- symbols:
+  - `class` `PlatformPaths` — line 35
+  - `method` `PlatformPaths.data_dir` — line 41
+  - `method` `PlatformPaths.config_dir` — line 45
+  - `method` `PlatformPaths.cache_dir` — line 49
+  - `method` `PlatformPaths.log_dir` — line 53
+  - `method` `PlatformPaths.state_dir` — line 57
+  - `method` `PlatformPaths.venvs_dir` — line 61
+  - `method` `PlatformPaths.ensure_dirs` — line 64
+  - `method` `PlatformPaths.migrate_from_legacy` — line 83
+  - `class` `UVEnvironmentManager` — line 124
+  - `method` `UVEnvironmentManager.__init__` — line 127
+  - `method` `UVEnvironmentManager.uv_path` — line 132
+  - `method` `UVEnvironmentManager.has_uv` — line 136
+  - `method` `UVEnvironmentManager.backend` — line 140
+  - `method` `UVEnvironmentManager.status` — line 143
+  - `method` `UVEnvironmentManager._resolve_env_dir` — line 153
+  - `method` `UVEnvironmentManager.get_python_executable` — line 159
+  - `method` `UVEnvironmentManager.create_environment` — line 178
+  - `method` `UVEnvironmentManager.install` — line 220
+  - `method` `UVEnvironmentManager.run` — line 287
+  - `method` `UVEnvironmentManager.run_ephemeral` — line 385
+  - `function` `get_platform_paths` — line 472
+  - `function` `get_environment_manager` — line 480
+- imports:
+  - `__future__`
+  - `dataclasses`
+  - `hashlib`
+  - `json`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `os`
+  - `pathlib`
+  - `platformdirs`
+  - `re`
+  - `shutil`
+  - `subprocess`
+  - `sys`
+  - `typing`
+
 ## `src/living_assistant/system/groups.py`
 
 - language: `py`
-- size: 8589 bytes
-- hash: `c2c9917adb3d`
+- size: 8739 bytes
+- hash: `7c0f9c024d31`
 - symbols:
   - `class` `ProjectGroupRegistry` — line 9
   - `method` `ProjectGroupRegistry.__init__` — line 10
@@ -3079,8 +4380,8 @@
 ## `src/living_assistant/system/hardware.py`
 
 - language: `py`
-- size: 3118 bytes
-- hash: `819e4a4a551d`
+- size: 3216 bytes
+- hash: `db272a14ecea`
 - symbols:
   - `class` `HardwareInfo` — line 11
   - `method` `HardwareInfo.to_dict` — line 25
@@ -3099,8 +4400,8 @@
 ## `src/living_assistant/system/model_usage.py`
 
 - language: `py`
-- size: 9656 bytes
-- hash: `bcbe9437863d`
+- size: 9900 bytes
+- hash: `ad2ddedcfeb4`
 - symbols:
   - `class` `ModelUsageStore` — line 31
   - `method` `ModelUsageStore.__init__` — line 39
@@ -3125,8 +4426,8 @@
 ## `src/living_assistant/system/notifications.py`
 
 - language: `py`
-- size: 7319 bytes
-- hash: `786663fdf110`
+- size: 7462 bytes
+- hash: `cdb74bbea6d0`
 - symbols:
   - `class` `Notifier` — line 10
   - `method` `Notifier.__init__` — line 11
@@ -3158,8 +4459,8 @@
 ## `src/living_assistant/system/observer.py`
 
 - language: `py`
-- size: 8635 bytes
-- hash: `cbdaa7f325fa`
+- size: 8861 bytes
+- hash: `d0239f2e5c9b`
 - symbols:
   - `function` `_get_active_window_text` — line 16
   - `class` `ProactiveInquiry` — line 32
@@ -3187,8 +4488,8 @@
 ## `src/living_assistant/system/onboarding.py`
 
 - language: `py`
-- size: 4565 bytes
-- hash: `461fb3bc5505`
+- size: 4675 bytes
+- hash: `8fe78f92caae`
 - symbols:
   - `class` `OnboardingManager` — line 16
   - `method` `OnboardingManager.__init__` — line 19
@@ -3209,8 +4510,8 @@
 ## `src/living_assistant/system/peer_agents.py`
 
 - language: `py`
-- size: 15091 bytes
-- hash: `31e359399fad`
+- size: 15408 bytes
+- hash: `cbe4a71bfbb1`
 - symbols:
   - `class` `PeerAgentManager` — line 26
   - `method` `PeerAgentManager.__init__` — line 29
@@ -3291,8 +4592,8 @@
 ## `src/living_assistant/system/project_auditor.py`
 
 - language: `py`
-- size: 11244 bytes
-- hash: `5d54fe0781dd`
+- size: 11463 bytes
+- hash: `b90988024071`
 - symbols:
   - `function` `_decorated` — line 21
   - `function` `_call_name` — line 25
@@ -3316,8 +4617,8 @@
 ## `src/living_assistant/system/release_manager.py`
 
 - language: `py`
-- size: 27683 bytes
-- hash: `d7e4eb81a421`
+- size: 28218 bytes
+- hash: `d440b3d06690`
 - symbols:
   - `function` `utc_now` — line 23
   - `function` `sha256_file` — line 27
@@ -3377,21 +4678,38 @@
 ## `src/living_assistant/system/resource_manager.py`
 
 - language: `py`
-- size: 12608 bytes
-- hash: `e69678efe36b`
+- size: 19230 bytes
+- hash: `b38b9d94b3bb`
 - symbols:
-  - `class` `ModelRuntimePolicy` — line 11
-  - `method` `ModelRuntimePolicy.to_dict` — line 22
-  - `class` `ResourceManager` — line 26
-  - `method` `ResourceManager.__init__` — line 27
-  - `method` `ResourceManager._nvidia_runtime` — line 33
-  - `method` `ResourceManager._cpu_temperature_c` — line 53
-  - `method` `ResourceManager.snapshot` — line 66
-  - `method` `ResourceManager.thermal_pressure` — line 83
-  - `method` `ResourceManager._select_model_policy` — line 98
-  - `method` `ResourceManager.can_start_model` — line 179
-  - `method` `ResourceManager.can_admit_model` — line 210
-  - `method` `ResourceManager.model_runtime_status` — line 246
+  - `class` `GPUVendorInterface` — line 11
+  - `method` `GPUVendorInterface.query_runtime` — line 14
+  - `class` `NvidiaSmiBackend` — line 19
+  - `method` `NvidiaSmiBackend.__init__` — line 22
+  - `method` `NvidiaSmiBackend.query_runtime` — line 25
+  - `class` `AppleMlxBackend` — line 47
+  - `method` `AppleMlxBackend.__init__` — line 50
+  - `method` `AppleMlxBackend.query_runtime` — line 53
+  - `class` `FallbackGPUBackend` — line 62
+  - `method` `FallbackGPUBackend.__init__` — line 65
+  - `method` `FallbackGPUBackend.query_runtime` — line 68
+  - `class` `ModelRuntimePolicy` — line 73
+  - `method` `ModelRuntimePolicy.to_dict` — line 85
+  - `class` `ResourceManager` — line 89
+  - `method` `ResourceManager.__init__` — line 90
+  - `method` `ResourceManager._init_gpu_backend` — line 98
+  - `method` `ResourceManager._nvidia_runtime` — line 105
+  - `method` `ResourceManager._cpu_temperature_c` — line 108
+  - `method` `ResourceManager.process_resource_snapshot` — line 125
+  - `method` `ResourceManager.system_load_snapshot` — line 149
+  - `method` `ResourceManager.set_interactive_mode` — line 170
+  - `method` `ResourceManager.is_interactive_active` — line 177
+  - `method` `ResourceManager.should_throttle_background_tasks` — line 181
+  - `method` `ResourceManager.snapshot` — line 209
+  - `method` `ResourceManager.thermal_pressure` — line 227
+  - `method` `ResourceManager._select_model_policy` — line 242
+  - `method` `ResourceManager.can_start_model` — line 336
+  - `method` `ResourceManager.can_admit_model` — line 367
+  - `method` `ResourceManager.model_runtime_status` — line 403
 - imports:
   - `__future__`
   - `dataclasses`
@@ -3403,8 +4721,8 @@
 ## `src/living_assistant/system/routines.py`
 
 - language: `py`
-- size: 5636 bytes
-- hash: `29492d07905c`
+- size: 5731 bytes
+- hash: `fe47e14385de`
 - symbols:
   - `function` `_parse_hhmm` — line 10
   - `class` `RoutineRegistry` — line 18
@@ -3428,22 +4746,117 @@
   - `pathlib`
   - `time`
 
+## `src/living_assistant/system/scheduler.py`
+
+- language: `py`
+- size: 23619 bytes
+- hash: `c7d768f958e5`
+- symbols:
+  - `class` `ScheduledTaskStore` — line 19
+  - `method` `ScheduledTaskStore.__init__` — line 22
+  - `method` `ScheduledTaskStore._init_db` — line 28
+  - `method` `ScheduledTaskStore.save_task` — line 53
+  - `method` `ScheduledTaskStore.get_task` — line 94
+  - `method` `ScheduledTaskStore.list_tasks` — line 102
+  - `method` `ScheduledTaskStore.delete_task` — line 117
+  - `method` `ScheduledTaskStore.mark_executed` — line 124
+  - `method` `ScheduledTaskStore.mark_missed` — line 137
+  - `method` `ScheduledTaskStore.get_overdue_tasks` — line 150
+  - `method` `ScheduledTaskStore._format_row` — line 163
+  - `class` `LivingScheduler` — line 176
+  - `method` `LivingScheduler.__init__` — line 182
+  - `method` `LivingScheduler._init_scheduler` — line 197
+  - `method` `LivingScheduler._register_default_handlers` — line 207
+  - `method` `LivingScheduler.register_action_handler` — line 211
+  - `method` `LivingScheduler.start` — line 217
+  - `method` `LivingScheduler.stop` — line 227
+  - `method` `LivingScheduler.is_running` — line 237
+  - `method` `LivingScheduler._handle_notify_action` — line 240
+  - `method` `LivingScheduler._handle_todo_action` — line 251
+  - `method` `LivingScheduler._execute_task` — line 257
+  - `method` `LivingScheduler.schedule_reminder` — line 287
+  - `method` `LivingScheduler.schedule_cron` — line 330
+  - `method` `LivingScheduler.schedule_interval` — line 379
+  - `method` `LivingScheduler.cancel_task` — line 421
+  - `method` `LivingScheduler.list_tasks` — line 430
+  - `method` `LivingScheduler.recover_missed_tasks` — line 433
+  - `method` `LivingScheduler.schedule_codebase_indexing` — line 456
+  - `method` `LivingScheduler.schedule_briefings` — line 488
+  - `method` `LivingScheduler._load_active_jobs_from_store` — line 534
+  - `method` `LivingScheduler.stats` — line 576
+  - `function` `get_scheduler` — line 590
+- imports:
+  - `__future__`
+  - `datetime`
+  - `json`
+  - `living_assistant.core.config`
+  - `living_assistant.core.sqlite_utils`
+  - `living_assistant.security.security_utils`
+  - `logging`
+  - `pathlib`
+  - `sqlite3`
+  - `threading`
+  - `time`
+  - `typing`
+
+## `src/living_assistant/system/watchdog_service.py`
+
+- language: `py`
+- size: 15200 bytes
+- hash: `27d05ce0397c`
+- symbols:
+  - `class` `DebouncedEventHandler` — line 24
+  - `method` `DebouncedEventHandler.__init__` — line 32
+  - `method` `DebouncedEventHandler._should_ignore` — line 51
+  - `method` `DebouncedEventHandler._record_event` — line 67
+  - `method` `DebouncedEventHandler.on_created` — line 93
+  - `method` `DebouncedEventHandler.on_modified` — line 97
+  - `method` `DebouncedEventHandler.on_deleted` — line 101
+  - `method` `DebouncedEventHandler.on_moved` — line 105
+  - `method` `DebouncedEventHandler.collect_ready_events` — line 113
+  - `method` `DebouncedEventHandler.clear` — line 160
+  - `method` `DebouncedEventHandler.pending_count` — line 167
+  - `class` `WatchdogObserverManager` — line 172
+  - `method` `WatchdogObserverManager.__init__` — line 178
+  - `method` `WatchdogObserverManager._check_watchdog_available` — line 188
+  - `method` `WatchdogObserverManager.available` — line 199
+  - `method` `WatchdogObserverManager.running` — line 203
+  - `method` `WatchdogObserverManager.start` — line 207
+  - `method` `WatchdogObserverManager.stop` — line 226
+  - `method` `WatchdogObserverManager.add_watch` — line 241
+  - `method` `WatchdogObserverManager.remove_watch` — line 295
+  - `method` `WatchdogObserverManager.add_listener` — line 309
+  - `method` `WatchdogObserverManager.remove_listener` — line 314
+  - `method` `WatchdogObserverManager.poll` — line 321
+  - `method` `WatchdogObserverManager.rebaseline` — line 338
+  - `method` `WatchdogObserverManager.stats` — line 345
+  - `function` `get_watchdog_manager` — line 367
+- imports:
+  - `__future__`
+  - `logging`
+  - `pathlib`
+  - `threading`
+  - `time`
+  - `typing`
+
 ## `src/living_assistant/system/watchers.py`
 
 - language: `py`
-- size: 5865 bytes
-- hash: `31dbbdb3d262`
+- size: 7719 bytes
+- hash: `09bfb6f222bf`
 - symbols:
   - `class` `WatchRegistry` — line 8
   - `method` `WatchRegistry.__init__` — line 9
-  - `method` `WatchRegistry._load` — line 15
-  - `method` `WatchRegistry._save` — line 21
-  - `method` `WatchRegistry.add` — line 24
-  - `method` `WatchRegistry.remove` — line 39
-  - `method` `WatchRegistry.list` — line 47
-  - `method` `WatchRegistry._scan` — line 51
-  - `method` `WatchRegistry.rebaseline` — line 73
-  - `method` `WatchRegistry.poll` — line 92
+  - `method` `WatchRegistry._load` — line 24
+  - `method` `WatchRegistry._save` — line 30
+  - `method` `WatchRegistry.add` — line 33
+  - `method` `WatchRegistry.remove` — line 59
+  - `method` `WatchRegistry.list` — line 69
+  - `method` `WatchRegistry.stop` — line 72
+  - `method` `WatchRegistry.close` — line 76
+  - `method` `WatchRegistry._scan` — line 80
+  - `method` `WatchRegistry.rebaseline` — line 102
+  - `method` `WatchRegistry.poll` — line 123
 - imports:
   - `__future__`
   - `json`
@@ -3456,8 +4869,8 @@
 ## `src/living_assistant/system/workspace_snapshots.py`
 
 - language: `py`
-- size: 14739 bytes
-- hash: `200f4880acd2`
+- size: 15080 bytes
+- hash: `00bb4573faf9`
 - symbols:
   - `class` `WorkspaceSnapshotManager` — line 41
   - `method` `WorkspaceSnapshotManager.__init__` — line 50
@@ -3490,8 +4903,8 @@
 ## `src/living_assistant/task_graph.py`
 
 - language: `py`
-- size: 252 bytes
-- hash: `493301438fdc`
+- size: 257 bytes
+- hash: `6480805e1f16`
 - imports:
   - `importlib`
   - `sys`
@@ -3501,6 +4914,57 @@
 - language: `py`
 - size: 52 bytes
 - hash: `025cdef7005a`
+
+## `src/living_assistant/tools/agencyagentstools.py`
+
+- language: `py`
+- size: 3076 bytes
+- hash: `df0cd0496011`
+- symbols:
+  - `function` `build_agency_agents_tools` — line 9
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.agency_agents`
+  - `typing`
+
+## `src/living_assistant/tools/agentmemorytools.py`
+
+- language: `py`
+- size: 5926 bytes
+- hash: `a3f4a78645eb`
+- symbols:
+  - `function` `build_agentmemory_tools` — line 7
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.agentmemory`
+
+## `src/living_assistant/tools/awesome_agent_tools_tools.py`
+
+- language: `py`
+- size: 1284 bytes
+- hash: `c436567d31c4`
+- symbols:
+  - `function` `build_awesome_agent_tools` — line 8
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.awesome_agent_tools`
+  - `typing`
+
+## `src/living_assistant/tools/awesome_harnesstools.py`
+
+- language: `py`
+- size: 825 bytes
+- hash: `492b286d0438`
+- symbols:
+  - `function` `build_awesome_harness_tools` — line 8
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.awesome_harness`
+  - `typing`
 
 ## `src/living_assistant/tools/base.py`
 
@@ -3529,8 +4993,8 @@
 ## `src/living_assistant/tools/browsertools.py`
 
 - language: `py`
-- size: 2611 bytes
-- hash: `b4984e3c5f91`
+- size: 3264 bytes
+- hash: `6dd3ddd276dd`
 - symbols:
   - `function` `build_browser_tools` — line 5
 - imports:
@@ -3549,11 +5013,23 @@
   - `__future__`
   - `base`
 
+## `src/living_assistant/tools/codebasememorytools.py`
+
+- language: `py`
+- size: 5318 bytes
+- hash: `39225f35cc98`
+- symbols:
+  - `function` `build_codebase_memory_tools` — line 7
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.codebase_memory`
+
 ## `src/living_assistant/tools/connectortools.py`
 
 - language: `py`
-- size: 1105 bytes
-- hash: `2f8f6c90ff4b`
+- size: 1122 bytes
+- hash: `41759d9a436a`
 - symbols:
   - `function` `build_connector_tools` — line 6
 - imports:
@@ -3564,8 +5040,8 @@
 ## `src/living_assistant/tools/database.py`
 
 - language: `py`
-- size: 18722 bytes
-- hash: `ec16433c4be1`
+- size: 19206 bytes
+- hash: `fc09e32ffe98`
 - symbols:
   - `function` `_dsn` — line 10
   - `function` `_sqlite_readonly_connection` — line 18
@@ -3600,8 +5076,8 @@
 ## `src/living_assistant/tools/desktop.py`
 
 - language: `py`
-- size: 6105 bytes
-- hash: `f23a6cd43e5d`
+- size: 6186 bytes
+- hash: `c7a27d9c1cfc`
 - symbols:
   - `function` `_clipboard_read_impl` — line 9
   - `function` `_clipboard_write_impl` — line 17
@@ -3615,11 +5091,38 @@
   - `pathlib`
   - `webbrowser`
 
+## `src/living_assistant/tools/diagramtools.py`
+
+- language: `py`
+- size: 7455 bytes
+- hash: `471aa476687e`
+- symbols:
+  - `function` `build_diagram_tools` — line 9
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.diagram_design`
+  - `typing`
+
+## `src/living_assistant/tools/edge0tools.py`
+
+- language: `py`
+- size: 3068 bytes
+- hash: `b959d60e1e25`
+- symbols:
+  - `function` `build_edge0_tools` — line 10
+- imports:
+  - `__future__`
+  - `base`
+  - `json`
+  - `living_assistant.integrations.edge0`
+  - `typing`
+
 ## `src/living_assistant/tools/experiencetools.py`
 
 - language: `py`
-- size: 3468 bytes
-- hash: `71172dc855eb`
+- size: 3511 bytes
+- hash: `c2780ddceaf2`
 - symbols:
   - `function` `build_experience_tools` — line 7
 - imports:
@@ -3631,8 +5134,8 @@
 ## `src/living_assistant/tools/filesystem.py`
 
 - language: `py`
-- size: 7618 bytes
-- hash: `33713bbad6cd`
+- size: 7758 bytes
+- hash: `55d5ef10bdff`
 - symbols:
   - `function` `_preview` — line 15
   - `function` `_approval_for_sensitive` — line 23
@@ -3651,8 +5154,8 @@
 ## `src/living_assistant/tools/gittools.py`
 
 - language: `py`
-- size: 6713 bytes
-- hash: `73f0f3cb2d5d`
+- size: 6851 bytes
+- hash: `2dbed6b53159`
 - symbols:
   - `function` `_git` — line 10
   - `function` `_is_repo` — line 15
@@ -3667,11 +5170,24 @@
   - `pathlib`
   - `subprocess`
 
+## `src/living_assistant/tools/grafttools.py`
+
+- language: `py`
+- size: 6228 bytes
+- hash: `3f6bd75e5077`
+- symbols:
+  - `function` `build_graft_tools` — line 9
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.graft`
+  - `typing`
+
 ## `src/living_assistant/tools/grouptools.py`
 
 - language: `py`
-- size: 1289 bytes
-- hash: `979b5741b352`
+- size: 1305 bytes
+- hash: `d9dbfa9d3efc`
 - symbols:
   - `function` `build_group_tools` — line 6
 - imports:
@@ -3682,8 +5198,8 @@
 ## `src/living_assistant/tools/historytools.py`
 
 - language: `py`
-- size: 794 bytes
-- hash: `f0fb319f711f`
+- size: 817 bytes
+- hash: `788d5ece74b6`
 - symbols:
   - `function` `build_run_history_tools` — line 7
 - imports:
@@ -3694,8 +5210,8 @@
 ## `src/living_assistant/tools/improvementtools.py`
 
 - language: `py`
-- size: 6527 bytes
-- hash: `4d9bea563b1e`
+- size: 6639 bytes
+- hash: `d852f7917c6f`
 - symbols:
   - `function` `build_improvement_tools` — line 9
 - imports:
@@ -3706,11 +5222,25 @@
   - `living_assistant.learning.improvements`
   - `living_assistant.learning.repair_loop`
 
+## `src/living_assistant/tools/openmontagetools.py`
+
+- language: `py`
+- size: 3513 bytes
+- hash: `b49c089a7478`
+- symbols:
+  - `function` `build_openmontage_tools` — line 10
+- imports:
+  - `__future__`
+  - `base`
+  - `json`
+  - `living_assistant.integrations.openmontage`
+  - `typing`
+
 ## `src/living_assistant/tools/peertools.py`
 
 - language: `py`
-- size: 1092 bytes
-- hash: `dd9846ffe296`
+- size: 1121 bytes
+- hash: `652c7864184d`
 - symbols:
   - `function` `build_peer_tools` — line 6
 - imports:
@@ -3720,8 +5250,8 @@
 ## `src/living_assistant/tools/personal.py`
 
 - language: `py`
-- size: 3085 bytes
-- hash: `3f3c1fe7020c`
+- size: 3145 bytes
+- hash: `892b69cade16`
 - symbols:
   - `function` `build_personal_tools` — line 8
 - imports:
@@ -3746,8 +5276,8 @@
 ## `src/living_assistant/tools/planning.py`
 
 - language: `py`
-- size: 3431 bytes
-- hash: `68760c5c0b01`
+- size: 3518 bytes
+- hash: `97d2954a2067`
 - symbols:
   - `function` `build_planning_tools` — line 6
 - imports:
@@ -3759,8 +5289,8 @@
 ## `src/living_assistant/tools/projects.py`
 
 - language: `py`
-- size: 12554 bytes
-- hash: `2f64bce916b8`
+- size: 12805 bytes
+- hash: `15fffd10f1e3`
 - symbols:
   - `function` `detect_project` — line 20
   - `class` `ProjectRegistry` — line 65
@@ -3794,8 +5324,8 @@
 ## `src/living_assistant/tools/registry.py`
 
 - language: `py`
-- size: 1270 bytes
-- hash: `60fec7cea5ea`
+- size: 1314 bytes
+- hash: `9113f324e5a4`
 - symbols:
   - `class` `ToolRegistry` — line 8
   - `method` `ToolRegistry.__init__` — line 11
@@ -3822,11 +5352,36 @@
   - `__future__`
   - `base`
 
+## `src/living_assistant/tools/schedulertools.py`
+
+- language: `py`
+- size: 4958 bytes
+- hash: `27c1d84d0ecb`
+- symbols:
+  - `function` `build_scheduler_tools` — line 7
+- imports:
+  - `__future__`
+  - `base`
+  - `typing`
+
+## `src/living_assistant/tools/scientific_skillstools.py`
+
+- language: `py`
+- size: 2346 bytes
+- hash: `da76aa08c500`
+- symbols:
+  - `function` `build_scientific_skills_tools` — line 9
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.scientific_skills`
+  - `typing`
+
 ## `src/living_assistant/tools/security.py`
 
 - language: `py`
-- size: 12105 bytes
-- hash: `f1f08dd80ec8`
+- size: 12241 bytes
+- hash: `73167c501790`
 - symbols:
   - `function` `_conn_name` — line 10
   - `function` `audit_local` — line 17
@@ -3845,6 +5400,19 @@
   - `socket`
   - `subprocess`
 
+## `src/living_assistant/tools/securityskills_tools.py`
+
+- language: `py`
+- size: 4387 bytes
+- hash: `f3cf43e2c3c0`
+- symbols:
+  - `function` `build_security_skills_tools` — line 9
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.cybersecurity_skills`
+  - `typing`
+
 ## `src/living_assistant/tools/sessiontools.py`
 
 - language: `py`
@@ -3859,8 +5427,8 @@
 ## `src/living_assistant/tools/shell.py`
 
 - language: `py`
-- size: 18453 bytes
-- hash: `1ffa09bce5e1`
+- size: 18816 bytes
+- hash: `530983a68080`
 - symbols:
   - `class` `ProcessRegistry` — line 18
   - `method` `ProcessRegistry.__init__` — line 19
@@ -3897,11 +5465,23 @@
   - `typing`
   - `uuid`
 
+## `src/living_assistant/tools/vikingtools.py`
+
+- language: `py`
+- size: 5133 bytes
+- hash: `a353c2697a56`
+- symbols:
+  - `function` `build_viking_tools` — line 7
+- imports:
+  - `__future__`
+  - `base`
+  - `living_assistant.integrations.openviking`
+
 ## `src/living_assistant/tools/voicetools.py`
 
 - language: `py`
-- size: 1376 bytes
-- hash: `81a1f28b4622`
+- size: 1408 bytes
+- hash: `7da64e76e79a`
 - symbols:
   - `function` `build_voice_tools` — line 5
 - imports:
@@ -3912,17 +5492,18 @@
 ## `src/living_assistant/tools/webtools.py`
 
 - language: `py`
-- size: 31050 bytes
-- hash: `2f4ef1bc1902`
+- size: 35294 bytes
+- hash: `32e3442c956b`
 - symbols:
-  - `class` `_NetworkGate` — line 36
-  - `method` `_NetworkGate.__init__` — line 37
-  - `function` `build_web_tools` — line 42
+  - `class` `_NetworkGate` — line 37
+  - `method` `_NetworkGate.__init__` — line 38
+  - `function` `build_web_tools` — line 43
 - imports:
   - `__future__`
   - `base`
   - `collections`
   - `datetime`
+  - `hashlib`
   - `httpx`
   - `living_assistant.core.approval`
   - `living_assistant.core.config`
@@ -3942,8 +5523,8 @@
 ## `src/living_assistant/tray.py`
 
 - language: `py`
-- size: 242 bytes
-- hash: `4868bf0cf08e`
+- size: 247 bytes
+- hash: `62e3a9ae3102`
 - imports:
   - `importlib`
   - `sys`
@@ -3951,8 +5532,8 @@
 ## `src/living_assistant/verifier.py`
 
 - language: `py`
-- size: 252 bytes
-- hash: `5cc8e78dd15d`
+- size: 257 bytes
+- hash: `dbb600a338ff`
 - imports:
   - `importlib`
   - `sys`
@@ -3960,8 +5541,8 @@
 ## `src/living_assistant/voice.py`
 
 - language: `py`
-- size: 244 bytes
-- hash: `841a03391215`
+- size: 249 bytes
+- hash: `4ceba4c87ce4`
 - imports:
   - `importlib`
   - `sys`
@@ -3969,8 +5550,8 @@
 ## `src/living_assistant/watchers.py`
 
 - language: `py`
-- size: 248 bytes
-- hash: `5aee4408913f`
+- size: 253 bytes
+- hash: `e4e92f168d95`
 - imports:
   - `importlib`
   - `sys`
@@ -3978,20 +5559,26 @@
 ## `src/living_assistant/webui/index.html`
 
 - language: `html`
-- size: 930 bytes
-- hash: `14bf7c30afba`
+- size: 953 bytes
+- hash: `268835c3d3c3`
+
+## `src/living_assistant/webui/package-lock.json`
+
+- language: `json`
+- size: 69504 bytes
+- hash: `f873cda18c0f`
 
 ## `src/living_assistant/webui/package.json`
 
 - language: `json`
-- size: 661 bytes
-- hash: `0200ff2ac484`
+- size: 685 bytes
+- hash: `1ae8be914643`
 
 ## `src/living_assistant/webui/src/chart_loader.js`
 
 - language: `js`
-- size: 2346 bytes
-- hash: `435d98b054bc`
+- size: 2415 bytes
+- hash: `a89474b14a1b`
 - symbols:
   - `function` `installedPlotly` — line 6
   - `function` `loadScript` — line 15
@@ -4000,11 +5587,11 @@
 ## `src/living_assistant/webui/src/main.js`
 
 - language: `js`
-- size: 34857 bytes
-- hash: `7a8b2a40dce5`
+- size: 59390 bytes
+- hash: `0ee69a2bfd89`
 - symbols:
   - `class` `App` — line 106
-  - `class` `ResourceChart` — line 326
+  - `class` `ResourceChart` — line 746
   - `function` `cx` — line 13
   - `function` `safeText` — line 15
   - `function` `fmtBytes` — line 16
@@ -4014,12 +5601,14 @@
   - `function` `renderPrismToken` — line 55
   - `function` `CodeBlock` — line 64
   - `function` `Markdown` — line 71
-  - `function` `UsageTable` — line 395
-  - `function` `ModelTable` — line 414
-  - `function` `ApprovalList` — line 434
-  - `function` `ActivityList` — line 448
-  - `function` `ItemList` — line 460
-  - `function` `trace` — line 351
+  - `function` `UsageTable` — line 815
+  - `function` `ModelTable` — line 834
+  - `function` `ApprovalList` — line 854
+  - `function` `ActivityList` — line 868
+  - `function` `ItemList` — line 880
+  - `function` `statusBadge` — line 395
+  - `function` `statusBadge` — line 544
+  - `function` `trace` — line 771
 - imports:
   - `./chart_loader.js`
   - `./resource_chart_data.js`
@@ -4027,8 +5616,8 @@
 ## `src/living_assistant/webui/src/resource_chart_data.js`
 
 - language: `js`
-- size: 2041 bytes
-- hash: `64a66e0d4b7b`
+- size: 2097 bytes
+- hash: `96bfd2157da4`
 - symbols:
   - `function` `finiteNumber` — line 2
   - `function` `percentMetric` — line 7
@@ -4040,14 +5629,26 @@
 ## `src/living_assistant/webui/src/styles.css`
 
 - language: `css`
-- size: 249 bytes
-- hash: `bad2ee2ef6b4`
+- size: 262 bytes
+- hash: `450d4594da35`
+
+## `src/living_assistant/webui/vite-dist/assets/index-C8GrKIUi.js`
+
+- language: `js`
+- size: 40425 bytes
+- hash: `4e63b83964c1`
+
+## `src/living_assistant/webui/vite-dist/index.html`
+
+- language: `html`
+- size: 1148 bytes
+- hash: `fc8620b2d79f`
 
 ## `src/living_assistant/webui/vite.config.js`
 
 - language: `js`
-- size: 252 bytes
-- hash: `7289cd99fb20`
+- size: 264 bytes
+- hash: `249ecdfc90fb`
 - imports:
   - `@vitejs/plugin-react`
   - `vite`
@@ -4055,8 +5656,8 @@
 ## `src/living_assistant/workspace.py`
 
 - language: `py`
-- size: 246 bytes
-- hash: `cdebba0ed7fa`
+- size: 251 bytes
+- hash: `21b654de5586`
 - imports:
   - `importlib`
   - `sys`
