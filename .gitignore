@@ -15,7 +15,6 @@ dist/
 !src/living_assistant/webui/public/dist/
 !src/living_assistant/webui/public/dist/app.css
 src/living_assistant/webui/vite-dist/
-external-components/
 build/
 node_modules/
 *.egg-info/
@@ -25,3 +24,24 @@ workspace/artifacts/voice-input.wav
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Throwaway / scratch scripts (not part of the packaged assistant)
+add_aura_route.py
+fix_auth.py
+fix_catalog.py
+fix_litellm_url.py
+fix_pytest.py
+fix_tests.py
+get-pip.py
+get_litellm_stream.py
+metabolize.py
+search.py
+temp_macro.py
+temp_provider.py
+test_chat.py
+test_ddg.py
+test_provider.py
+verify_build.py
+dry-run.log
+pytest_results.txt
+scratch/

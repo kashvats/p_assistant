@@ -275,6 +275,95 @@ class OllamaProvider:
             pass
 
 
+class LiteLLMProvider:
+    """Universal provider for llama.cpp servers, OpenAI, Claude, Groq, etc. via LiteLLM."""
+
+    def __init__(self, base_url: str | None = None, api_key: str | None = None):
+        self.base_url = base_url
+        self.api_key = api_key
+
+    def available_models(self) -> list[str]:
+        # Represents standard unified namespaces that LiteLLM can parse
+        return ["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620", "openai/local-model", "ollama/llama3"]
+
+    def model_inventory(self) -> dict[str, dict]:
+        return {m: {"size_bytes": 0, "status": "api"} for m in self.available_models()}
+
+    def model_size_bytes(self, model: str) -> int | None:
+        return 0
+
+    def running_models(self) -> list[dict]:
+        return []
+
+    def preload(self, model: str, keep_alive: int | str = 300) -> dict:
+        return {"ok": True, "model": model, "status": "ready"}
+        
+    def unload(self, model: str):
+        pass
+
+    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None,
+             keep_alive: int | str = 45, options: dict | None = None) -> dict:
+        import litellm
+        litellm.drop_params = True
+        kwargs = {}
+        if self.base_url: kwargs["api_base"] = self.base_url
+        if self.api_key: kwargs["api_key"] = self.api_key
+
+        try:
+            res = litellm.completion(
+                model=model,
+                messages=messages,
+                tools=tools,
+                **kwargs
+            )
+            # Convert LiteLLM ModelResponse to the format expected by Orchestrator
+            msg = res.choices[0].message
+            out_msg = {"role": msg.role, "content": msg.content or ""}
+            if msg.tool_calls:
+                out_msg["tool_calls"] = []
+                for tc in msg.tool_calls:
+                    out_msg["tool_calls"].append({
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments
+                        }
+                    })
+            return {"model": model, "message": out_msg, "done": True}
+        except Exception as e:
+            raise ModelError(str(e))
+
+    def chat_stream(self, model: str, messages: list[dict], tools: list[dict] | None = None,
+                    keep_alive: int | str = 45, options: dict | None = None):
+        import litellm
+        import json
+        litellm.drop_params = True
+        kwargs = {}
+        if self.base_url: kwargs["api_base"] = self.base_url
+        if self.api_key: kwargs["api_key"] = self.api_key
+
+        try:
+            res = litellm.completion(
+                model=model,
+                messages=messages,
+                tools=tools,
+                stream=True,
+                **kwargs
+            )
+            for chunk in res:
+                delta = chunk.choices[0].delta
+                yield {
+                    "model": model,
+                    "message": {
+                        "role": delta.role or "assistant",
+                        "content": delta.content or "",
+                        # Tool call streaming might need custom reduction in orchestrator
+                    },
+                    "done": chunk.choices[0].finish_reason is not None
+                }
+        except Exception as e:
+            raise ModelError(str(e))
+
 class AirLLMProvider:
     """Lazy local AirLLM provider for models that are larger than GPU VRAM.
 
@@ -545,11 +634,12 @@ class AirLLMProvider:
 
 
 class CompositeModelProvider:
-    """Route normal model names to Ollama and ``airllm:`` names to AirLLM."""
+    """Route normal model names to Ollama, litellm/ to LiteLLM, and airllm: to AirLLM."""
 
-    def __init__(self, ollama: OllamaProvider, airllm: AirLLMProvider):
+    def __init__(self, ollama: OllamaProvider, airllm: AirLLMProvider, litellm_provider: LiteLLMProvider | None = None):
         self.ollama = ollama
         self.airllm = airllm
+        self.litellm_provider = litellm_provider or LiteLLMProvider(base_url="http://127.0.0.1:8080/v1", api_key="dummy")
         # Desktop vision's existing locality gate reads provider.base_url. Ollama
         # is the only network inference provider in this composite; AirLLM runs
         # locally after any model download/splitting step.
@@ -558,27 +648,35 @@ class CompositeModelProvider:
     def _route(self, model: str):
         if self.airllm.is_airllm_model(model):
             return self.airllm, self.airllm.normalize_model(model)
+        if model.startswith("openai/") or model.startswith("anthropic/") or model.startswith("ollama/") or model.startswith("huggingface/") or model.startswith("groq/") or model.startswith("openrouter/"):
+            return self.litellm_provider, model
         return self.ollama, model
 
     def available_models(self) -> list[str]:
         air = self.airllm.available_models()
+        lite = self.litellm_provider.available_models()
         try:
             ollama = self.ollama.available_models()
         except Exception:
-            if air:
-                return air
+            if air or lite:
+                return list(dict.fromkeys([*lite, *air]))
             raise
-        return list(dict.fromkeys([*ollama, *air]))
+        return list(dict.fromkeys([*ollama, *air, *lite]))
 
     def model_inventory(self) -> dict[str, dict]:
         air = self.airllm.model_inventory()
+        lite = self.litellm_provider.model_inventory()
         try:
             result = self.ollama.model_inventory()
         except Exception:
-            if air:
-                return air
+            if air or lite:
+                result = {}
+                result.update(air)
+                result.update(lite)
+                return result
             raise
         result.update(air)
+        result.update(lite)
         return result
 
     def model_size_bytes(self, model: str) -> int | None:
@@ -853,11 +951,16 @@ class ModelManager:
         by the resource-admission policy and label it explicitly as an estimate.
         """
         provider = self._ollama_provider()
-        inventory = provider.model_inventory()
+        try:
+            inventory = provider.model_inventory()
+        except Exception:
+            inventory = {}
+            
         try:
             running = provider.running_models()
         except Exception:
             running = []
+
         running_by_name: dict[str, dict] = {}
         for item in running:
             name = str(item.get("name") or item.get("model") or "")
