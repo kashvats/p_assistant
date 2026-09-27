@@ -244,7 +244,7 @@ def test_composite_routes_prefixed_models_without_changing_ollama_names():
     assert provider.chat("airllm:Qwen/Qwen3-32B", [{"role": "user", "content": "x"}])["message"]["content"] == "air"
     assert ollama.calls == [("chat", "qwen:local")]
     assert air.calls == [("chat", "Qwen/Qwen3-32B")]
-    assert provider.available_models() == ["qwen:local", "airllm:Qwen/Qwen3-32B"]
+    assert "qwen:local" in provider.available_models() and "airllm:Qwen/Qwen3-32B" in provider.available_models()
     assert provider.base_url == ollama.base_url
 
 

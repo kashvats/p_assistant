@@ -402,3 +402,46 @@ class ResourceManager:
 
     def model_runtime_status(self) -> dict:
         return {"policy": self.model_policy.to_dict(), "resources": self.snapshot()}
+
+    def metabolize(self) -> dict:
+        """The Digestive System (Robust): Clear Ollama and PyTorch/CUDA VRAM caches."""
+        import httpx
+        import gc
+        import sys
+        
+        freed_ollama = False
+        try:
+            # 1. Robust Ollama Eviction (with timeouts and connection error handling)
+            with httpx.Client(timeout=2.0) as client:
+                res = client.get("http://127.0.0.1:11434/api/ps")
+                if res.status_code == 200:
+                    models = res.json().get("models", [])
+                    for m in models:
+                        model_name = m.get("model")
+                        if model_name:
+                            client.post("http://127.0.0.1:11434/api/generate", json={"model": model_name, "keep_alive": 0})
+                            freed_ollama = True
+        except Exception:
+            pass
+            
+        # 2. Native Python GC
+        collected = gc.collect()
+        
+        # 3. Robust PyTorch / CUDA cache clearing (AirLLM / Colibri style)
+        cuda_cleared = False
+        if "torch" in sys.modules:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+                cuda_cleared = True
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                # Apple Silicon robust clearing
+                torch.mps.empty_cache()
+                cuda_cleared = True
+
+        return {
+            "ollama_freed": freed_ollama, 
+            "cuda_mps_cleared": cuda_cleared, 
+            "gc_objects_collected": collected
+        }

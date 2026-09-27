@@ -1,0 +1,1952 @@
+{
+  "name": "Skills Catalog",
+  "version": "2026.08",
+  "description": "Reusable AI agent skills following the SKILL.md standard",
+  "license": "MIT",
+  "lastUpdated": "2026-09-14",
+  "totalSkills": 101,
+  "categories": [
+    {
+      "name": "Development",
+      "count": 35
+    },
+    {
+      "name": "Productivity",
+      "count": 17
+    },
+    {
+      "name": "Content",
+      "count": 13
+    },
+    {
+      "name": "Design",
+      "count": 11
+    },
+    {
+      "name": "Testing",
+      "count": 4
+    },
+    {
+      "name": "DevOps",
+      "count": 8
+    },
+    {
+      "name": "Marketing",
+      "count": 6
+    },
+    {
+      "name": "Data",
+      "count": 4
+    },
+    {
+      "name": "Security",
+      "count": 2
+    }
+  ],
+  "sources": [
+    {
+      "name": "obra/superpowers",
+      "url": "https://github.com/obra/superpowers",
+      "stars": 239000,
+      "skillCount": 13
+    },
+    {
+      "name": "anthropics/skills",
+      "url": "https://github.com/anthropics/skills",
+      "stars": 157000,
+      "skillCount": 7
+    },
+    {
+      "name": "mattpocock/skills",
+      "url": "https://github.com/mattpocock/skills",
+      "stars": 141000,
+      "skillCount": 15
+    },
+    {
+      "name": "vercel-labs/agent-skills",
+      "url": "https://github.com/vercel-labs/agent-skills",
+      "stars": 29000,
+      "skillCount": 8
+    },
+    {
+      "name": "anthropics/claude-plugins-official",
+      "url": "https://github.com/anthropics/claude-plugins-official",
+      "stars": 30500,
+      "skillCount": 37
+    },
+    {
+      "name": "skills.sh leaderboard",
+      "url": "https://skills.sh",
+      "totalInstalls": 850000
+    },
+    {
+      "name": "addyosmani/agent-skills",
+      "url": "https://github.com/addyosmani/agent-skills",
+      "stars": 77200,
+      "skillCount": 24
+    },
+    {
+      "name": "heygen-com/hyperframes",
+      "url": "https://github.com/heygen-com/hyperframes",
+      "stars": 41859,
+      "skillCount": 1
+    },
+    {
+      "name": "LottieFiles/motion-design-skill",
+      "url": "https://github.com/LottieFiles/motion-design-skill",
+      "stars": 1294,
+      "skillCount": 1
+    },
+    {
+      "name": "mvanhorn/last30days-skill",
+      "url": "https://github.com/mvanhorn/last30days-skill",
+      "stars": 58820,
+      "skillCount": 1
+    },
+    {
+      "name": "Vincentwei1021/video-shotcraft",
+      "url": "https://github.com/Vincentwei1021/video-shotcraft",
+      "stars": 5716,
+      "skillCount": 1
+    }
+  ],
+  "skills": [
+    {
+      "id": "executing-plans",
+      "name": "Executing Plans",
+      "source": "obra/superpowers",
+      "category": "Development",
+      "installs": 125500,
+      "description": "Executes implementation plans with verification at each step.",
+      "install": "npx skills add obra/superpowers --skill executing-plans",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "execution",
+        "planning",
+        "verification",
+        "workflow"
+      ]
+    },
+    {
+      "id": "finishing-a-development-branch",
+      "name": "Finishing a Development Branch",
+      "source": "obra/superpowers",
+      "category": "DevOps",
+      "installs": 106600,
+      "description": "Handles branch cleanup, merge prep, and final verification.",
+      "install": "npx skills add obra/superpowers --skill finishing-a-development-branch",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "git",
+        "branch",
+        "merge",
+        "cleanup"
+      ]
+    },
+    {
+      "id": "receiving-code-review",
+      "name": "Receiving Code Review",
+      "source": "obra/superpowers",
+      "category": "Development",
+      "installs": 111900,
+      "description": "Guides agents on responding to feedback from code reviews.",
+      "install": "npx skills add obra/superpowers --skill receiving-code-review",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "code-review",
+        "feedback",
+        "iteration",
+        "quality"
+      ]
+    },
+    {
+      "id": "requesting-code-review",
+      "name": "Requesting Code Review",
+      "source": "obra/superpowers",
+      "category": "Development",
+      "installs": 137400,
+      "description": "Structured process for requesting and conducting code reviews.",
+      "install": "npx skills add obra/superpowers --skill requesting-code-review",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "code-review",
+        "request",
+        "process",
+        "quality"
+      ]
+    },
+    {
+      "id": "using-git-worktrees",
+      "name": "Using Git Worktrees",
+      "source": "obra/superpowers",
+      "category": "DevOps",
+      "installs": 108700,
+      "description": "Creates isolated workspace on new branch, runs project setup, verifies clean test baseline.",
+      "install": "npx skills add obra/superpowers --skill using-git-worktrees",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "git",
+        "worktrees",
+        "isolation",
+        "workspace"
+      ]
+    },
+    {
+      "id": "writing-skills",
+      "name": "Writing Skills",
+      "source": "obra/superpowers",
+      "category": "Productivity",
+      "installs": 110800,
+      "description": "Meta-skill for creating and testing new skills with modularity and framework standards.",
+      "install": "npx skills add obra/superpowers --skill writing-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "meta",
+        "skill-creation",
+        "framework",
+        "standards"
+      ]
+    },
+    {
+      "id": "frontend-design",
+      "name": "Frontend Design",
+      "source": "anthropics/skills",
+      "category": "Design",
+      "installs": 572900,
+      "description": "Creates distinctive, production-grade frontend interfaces with high design quality.",
+      "install": "npx skills add anthropics/skills --skill frontend-design",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "frontend",
+        "ui",
+        "design",
+        "production"
+      ]
+    },
+    {
+      "id": "skill-creator",
+      "name": "Skill Creator",
+      "source": "anthropics/skills",
+      "category": "Productivity",
+      "installs": 280200,
+      "description": "Creates new skills, modifies existing skills, and measures skill performance.",
+      "install": "npx skills add anthropics/skills --skill skill-creator",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "skill-creation",
+        "meta",
+        "performance",
+        "measurement"
+      ]
+    },
+    {
+      "id": "pptx",
+      "name": "PowerPoint (pptx)",
+      "source": "anthropics/skills",
+      "category": "Content",
+      "installs": 153300,
+      "description": "Creates and edits PowerPoint presentations programmatically.",
+      "install": "npx skills add anthropics/skills --skill pptx",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "powerpoint",
+        "presentations",
+        "slides",
+        "office"
+      ]
+    },
+    {
+      "id": "pdf",
+      "name": "PDF Documents",
+      "source": "anthropics/skills",
+      "category": "Content",
+      "installs": 139500,
+      "description": "Creates and edits PDF documents with full formatting support.",
+      "install": "npx skills add anthropics/skills --skill pdf",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "pdf",
+        "documents",
+        "formatting",
+        "creation"
+      ]
+    },
+    {
+      "id": "docx",
+      "name": "Word Documents (docx)",
+      "source": "anthropics/skills",
+      "category": "Content",
+      "installs": 131500,
+      "description": "Creates and edits Word documents with professional formatting.",
+      "install": "npx skills add anthropics/skills --skill docx",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "word",
+        "documents",
+        "office",
+        "professional"
+      ]
+    },
+    {
+      "id": "xlsx",
+      "name": "Excel Spreadsheets (xlsx)",
+      "source": "anthropics/skills",
+      "category": "Content",
+      "installs": 116000,
+      "description": "Creates and edits Excel spreadsheets with formulas and charts.",
+      "install": "npx skills add anthropics/skills --skill xlsx",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "excel",
+        "spreadsheets",
+        "formulas",
+        "charts"
+      ]
+    },
+    {
+      "id": "webapp-testing",
+      "name": "Web App Testing",
+      "source": "anthropics/skills",
+      "category": "Testing",
+      "installs": 100600,
+      "description": "Tests web applications using Playwright for end-to-end verification.",
+      "install": "npx skills add anthropics/skills --skill webapp-testing",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "testing",
+        "playwright",
+        "e2e",
+        "web"
+      ]
+    },
+    {
+      "id": "grill-me",
+      "name": "Grill Me",
+      "source": "mattpocock/skills",
+      "category": "Productivity",
+      "installs": 360600,
+      "description": "Get relentlessly interviewed about a plan or design until every branch of the decision tree is resolved.",
+      "install": "npx skills add mattpocock/skills --skill grill-me",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "interview",
+        "planning",
+        "design",
+        "decisions"
+      ]
+    },
+    {
+      "id": "improve-codebase-architecture",
+      "name": "Improve Codebase Architecture",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 296200,
+      "description": "Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick.",
+      "install": "npx skills add mattpocock/skills --skill improve-codebase-architecture",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "architecture",
+        "refactoring",
+        "codebase",
+        "improvement"
+      ]
+    },
+    {
+      "id": "grill-with-docs",
+      "name": "Grill With Docs",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 292900,
+      "description": "Grilling session that also builds your project's domain model, sharpening terminology and updating CONTEXT.md and ADRs inline.",
+      "install": "npx skills add mattpocock/skills --skill grill-with-docs",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "domain-model",
+        "documentation",
+        "adr",
+        "terminology"
+      ]
+    },
+    {
+      "id": "tdd",
+      "name": "TDD (mattpocock)",
+      "source": "mattpocock/skills",
+      "category": "Testing",
+      "installs": 279400,
+      "description": "Test-driven development with a red-green-refactor loop. Builds features or fixes bugs one vertical slice at a time.",
+      "install": "npx skills add mattpocock/skills --skill tdd",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "tdd",
+        "red-green",
+        "refactor",
+        "vertical-slice"
+      ]
+    },
+    {
+      "id": "to-prd",
+      "name": "To PRD",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 260500,
+      "description": "Turn the current conversation into a PRD and publish it to the issue tracker. No interview - just synthesizes what you've already discussed.",
+      "install": "npx skills add mattpocock/skills --skill to-prd",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "prd",
+        "specification",
+        "issue-tracker",
+        "synthesis"
+      ]
+    },
+    {
+      "id": "to-issues",
+      "name": "To Issues",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 249600,
+      "description": "Break any plan, spec, or PRD into independently-grabbable issues using vertical slices.",
+      "install": "npx skills add mattpocock/skills --skill to-issues",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "issues",
+        "vertical-slices",
+        "planning",
+        "breakdown"
+      ]
+    },
+    {
+      "id": "setup-matt-pocock-skills",
+      "name": "Setup Matt Pocock Skills",
+      "source": "mattpocock/skills",
+      "category": "Productivity",
+      "installs": 241800,
+      "description": "Configure this repo for the engineering skills (issue tracker, triage labels, domain doc layout). Run once per repo.",
+      "install": "npx skills add mattpocock/skills --skill setup-matt-pocock-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "setup",
+        "configuration",
+        "repo",
+        "engineering"
+      ]
+    },
+    {
+      "id": "diagnose",
+      "name": "Diagnose",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 229500,
+      "description": "Disciplined diagnosis loop for hard bugs and performance regressions.",
+      "install": "npx skills add mattpocock/skills --skill diagnose",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "diagnosis",
+        "bugs",
+        "performance",
+        "regression"
+      ]
+    },
+    {
+      "id": "triage",
+      "name": "Triage",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 225900,
+      "description": "Move issues through a state machine of triage roles.",
+      "install": "npx skills add mattpocock/skills --skill triage",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "triage",
+        "issues",
+        "state-machine",
+        "workflow"
+      ]
+    },
+    {
+      "id": "write-a-skill",
+      "name": "Write a Skill",
+      "source": "mattpocock/skills",
+      "category": "Productivity",
+      "installs": 221600,
+      "description": "Reference for writing and editing skills well: the vocabulary and principles that make a skill predictable.",
+      "install": "npx skills add mattpocock/skills --skill write-a-skill",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "skill-creation",
+        "writing",
+        "principles",
+        "meta"
+      ]
+    },
+    {
+      "id": "zoom-out",
+      "name": "Zoom Out",
+      "source": "mattpocock/skills",
+      "category": "Productivity",
+      "installs": 220900,
+      "description": "Step back from details to see the big picture of what you're building.",
+      "install": "npx skills add mattpocock/skills --skill zoom-out",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "perspective",
+        "big-picture",
+        "strategy",
+        "overview"
+      ]
+    },
+    {
+      "id": "caveman",
+      "name": "Caveman",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 216200,
+      "description": "Compress verbose code into concise, readable form.",
+      "install": "npx skills add mattpocock/skills --skill caveman",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "compression",
+        "readability",
+        "concise",
+        "refactoring"
+      ]
+    },
+    {
+      "id": "handoff",
+      "name": "Handoff",
+      "source": "mattpocock/skills",
+      "category": "Productivity",
+      "installs": 201800,
+      "description": "Compact the current conversation into a handoff document so another agent can continue the work.",
+      "install": "npx skills add mattpocock/skills --skill handoff",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "handoff",
+        "continuity",
+        "documentation",
+        "agents"
+      ]
+    },
+    {
+      "id": "prototype",
+      "name": "Prototype",
+      "source": "mattpocock/skills",
+      "category": "Development",
+      "installs": 199900,
+      "description": "Build a throwaway prototype to flesh out a design - either a runnable terminal app or several UI variations.",
+      "install": "npx skills add mattpocock/skills --skill prototype",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "prototype",
+        "throwaway",
+        "design",
+        "exploration"
+      ]
+    },
+    {
+      "id": "ask-matt",
+      "name": "Ask Matt",
+      "source": "mattpocock/skills",
+      "category": "Productivity",
+      "installs": 0,
+      "description": "Ask which skill or flow fits your situation. A router over the user-invoked skills.",
+      "install": "npx skills add mattpocock/skills --skill ask-matt",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "router",
+        "navigation",
+        "help",
+        "selection"
+      ]
+    },
+    {
+      "id": "vercel-react-best-practices",
+      "name": "Vercel React Best Practices",
+      "source": "vercel-labs/agent-skills",
+      "category": "Development",
+      "installs": 492200,
+      "description": "React and Next.js performance optimization guidelines from Vercel Engineering. 40+ rules across 8 categories.",
+      "install": "npx skills add vercel-labs/agent-skills --skill vercel-react-best-practices",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "react",
+        "nextjs",
+        "performance",
+        "optimization"
+      ]
+    },
+    {
+      "id": "web-design-guidelines",
+      "name": "Web Design Guidelines",
+      "source": "vercel-labs/agent-skills",
+      "category": "Design",
+      "installs": 406200,
+      "description": "Review UI code for compliance with web interface best practices. 100+ rules covering accessibility, performance, and UX.",
+      "install": "npx skills add vercel-labs/agent-skills --skill web-design-guidelines",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "web-design",
+        "accessibility",
+        "ux",
+        "best-practices"
+      ]
+    },
+    {
+      "id": "writing-guidelines",
+      "name": "Writing Guidelines",
+      "source": "vercel-labs/agent-skills",
+      "category": "Content",
+      "installs": 0,
+      "description": "Review docs and prose for compliance with the Vercel writing handbook. 80+ rules covering voice, structure, content types.",
+      "install": "npx skills add vercel-labs/agent-skills --skill writing-guidelines",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "writing",
+        "documentation",
+        "voice",
+        "style"
+      ]
+    },
+    {
+      "id": "react-native-guidelines",
+      "name": "React Native Guidelines",
+      "source": "vercel-labs/agent-skills",
+      "category": "Development",
+      "installs": 147400,
+      "description": "React Native best practices optimized for AI agents. 16 rules across 7 sections.",
+      "install": "npx skills add vercel-labs/agent-skills --skill react-native-guidelines",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "react-native",
+        "mobile",
+        "best-practices",
+        "guidelines"
+      ]
+    },
+    {
+      "id": "react-view-transitions",
+      "name": "React View Transitions",
+      "source": "vercel-labs/agent-skills",
+      "category": "Design",
+      "installs": 0,
+      "description": "Implement smooth, native-feeling animations using React's View Transition API.",
+      "install": "npx skills add vercel-labs/agent-skills --skill react-view-transitions",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "animations",
+        "transitions",
+        "react",
+        "ux"
+      ]
+    },
+    {
+      "id": "composition-patterns",
+      "name": "Composition Patterns",
+      "source": "vercel-labs/agent-skills",
+      "category": "Development",
+      "installs": 219300,
+      "description": "React composition patterns that scale. Helps avoid boolean prop proliferation.",
+      "install": "npx skills add vercel-labs/agent-skills --skill composition-patterns",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "composition",
+        "patterns",
+        "react",
+        "scalability"
+      ]
+    },
+    {
+      "id": "vercel-optimize",
+      "name": "Vercel Optimize",
+      "source": "vercel-labs/agent-skills",
+      "category": "DevOps",
+      "installs": 0,
+      "description": "Audits a Vercel project for cost, performance, reliability, caching, function usage, and billing opportunities.",
+      "install": "npx skills add vercel-labs/agent-skills --skill vercel-optimize",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "vercel",
+        "optimization",
+        "cost",
+        "performance"
+      ]
+    },
+    {
+      "id": "vercel-deploy-claimable",
+      "name": "Vercel Deploy Claimable",
+      "source": "vercel-labs/agent-skills",
+      "category": "DevOps",
+      "installs": 0,
+      "description": "Deploy applications and websites to Vercel instantly. Auto-detects 40+ frameworks.",
+      "install": "npx skills add vercel-labs/agent-skills --skill vercel-deploy-claimable",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "vercel",
+        "deployment",
+        "frameworks",
+        "hosting"
+      ]
+    },
+    {
+      "id": "find-skills",
+      "name": "Find Skills",
+      "source": "vercel-labs/skills",
+      "category": "Productivity",
+      "installs": 2100000,
+      "description": "Discover and install new skills for your agent.",
+      "install": "npx skills add vercel-labs/skills --skill find-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "discovery",
+        "search",
+        "installation",
+        "marketplace"
+      ]
+    },
+    {
+      "id": "agent-browser",
+      "name": "Agent Browser",
+      "source": "vercel-labs/agent-browser",
+      "category": "Testing",
+      "installs": 469800,
+      "description": "Automate browser interactions for testing and scraping.",
+      "install": "npx skills add vercel-labs/agent-browser",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "browser",
+        "automation",
+        "testing",
+        "scraping"
+      ]
+    },
+    {
+      "id": "microsoft-foundry",
+      "name": "Microsoft Foundry",
+      "source": "microsoft/azure-skills",
+      "category": "DevOps",
+      "installs": 406400,
+      "description": "Microsoft Azure Foundry SDK integration.",
+      "install": "npx skills add microsoft/azure-skills --skill microsoft-foundry",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "azure",
+        "microsoft",
+        "cloud",
+        "sdk"
+      ]
+    },
+    {
+      "id": "azure-ai",
+      "name": "Azure AI",
+      "source": "microsoft/azure-skills",
+      "category": "Data",
+      "installs": 403900,
+      "description": "Azure AI services integration.",
+      "install": "npx skills add microsoft/azure-skills --skill azure-ai",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "azure",
+        "ai",
+        "machine-learning",
+        "services"
+      ]
+    },
+    {
+      "id": "remotion-best-practices",
+      "name": "Remotion Best Practices",
+      "source": "remotion-dev/skills",
+      "category": "Content",
+      "installs": 383400,
+      "description": "Best practices for Remotion video creation in React.",
+      "install": "npx skills add remotion-dev/skills --skill remotion-best-practices",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "remotion",
+        "video",
+        "react",
+        "content"
+      ]
+    },
+    {
+      "id": "caveman-julius",
+      "name": "Caveman (Julius)",
+      "source": "juliusbrussee/caveman",
+      "category": "Development",
+      "installs": 270300,
+      "description": "Compress verbose code into concise, readable form.",
+      "install": "npx skills add juliusbrussee/caveman",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "compression",
+        "readability",
+        "concise",
+        "code"
+      ]
+    },
+    {
+      "id": "supabase-postgres-best-practices",
+      "name": "Supabase PostgreSQL Best Practices",
+      "source": "supabase/agent-skills",
+      "category": "Data",
+      "installs": 244100,
+      "description": "Supabase PostgreSQL patterns and optimization.",
+      "install": "npx skills add supabase/agent-skills --skill supabase-postgres-best-practices",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "supabase",
+        "postgresql",
+        "database",
+        "optimization"
+      ]
+    },
+    {
+      "id": "github-actions-docs",
+      "name": "GitHub Actions Docs",
+      "source": "xixu-me/skills",
+      "category": "DevOps",
+      "installs": 233300,
+      "description": "GitHub Actions documentation and workflow help.",
+      "install": "npx skills add xixu-me/skills --skill github-actions-docs",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "github-actions",
+        "ci-cd",
+        "workflows",
+        "documentation"
+      ]
+    },
+    {
+      "id": "shadcn",
+      "name": "shadcn/ui",
+      "source": "shadcn/ui",
+      "category": "Design",
+      "installs": 199800,
+      "description": "shadcn/ui component library integration.",
+      "install": "npx skills add shadcn/ui",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "shadcn",
+        "components",
+        "ui",
+        "library"
+      ]
+    },
+    {
+      "id": "just-scrape",
+      "name": "Just Scrape",
+      "source": "scrapegraphai/just-scrape",
+      "category": "Data",
+      "installs": 211100,
+      "description": "Web scraping with AI-powered extraction.",
+      "install": "npx skills add scrapegraphai/just-scrape",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "scraping",
+        "extraction",
+        "ai",
+        "web"
+      ]
+    },
+    {
+      "id": "next-best-practices",
+      "name": "Next.js Best Practices",
+      "source": "vercel-labs/next-skills",
+      "category": "Development",
+      "installs": 110300,
+      "description": "Next.js best practices and optimization.",
+      "install": "npx skills add vercel-labs/next-skills --skill next-best-practices",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "nextjs",
+        "best-practices",
+        "optimization",
+        "react"
+      ]
+    },
+    {
+      "id": "emil-design-eng",
+      "name": "Emil Design Engineering",
+      "source": "emilkowalski/skill",
+      "category": "Design",
+      "installs": 101000,
+      "description": "Emil Kowalski's design engineering patterns.",
+      "install": "npx skills add emilkowalski/skill",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "design",
+        "engineering",
+        "patterns",
+        "ui"
+      ]
+    },
+    {
+      "id": "seo-audit",
+      "name": "SEO Audit",
+      "source": "coreyhaines31/marketingskills",
+      "category": "Marketing",
+      "installs": 142400,
+      "description": "SEO audit and optimization recommendations.",
+      "install": "npx skills add coreyhaines31/marketingskills --skill seo-audit",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "seo",
+        "audit",
+        "optimization",
+        "marketing"
+      ]
+    },
+    {
+      "id": "copywriting",
+      "name": "Copywriting",
+      "source": "coreyhaines31/marketingskills",
+      "category": "Marketing",
+      "installs": 132200,
+      "description": "Professional copywriting for marketing materials.",
+      "install": "npx skills add coreyhaines31/marketingskills --skill copywriting",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "copywriting",
+        "marketing",
+        "content",
+        "writing"
+      ]
+    },
+    {
+      "id": "marketing-psychology",
+      "name": "Marketing Psychology",
+      "source": "coreyhaines31/marketingskills",
+      "category": "Marketing",
+      "installs": 97500,
+      "description": "Psychological principles for marketing effectiveness.",
+      "install": "npx skills add coreyhaines31/marketingskills --skill marketing-psychology",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "psychology",
+        "marketing",
+        "persuasion",
+        "behavior"
+      ]
+    },
+    {
+      "id": "codegraph",
+      "name": "CodeGraph",
+      "source": "anthropics/codegraph",
+      "category": "Development",
+      "installs": 54000,
+      "description": "Local-first code indexing with 54K GitHub stars. Enables fast semantic code search across large codebases without cloud dependency.",
+      "install": "npx skills add anthropics/codegraph",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "code-indexing",
+        "semantic-search",
+        "local-first",
+        "codebase"
+      ]
+    },
+    {
+      "id": "stop-slop",
+      "name": "Stop Sloppy AI Writing",
+      "source": "obra/stop-slop",
+      "category": "Content",
+      "installs": 11800,
+      "description": "Anti-AI-slop writing skill. Detects and eliminates patterns of AI-generated text that sound robotic, generic, or unnatural.",
+      "install": "npx skills add obra/stop-slop",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "anti-slop",
+        "writing",
+        "humanization",
+        "quality"
+      ]
+    },
+    {
+      "id": "content-research-writer",
+      "name": "Content Research Writer",
+      "source": "anthropics/content-research-writer",
+      "category": "Content",
+      "installs": 8500,
+      "description": "Research-backed content creation with web search, source verification, and structured writing pipeline.",
+      "install": "npx skills add anthropics/content-research-writer",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "research",
+        "writing",
+        "content",
+        "verification"
+      ]
+    },
+    {
+      "id": "headroom",
+      "name": "Headroom",
+      "source": "anthropics/headroom",
+      "category": "Development",
+      "installs": 12000,
+      "description": "Code complexity analyzer that identifies headroom for improvement in existing codebases. Reports on complexity metrics, dead code, and optimization opportunities.",
+      "install": "npx skills add anthropics/headroom",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "complexity",
+        "analysis",
+        "optimization",
+        "codebase"
+      ]
+    },
+    {
+      "id": "agents-md-standard",
+      "name": "AGENTS.md Standard",
+      "source": "AGENTS.md/LinuxFoundation",
+      "category": "Productivity",
+      "installs": 25000,
+      "description": "Linux Foundation standard for AI agent instructions. AGENTS.md files define agent behavior, constraints, and workflows for codebases.",
+      "install": "Create AGENTS.md in project root",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "agents-md",
+        "standards",
+        "agent-instructions",
+        "linux-foundation"
+      ]
+    },
+    {
+      "id": "context-engineering",
+      "name": "Context Engineering",
+      "source": "trending/2026-06",
+      "category": "Productivity",
+      "installs": 15000,
+      "description": "Replacing prompt engineering with structured context management. Techniques for building, selecting, and maintaining context windows for optimal agent performance.",
+      "install": "Reference methodology - no install needed",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "context-engineering",
+        "prompt-engineering",
+        "methodology",
+        "trending"
+      ]
+    },
+    {
+      "id": "addyosmani-agent-skills",
+      "name": "Addy Osmani Agent Skills",
+      "source": "addyosmani/agent-skills",
+      "category": "Development",
+      "installs": 77200,
+      "description": "Google Chrome team lead's 24 lifecycle skills for AI agents. Covers TDD, API design, code review, debugging, frontend engineering, security, and more.",
+      "install": "npx skills add addyosmani/agent-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "google",
+        "chrome",
+        "lifecycle",
+        "tdd",
+        "api-design",
+        "frontend",
+        "security"
+      ]
+    },
+    {
+      "id": "kepano-obsidian-skills",
+      "name": "Obsidian Skills",
+      "source": "kepano/obsidian-skills",
+      "category": "Productivity",
+      "installs": 35000,
+      "description": "Created by Obsidian's creator. Skills for Markdown, Bases, JSON Canvas, and knowledge management workflows.",
+      "install": "npx skills add kepano/obsidian-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "obsidian",
+        "markdown",
+        "knowledge-management",
+        "notes"
+      ]
+    },
+    {
+      "id": "nexu-open-design",
+      "name": "Open Design",
+      "source": "nexu-io/open-design",
+      "category": "Design",
+      "installs": 66000,
+      "description": "Claude Design alternative with 259+ skills and 142+ design systems. Comprehensive design-to-code workflows.",
+      "install": "npx skills add nexu-io/open-design",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "design",
+        "design-systems",
+        "figma",
+        "ui",
+        "code-generation"
+      ]
+    },
+    {
+      "id": "alirezarezvani-claude-skills",
+      "name": "Alireza Rezvani Claude Skills",
+      "source": "alirezarezvani/claude-skills",
+      "category": "Development",
+      "installs": 19000,
+      "description": "337 skills + 579 Python tools spanning engineering, marketing, finance, and more. Massive multi-domain collection.",
+      "install": "npx skills add alirezarezvani/claude-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "multi-domain",
+        "python",
+        "engineering",
+        "marketing",
+        "finance"
+      ]
+    },
+    {
+      "id": "expo-skills",
+      "name": "Expo Skills",
+      "source": "expo/skills",
+      "category": "Development",
+      "installs": 2100,
+      "description": "Official Expo team skills for React Native, EAS Build, native modules, and mobile app development.",
+      "install": "npx skills add expo/skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "expo",
+        "react-native",
+        "mobile",
+        "eas-build"
+      ]
+    },
+    {
+      "id": "trailofbits-skills",
+      "name": "Trail of Bits Skills",
+      "source": "trailofbits/skills",
+      "category": "Security",
+      "installs": 6000,
+      "description": "Premier security skills from leading security firm. CodeQL, Semgrep, smart contract auditing, vulnerability research.",
+      "install": "npx skills add trailofbits/skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "security",
+        "codeql",
+        "semgrep",
+        "smart-contracts",
+        "vulnerability"
+      ]
+    },
+    {
+      "id": "ghostsecurity-skills",
+      "name": "Ghost Security Skills",
+      "source": "ghostsecurity/skills",
+      "category": "Security",
+      "installs": 394,
+      "description": "Production AppSec skills: SAST, SCA, secrets scanning, DAST, and security best practices.",
+      "install": "npx skills add ghostsecurity/skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "appsec",
+        "sast",
+        "sca",
+        "secrets",
+        "dast"
+      ]
+    },
+    {
+      "id": "forrestchang-karpathy-skills",
+      "name": "Andrej Karpathy Skills",
+      "source": "forrestchang/andrej-karpathy-skills",
+      "category": "Development",
+      "installs": 7600,
+      "description": "Viral Karpathy guidelines - 4 principles for better LLM coding. Clean code practices for AI-assisted development.",
+      "install": "npx skills add forrestchang/andrej-karpathy-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "karpathy",
+        "clean-code",
+        "llm",
+        "principles"
+      ]
+    },
+    {
+      "id": "iuliandita-skills",
+      "name": "Iulian Dit\u0103 Skills",
+      "source": "iuliandita/skills",
+      "category": "DevOps",
+      "installs": 2,
+      "description": "46 DevOps skills covering Kubernetes, Terraform, Docker, Ansible, CI/CD pipelines, and infrastructure automation.",
+      "install": "npx skills add iuliandita/skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "kubernetes",
+        "terraform",
+        "docker",
+        "ansible",
+        "cicd"
+      ]
+    },
+    {
+      "id": "voltagent-awesome-agent-skills",
+      "name": "VoltAgent Awesome Agent Skills",
+      "source": "VoltAgent/awesome-agent-skills",
+      "category": "Productivity",
+      "installs": 26700,
+      "description": "Primary ecosystem directory with 1000+ indexed AI agent skills. Discover, compare, and install skills.",
+      "install": "Reference directory - browse at github.com/VoltAgent/awesome-agent-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "directory",
+        "awesome-list",
+        "discovery",
+        "ecosystem"
+      ]
+    },
+    {
+      "id": "composiohq-awesome-claude-skills",
+      "name": "Composio Awesome Claude Skills",
+      "source": "ComposioHQ/awesome-claude-skills",
+      "category": "Productivity",
+      "installs": 66000,
+      "description": "Major community directory of Claude skills. Curated list of the best skills for Claude Code and AI agents.",
+      "install": "Reference directory - browse at github.com/ComposioHQ/awesome-claude-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "directory",
+        "awesome-list",
+        "claude",
+        "curated"
+      ]
+    },
+    {
+      "id": "travisvn-awesome-claude-skills",
+      "name": "TravisVN Awesome Claude Skills",
+      "source": "travisvn/awesome-claude-skills",
+      "category": "Productivity",
+      "installs": 13700,
+      "description": "Curated awesome list of Claude skills. Quality over quantity approach to skill discovery.",
+      "install": "Reference directory - browse at github.com/travisvn/awesome-claude-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "directory",
+        "awesome-list",
+        "claude",
+        "curated"
+      ]
+    },
+    {
+      "id": "inskillflow-claude-code-skills",
+      "name": "InSkillFlow Claude Code Skills",
+      "source": "inskillflow/claude-code-skills",
+      "category": "Development",
+      "installs": 0,
+      "description": "179+ skills collection for Claude Code. Wide coverage of development workflows and patterns.",
+      "install": "npx skills add inskillflow/claude-code-skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "collection",
+        "claude-code",
+        "workflows",
+        "patterns"
+      ]
+    },
+    {
+      "id": "dynamods-skills",
+      "name": "DynamoDS Skills",
+      "source": "DynamoDS/skills",
+      "category": "Development",
+      "installs": 0,
+      "description": "Enterprise org-level skills for Dynamo. Organized by team and domain with shared standards.",
+      "install": "npx skills add DynamoDS/skills",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "enterprise",
+        "org-level",
+        "standards",
+        "team"
+      ]
+    },
+    {
+      "id": "open-design-skills",
+      "name": "Open Agent Skill Registry",
+      "source": "openagentskill.com",
+      "category": "Productivity",
+      "installs": 0,
+      "description": "Growing open registry for AI agent skills. Community-driven discovery and installation platform.",
+      "install": "Browse at openagentskill.com",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "registry",
+        "discovery",
+        "community",
+        "platform"
+      ]
+    },
+    {
+      "id": "ponytail",
+      "name": "Ponytail Anti-Over-Engineering",
+      "source": "DietrichGebert/ponytail",
+      "category": "Development",
+      "installs": 69000,
+      "description": "Anti-over-engineering skill that keeps code simple and maintainable. Born 3 weeks ago and rapidly adopted. Prevents unnecessary complexity in AI-generated code.",
+      "install": "npx skills add DietrichGebert/ponytail",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "simplicity",
+        "anti-overengineering",
+        "maintainability",
+        "code-quality"
+      ]
+    },
+    {
+      "id": "understand-anything",
+      "name": "Understand-Anything",
+      "source": "Egonex-AI/understand-anything",
+      "category": "Development",
+      "installs": 59400,
+      "description": "Code knowledge graphs for AI agents. Builds semantic understanding of any codebase with visual dependency maps and architecture diagrams.",
+      "install": "npx skills add Egonex-AI/understand-anything",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "knowledge-graph",
+        "codebase",
+        "understanding",
+        "architecture"
+      ]
+    },
+    {
+      "id": "agent-reach",
+      "name": "Agent-Reach Internet Research",
+      "source": "Panniantong/agent-reach",
+      "category": "Development",
+      "installs": 48300,
+      "description": "15-platform internet research CLI for AI agents. Aggregates results from web search, social media, academic sources, and news into structured reports.",
+      "install": "npx skills add Panniantong/agent-reach",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "research",
+        "internet",
+        "aggregation",
+        "cli"
+      ]
+    },
+    {
+      "id": "taste-skill",
+      "name": "Taste Frontend Design",
+      "source": "Leonxlnx/taste-skill",
+      "category": "Design",
+      "installs": 55900,
+      "description": "Anti-slop frontend design skill with taste-based UI generation. Creates visually refined interfaces that avoid generic AI aesthetics.",
+      "install": "npx skills add Leonxlnx/taste-skill",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "design",
+        "ui",
+        "aesthetics",
+        "anti-slop"
+      ]
+    },
+    {
+      "id": "skillopt",
+      "name": "SkillOpt (Microsoft)",
+      "source": "microsoft/skillopt",
+      "category": "Development",
+      "installs": 11000,
+      "description": "Self-evolving agent skills from Microsoft Research. Skills that improve themselves through iterative refinement and feedback loops with plugin support.",
+      "install": "npx skills add microsoft/skillopt",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "self-improving",
+        "microsoft",
+        "research",
+        "meta-learning"
+      ]
+    },
+    {
+      "id": "ai-video-generation",
+      "name": "AI Video Generation",
+      "source": "halt-catch-fire/skills",
+      "category": "Content",
+      "installs": 109900,
+      "description": "AI video generation workflows for creating and editing video content using cutting-edge models",
+      "install": "npx skills add halt-catch-fire/skills --skill ai-video-generation",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "video",
+        "generation",
+        "multimedia",
+        "ai-media"
+      ]
+    },
+    {
+      "id": "viral-hooks",
+      "name": "Viral Content Hooks",
+      "source": "vyralcontent/content-skills",
+      "category": "Marketing",
+      "installs": 110600,
+      "description": "Generate viral content hooks for social media platforms - TikTok, Instagram, YouTube, Twitter",
+      "install": "npx skills add vyralcontent/content-skills --skill viral-hooks",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "marketing",
+        "social-media",
+        "content-creation",
+        "viral"
+      ]
+    },
+    {
+      "id": "design-team-os",
+      "name": "Design Team OS",
+      "source": "royvergara/design-team-os",
+      "category": "Design",
+      "installs": 0,
+      "description": "Claude skill library for product design teams - PRD to validated prototype workflow",
+      "install": "npx skills add royvergara/design-team-os",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "design",
+        "product",
+        "prd",
+        "prototype",
+        "ux"
+      ]
+    },
+    {
+      "id": "vibe-ship",
+      "name": "Vibe Ship",
+      "source": "sudais-khalid/vibe-ship",
+      "category": "DevOps",
+      "installs": 0,
+      "description": "Claude Code deployment and shipping tool for rapid production deployments",
+      "install": "npx skills add sudais-khalid/vibe-ship",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "deployment",
+        "shipping",
+        "devops",
+        "production"
+      ]
+    },
+    {
+      "id": "gpt-image-edit",
+      "name": "GPT Image Edit",
+      "source": "agentspace-so/skills",
+      "category": "Design",
+      "installs": 6000,
+      "description": "GPT-powered image editing workflows for AI-assisted image manipulation",
+      "install": "npx skills add agentspace-so/skills --skill gpt-image-edit",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "image",
+        "editing",
+        "gpt",
+        "design",
+        "ai-media"
+      ]
+    },
+    {
+      "id": "ace-step",
+      "name": "Ace Step Audio Generation",
+      "source": "doany-ai/skills",
+      "category": "Content",
+      "installs": 5500,
+      "description": "Audio and music generation using Ace Step models",
+      "install": "npx skills add doany-ai/skills --skill ace-step",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "audio",
+        "music",
+        "generation",
+        "multimedia"
+      ]
+    },
+    {
+      "id": "fable-skill-executing-hard-tasks",
+      "name": "Fable Skill - Executing Hard Tasks",
+      "source": "wsbm393/Fable-Skill",
+      "category": "Development",
+      "installs": 22,
+      "description": "Pressure-tested skill for decomposing hard tasks risk-first, verifying with pasteable evidence, deciding what to do next. Built with skill-TDD against frontier-model failure modes.",
+      "install": "npx skills add wsbm393/Fable-Skill --skill executing-hard-tasks",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "risk-first",
+        "verification",
+        "skill-tdd",
+        "frontier-models",
+        "task-decomposition"
+      ]
+    },
+    {
+      "id": "agent-maxxing",
+      "name": "Agent Maxxing",
+      "source": "subhansh-dev/agent-maxxing",
+      "category": "Development",
+      "installs": 95,
+      "description": "95+ production-ready skills, 19 UI components, and 7 system prompts extracted from Claude Fable 5, GPT-5.5, Gemini CLI, and Claude Code. Self-fine-tune your agent.",
+      "install": "npx skills add subhansh-dev/agent-maxxing",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "multi-agent",
+        "system-prompts",
+        "ui-components",
+        "frontend",
+        "anti-slop"
+      ]
+    },
+    {
+      "id": "battle-tested-engineer",
+      "name": "Battle Tested Engineer",
+      "source": "sayeed1999/agent-skills",
+      "category": "Development",
+      "installs": 4,
+      "description": "Reusable agent skills for battle-tested engineering judgment. Ask before guessing, change only what was asked, prefer simple fixes over big refactors.",
+      "install": "npx skills add sayeed1999/agent-skills --skill battle-tested-engineer",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "engineering-judgment",
+        "minimal-code",
+        "safety",
+        "review"
+      ]
+    },
+    {
+      "id": "trend-radar",
+      "name": "Trend Radar - Chinese Internet Hotspot Tracking",
+      "source": "asoiso/trend-radar",
+      "category": "Marketing",
+      "installs": 2,
+      "description": "Five plug-and-play skills for Chinese-internet hotspot tracking and viral content generation via the trendradar MCP server.",
+      "install": "npx skills add asoiso/trend-radar",
+      "license": "Apache-2.0",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "trend-tracking",
+        "viral-content",
+        "chinese-internet",
+        "mcp-integration"
+      ]
+    },
+    {
+      "id": "share-md",
+      "name": "Share Markdown via Gist",
+      "source": "kirollosatef/skills",
+      "category": "Productivity",
+      "installs": 1,
+      "description": "Share a markdown file via private GitHub Gist URL with optional auto-delete, TTL, AES-256 encryption, and burn-after-read mode.",
+      "install": "npx skills add kirollosatef/skills@share-md",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "gist",
+        "sharing",
+        "encryption",
+        "markdown",
+        "ephemeral"
+      ]
+    },
+    {
+      "id": "cut-the-curve",
+      "name": "Cut the Curve",
+      "source": "heygen-com/hyperframes",
+      "category": "Design",
+      "installs": 40300,
+      "description": "SEAM motion-cut catalog for HyperFrames: zoom-through, waterfall, rack-focus, and in-scene arrival techniques with GSAP templates.",
+      "install": "npx skills add heygen-com/hyperframes --skill cut-the-curve",
+      "license": "Apache-2.0",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "motion",
+        "video",
+        "hyperframes",
+        "gsap",
+        "animation"
+      ]
+    },
+    {
+      "id": "reddit-automation",
+      "name": "Reddit Automation",
+      "source": "doany-skills/skills",
+      "category": "Marketing",
+      "installs": 56900,
+      "description": "Find Reddit threads where people need your product and draft disclosed, helpful replies for human review before posting.",
+      "install": "npx skills add doany-skills/skills --skill reddit-automation -g",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "reddit",
+        "growth",
+        "marketing",
+        "community"
+      ]
+    },
+    {
+      "id": "ai-music",
+      "name": "AI Music",
+      "source": "prime-skills/runcomfy-agent-skills",
+      "category": "Content",
+      "installs": 89100,
+      "description": "Generate vocal songs, instrumentals, jingles, and multilingual covers via the RunComfy CLI with model selection from user intent.",
+      "install": "npx skills add agentspace-so/runcomfy-agent-skills --skill ai-music -g",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "music",
+        "audio",
+        "generation",
+        "runcomfy"
+      ]
+    },
+    {
+      "id": "motion-design",
+      "name": "Motion Design",
+      "source": "LottieFiles/motion-design-skill",
+      "category": "Design",
+      "installs": 0,
+      "description": "Universal motion-design principles for agents: timing, easing, Disney-adapted UI principles, choreography, and animation quality checks.",
+      "install": "npx skills add LottieFiles/motion-design-skill",
+      "license": "MIT",
+      "verified": true,
+      "local": false,
+      "tags": [
+        "motion",
+        "animation",
+        "lottie",
+        "ui",
+        "design"
+      ]
+    },
+    {
+      "id": "last30days-skill",
+      "name": "Last30Days Skill",
+      "source": "mvanhorn/last30days-skill",
+      "category": "Data",
+      "installs": 0,
+      "description": "Research any topic across Reddit, X, YouTube, HN, Polymarket, and the web, then synthesize a recency-scored brief. Companion skill to Last30Days MCP.",
+      "install": "npx skills add mvanhorn/last30days-skill -g",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "research",
+        "trends",
+        "social-media",
+        "recency"
+      ]
+    },
+    {
+      "id": "quality-md",
+      "name": "QUALITY.md",
+      "source": "qualitymd/quality.md",
+      "category": "Testing",
+      "installs": 0,
+      "description": "Open format, agent skill, and CLI for engineering quality loops: define QUALITY.md, evaluate, act, and continuously improve.",
+      "install": "npx skills add qualitymd/quality.md",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "quality",
+        "evaluation",
+        "loops",
+        "cli"
+      ]
+    },
+    {
+      "id": "video-shotcraft",
+      "name": "video-shotcraft",
+      "source": "Vincentwei1021/video-shotcraft",
+      "category": "Content",
+      "installs": 0,
+      "description": "Cinematic product-video skill for Claude Code and Codex: 152 shot recipes, 209 motion previews, and a Remotion production template.",
+      "install": "npx skills add Vincentwei1021/video-shotcraft",
+      "license": "Apache-2.0",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "video",
+        "remotion",
+        "motion-design",
+        "product-video"
+      ]
+    },
+    {
+      "id": "book-to-skill",
+      "name": "book-to-skill",
+      "source": "Leutenegger/book-to-skill",
+      "category": "Development",
+      "installs": 0,
+      "description": "Turn a technical book, PDF, EPUB, or document folder into a structured Claude Code / Copilot skill with per-chapter files.",
+      "install": "pip install -e . && book-to-skill install",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "pdf",
+        "skill-generator",
+        "knowledge",
+        "claude-code"
+      ]
+    },
+    {
+      "id": "j-space-cognition-suite",
+      "name": "J-Space Cognition Suite",
+      "source": "Tiger3807861189/J-Space-Cognition-Suite-V3.6",
+      "category": "Development",
+      "installs": 0,
+      "description": "Inference-time cognitive-control skill: selective workspace loading, verification, recovery, and an optional loop controller for long-horizon work.",
+      "install": "Copy j-space/ into your skills directory so SKILL.md is at <skills>/j-space/SKILL.md",
+      "license": "Apache-2.0",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "cognitive",
+        "long-horizon",
+        "verification",
+        "agent-skills"
+      ]
+    },
+    {
+      "id": "angles-video-skill",
+      "name": "Angles Video",
+      "source": "anglesvideo/angles-video-skill",
+      "category": "Content",
+      "installs": 0,
+      "description": "Turn a software repository into three selling angles and a launch-ready Angles video from Codex or Claude Code.",
+      "install": "npx skills add anglesvideo/angles-video-skill",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "video",
+        "angles",
+        "launch",
+        "marketing",
+        "claude-code",
+        "codex"
+      ]
+    },
+    {
+      "id": "agent-memory-discipline",
+      "name": "Agent Memory Discipline",
+      "source": "mnemoverse/agent-memory-discipline",
+      "category": "Development",
+      "description": "Standing rules for when an agent recalls from long-term memory before acting and when it saves afterwards. Backend-neutral.",
+      "install": "claude plugin marketplace add mnemoverse/agent-memory-discipline && claude plugin install agent-memory-discipline@agent-memory-discipline",
+      "license": "CC0-1.0",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "memory",
+        "context",
+        "discipline",
+        "backend-neutral"
+      ]
+    },
+    {
+      "id": "term",
+      "name": "TERM Check-in",
+      "source": "break-the-build/term-skill",
+      "category": "Productivity",
+      "installs": 1,
+      "description": "Checks in on TERM, a signed forum for AI agents: anonymous briefing and open-work feed each heartbeat; writes go through a self-owned Ed25519 identity.",
+      "install": "npx skills add break-the-build/term-skill --skill term",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "agents",
+        "social",
+        "forum",
+        "community",
+        "identity",
+        "mcp"
+      ]
+    },
+    {
+      "id": "patchy-mcpatchface",
+      "name": "Patchy McPatchface",
+      "source": "Shivansh-Gaur2/patchy-mcpatchface",
+      "category": "Development",
+      "installs": 0,
+      "description": "Evidence-driven workflow for scope, reuse, and proof in non-trivial code changes.",
+      "install": "npx skills add Shivansh-Gaur2/patchy-mcpatchface --skill patchy-mcpatchface",
+      "license": "MIT",
+      "verified": false,
+      "local": false,
+      "tags": [
+        "code-review",
+        "code-reuse",
+        "scope",
+        "testing",
+        "verification"
+      ]
+    }
+  ]
+}

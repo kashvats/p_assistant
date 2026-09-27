@@ -36,3 +36,11 @@ flowchart TD
     AgentsAPI["FastAPI /agents (api_routes/agents.py)"] --> AgentMgr
     WebUI["React WebUI (webui/src/main.js)"] --> SkillsAPI
     WebUI --> AgentsAPI
+    
+    ModelMgr --> |"Route local/Ollama"| OllamaProvider["Ollama Provider"]
+    ModelMgr --> |"Route airllm:"| AirLLMProvider["AirLLM Provider"]
+    ModelMgr --> |"Route openai/ anthropic/"| LiteLLMProvider["Universal / LiteLLM Provider"]
+
+    Orch --> |"Uses Complex Tools"| IsolatedExecutor["Isolated Executor (core/isolated_executor.py)"]
+    IsolatedExecutor --> |"Sandboxed Process"| BrowserUse["Browser-Use Adapter"]
+    IsolatedExecutor --> |"Sandboxed Process"| OpenViking["OpenViking Adapter"]

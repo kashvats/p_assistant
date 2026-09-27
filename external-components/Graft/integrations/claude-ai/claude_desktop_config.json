@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "graft": {
+      "command": "python",
+      "args": [
+        "C:/personal/Graft/integrations/mcp-server/server.py"
+      ],
+      "env": {
+        "GRAFT_BIN": "C:/Users/aredegalli/.graft/bin/graft.exe"
+      }
+    }
+  }
+}

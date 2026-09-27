@@ -19,6 +19,12 @@ ollama:
   base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
   keep_alive_seconds: 45
 
+litellm:
+  enabled: true
+  base_url: ${LITELLM_BASE_URL:http://127.0.0.1:8080/v1}
+  api_key: ${LITELLM_API_KEY:dummy}
+  model_alias: openai/local-model
+
 airllm:
   # Optional low-VRAM layer-streaming provider. Prefix configured model names
   # with "airllm:" (for example airllm:Qwen/Qwen3-32B) to route them here.
@@ -63,13 +69,13 @@ profiles:
     max_handoffs: 1
     max_tool_steps: 6
     models:
-      orchestrator: qwen3.5:0.8b
-      general: qwen3.5:0.8b
-      coder: qwen3.5:0.8b
-      researcher: qwen3.5:0.8b
-      security: qwen3.5:0.8b
-      database: qwen3.5:0.8b
-      planner: qwen3.5:0.8b
+      orchestrator: openai/local-model
+      general: openai/local-model
+      coder: openai/local-model
+      researcher: openai/local-model
+      security: openai/local-model
+      database: openai/local-model
+      planner: openai/local-model
 
   balanced:
     min_ram_gb: 12
@@ -77,13 +83,13 @@ profiles:
     max_handoffs: 2
     max_tool_steps: 10
     models:
-      orchestrator: qwen2.5:1.5b
-      general: qwen2.5:1.5b
-      coder: qwen2.5:1.5b
-      researcher: qwen2.5:1.5b
-      security: qwen2.5:1.5b
-      database: qwen2.5:1.5b
-      planner: qwen2.5:1.5b
+      orchestrator: openai/local-model
+      general: openai/local-model
+      coder: openai/local-model
+      researcher: openai/local-model
+      security: openai/local-model
+      database: openai/local-model
+      planner: openai/local-model
 
   power:
     min_ram_gb: 48
@@ -91,13 +97,13 @@ profiles:
     max_handoffs: 3
     max_tool_steps: 16
     models:
-      orchestrator: qwen3.5:9b
-      general: qwen3.5:9b
-      coder: qwen3.5:9b
-      researcher: qwen3.5:4b
-      security: qwen3.5:4b
-      database: qwen3.5:4b
-      planner: qwen3.5:4b
+      orchestrator: openai/local-model
+      general: openai/local-model
+      coder: openai/local-model
+      researcher: openai/local-model
+      security: openai/local-model
+      database: openai/local-model
+      planner: openai/local-model
 
 policy:
   require_execute_approval: true

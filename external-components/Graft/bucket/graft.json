@@ -1,0 +1,25 @@
+{
+    "version": "0.1.0",
+    "description": "Persistent graph memory for AI agents",
+    "homepage": "https://github.com/AEndrix03/Graft",
+    "license": "Apache-2.0",
+    "url": "https://github.com/AEndrix03/Graft/releases/download/v0.1.0/graft-windows-x86_64.zip",
+    "hash": "11b8999205e5791623febb826ec0f1e5bcf4f08e07339bd071a93099555bd462",
+    "extract_dir": "graft-windows-x86_64",
+    "bin": [
+        "bin/graft.exe",
+        "bin/graftd.exe"
+    ],
+    "post_install": [
+        "$bgePath = \"$dir\\share\\graft\\models\\bge-m3.gguf\"",
+        "if (-not (Test-Path $bgePath)) {",
+        "  Write-Host 'Downloading bge-m3 model (~671 MB)...' -ForegroundColor Cyan",
+        "  New-Item -ItemType Directory -Force -Path (Split-Path $bgePath) | Out-Null",
+        "  Invoke-WebRequest -UseBasicParsing -OutFile $bgePath -Uri 'https://huggingface.co/lm-kit/bge-m3-gguf/resolve/9379ce497e8814b200f2dc0d18eb4045426dcb8c/bge-m3-Q8_0.gguf'",
+        "}"
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "url": "https://github.com/AEndrix03/Graft/releases/download/v$version/graft-windows-x86_64.zip"
+    }
+}

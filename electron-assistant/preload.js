@@ -7,5 +7,6 @@ contextBridge.exposeInMainWorld('assistantDesktop', {
   hide: () => ipcRenderer.send('companion-hide'),
   show: () => ipcRenderer.invoke('companion-show'),
   setExpanded: (expanded) => ipcRenderer.invoke('companion-size', Boolean(expanded)),
+  setIgnoreMouse: (ignore) => ipcRenderer.invoke('companion-ignore-mouse', Boolean(ignore)),
   moveWindow: (deltaX, deltaY) => ipcRenderer.invoke('companion-move', Number(deltaX), Number(deltaY)),
 })

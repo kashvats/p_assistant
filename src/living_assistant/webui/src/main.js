@@ -7,7 +7,7 @@ const Prism = globalThis.Prism;
 const h = React.createElement;
 
 const NAV = [
-  ['overview', '🏠 Overview'], ['models', '🤖 Models'], ['chat', '💬 Chat'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'],
+  ['overview', '🏠 Overview'], ['models', 'Models'], ['chat', '💬 Chat'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'],
   ['organize', '📅 Calendar & Todos'], ['security', '🔒 Security'], ['activity', '📊 Activity'], ['tools', '🔧 Tools'],
 ];
 
@@ -122,7 +122,7 @@ class App extends React.Component {
       toolsStatus: null, browserSessions: [],
       expandedTools: {},
     };
-    this.pollers = []; this.activityController = null; this.approvalSeen = new Set();
+    this.pollers = []; this.activityController = null; this.approvalSeen = new Set(); this.chatController = null;
   }
   componentDidMount() {
     this.onHash = () => this.setState({page: hashPage()}); window.addEventListener('hashchange', this.onHash);
@@ -132,7 +132,7 @@ class App extends React.Component {
     this.pollers.push(setInterval(() => this.loadUsage(), 10000));
   }
   componentWillUnmount() { window.removeEventListener('hashchange', this.onHash); this.pollers.forEach(clearInterval); if (this.activityController) this.activityController.abort(); }
-  authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer \x60} : {}); }
+  authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer ${this.state.token}`} : {}); }
   async api(url, opt = {}) {
     let response;
     try { response = await fetch(url, {...opt, headers: this.authHeaders(opt.headers || {})}); }
@@ -387,13 +387,22 @@ class App extends React.Component {
   async deleteCalendar(id) { try { await this.api(`/calendar/${encodeURIComponent(id)}`,{method:'DELETE'}); await this.loadCalendar(); } catch(e){this.notify(e.message,true);} }
   async pullModel() { const model=this.state.modelPullName.trim(); if(!model||this.state.modelBusy)return; this.setState({modelBusy:true}); try { const r=await this.api('/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})}); if(r?.ok===false)throw new Error(r.error||'Model pull failed'); this.setState({modelPullName:''}); this.notify(`Pulled ${model}`); await this.loadModels(); } catch(e){this.notify(e.message,true);} finally{this.setState({modelBusy:false});} }
   async deleteModel(model) { if(!globalThis.confirm(`Delete local Ollama model "${model}"?`))return; try{const r=await this.api('/models/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,confirm:true})});if(r?.ok===false)throw new Error(r.error||'Delete failed');this.notify(`Deleted ${model}`);await this.loadModels();}catch(e){this.notify(e.message,true);} }
+  cancelChat() {
+    if (this.chatController) {
+      this.chatController.abort();
+      this.chatController = null;
+    }
+    this.setState({streaming: false});
+    this.notify('Chat cancelled');
+  }
   async sendChat() {
     const text=this.state.chatInput.trim(); if(!text||this.state.streaming)return;
     const user={role:'user',text}, assistant={role:'assistant',text:''};
     this.setState(prev=>({chatInput:'',streaming:true,messages:[...prev.messages,user,assistant]}));
     let assistantText='';
+    this.chatController = new AbortController();
     try {
-      const response=await fetch('/chat/stream',{method:'POST',headers:this.authHeaders({'Content-Type':'application/json','Accept':'text/event-stream'}),body:JSON.stringify({message:text,session_id:this.state.sessionId})});
+      const response=await fetch('/chat/stream',{method:'POST',signal:this.chatController.signal,headers:this.authHeaders({'Content-Type':'application/json','Accept':'text/event-stream'}),body:JSON.stringify({message:text,session_id:this.state.sessionId})});
       if(!response.ok||!response.body)throw new Error((await response.text()).slice(0,2000)||`HTTP ${response.status}`);
       const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
       while(true){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const blocks=buffer.split('\n\n');buffer=blocks.pop()||'';for(const block of blocks){const row=block.split('\n').find(line=>line.startsWith('data:'));if(!row)continue;let event;try{event=JSON.parse(row.slice(5).trim());}catch(_){continue;}if(event.type==='token'){assistantText+=event.text||'';this.setState(prev=>({messages:prev.messages.map((m,idx)=>idx===prev.messages.length-1?{...m,text:assistantText}:m)}));}else if(event.type==='final'&&!assistantText){assistantText=event.text||'';this.setState(prev=>({messages:prev.messages.map((m,idx)=>idx===prev.messages.length-1?{...m,text:assistantText}:m)}));}else if(event.type==='tool'){this.setState(prev=>({chatTools:[{tool:event.tool||'tool',status:event.status||''},...prev.chatTools].slice(0,30)}));}else if(event.type==='error')throw new Error(event.error||'Chat stream failed');}}
@@ -732,30 +741,58 @@ class App extends React.Component {
       h('div', {className: 'h-64 md:h-[58vh] overflow-y-auto space-y-3'}, messages),
       h(
         'div',
-        {className: 'grid grid-cols-[minmax(0,1fr)_auto] gap-2 mt-3 items-end'},
+        {className: 'mt-3 space-y-2'},
         h('textarea', {
           rows: 2,
           value: this.state.chatInput,
           onChange: e => this.setState({chatInput: e.target.value}),
           onKeyDown: e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !this.state.streaming) {
               e.preventDefault();
               this.sendChat();
             }
           },
-          placeholder: 'Ask your assistant…',
+          placeholder: 'Ask your assistant… (or press the voice button)',
           className: 'w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2',
         }),
         h(
-          'button',
-          {
-            disabled: this.state.streaming,
-            onClick: () => this.sendChat(),
-            className: 'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50',
-          },
-          this.state.streaming
-            ? h('span', null, 'Generating', h('span', {className: 'h-3 w-1.5 rounded-full bg-brand-400 inline-block ml-1 animate-pulse'}))
-            : 'Send',
+          'div',
+          {className: 'flex gap-2 items-center'},
+          h(
+            'button',
+            {
+              disabled: this.state.voiceRecording || !this.state.token,
+              onClick: () => this.voiceAsk(),
+              title: 'Record voice input (10s max)',
+              className: cx(
+                'px-3 py-2 rounded-xl border transition flex items-center gap-2',
+                this.state.voiceRecording
+                  ? 'border-rose-500 bg-rose-950 text-rose-300'
+                  : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50'
+              ),
+            },
+            this.state.voiceRecording ? '🔴 Recording…' : '🎤 Voice',
+          ),
+          h(
+            'button',
+            {
+              disabled: !this.state.chatInput.trim() && !this.state.streaming,
+              onClick: () => this.sendChat(),
+              className: 'flex-1 px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 transition',
+            },
+            this.state.streaming
+              ? h('span', {className: 'flex items-center justify-center gap-2'}, 'Generating', h('span', {className: 'h-3 w-1.5 rounded-full bg-brand-400 animate-pulse'}))
+              : 'Send',
+          ),
+          this.state.streaming ? h(
+            'button',
+            {
+              onClick: () => this.cancelChat(),
+              title: 'Stop generation',
+              className: 'px-3 py-2 rounded-xl border border-rose-700 bg-rose-950 text-rose-300 hover:bg-rose-900 transition',
+            },
+            '⏹ Stop',
+          ) : null,
         ),
       ),
     );
@@ -764,7 +801,7 @@ class App extends React.Component {
       ? this.state.chatTools.map((x, i) => h(
           'div',
           {key: i, className: 'border-l-2 border-slate-700 pl-3 py-2 text-xs text-slate-300'},
-          `${x.status === 'started' ? 'Running' : 'Finished'} ${x.tool}`,
+          `${x.status === 'started' ? '⚙️ Running' : '✓ Finished'} ${x.tool}`,
         ))
       : h('div', {className: 'text-slate-500'}, 'No tool activity yet.');
 

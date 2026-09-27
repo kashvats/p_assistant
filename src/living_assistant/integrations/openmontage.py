@@ -1,23 +1,18 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
-import sys
-import threading
+import json
 from pathlib import Path
 from typing import Any, Optional
 
+from living_assistant.core.isolated_executor import run_isolated_tool
+
 logger = logging.getLogger(__name__)
 
-_UNAVAILABLE = (
-    "OpenMontage is enabled but the SDK is not installed or available at the configured path. "
-    "Install it or clone to external-components/openmontage"
-)
-
 class OpenMontageAdapter:
-    """Production boundary around OpenMontage media orchestration."""
-
-    _import_lock = threading.RLock()
+    """Production boundary around OpenMontage media orchestration.
+    Uses subprocess isolation to prevent sys.path namespace collisions (e.g., 'lib', 'tools').
+    """
 
     def __init__(
         self,
@@ -25,79 +20,76 @@ class OpenMontageAdapter:
         timeout: float = 30.0,
     ) -> None:
         self._timeout = timeout
-        self._path = Path(path).expanduser().resolve() if path else None
+        self._path = str(Path(path).expanduser().resolve()) if path else ""
 
-    def _sdk(self):
-        with self._import_lock:
-            candidates: list[Path] = []
-            if self._path:
-                candidates.append(self._path)
-            default_loc = Path("external-components/openmontage").resolve()
-            if default_loc.is_dir():
-                candidates.append(default_loc)
+    def _build_preamble(self) -> str:
+        return f"""
+import sys
+import json
+path = {repr(self._path)}
+if path:
+    sys.path.insert(0, path)
+sys.path.insert(0, 'external-components/openmontage')
 
-            for cand in candidates:
-                cand_str = str(cand)
-                if cand.is_dir() and cand_str not in sys.path:
-                    sys.path.insert(0, cand_str)
-
-            # We need to import pipeline_loader and tool_registry from openmontage
-            try:
-                import lib.pipeline_loader as pipeline_loader
-                import tools.tool_registry as tool_registry
-                # discover tools
-                tool_registry.registry.discover()
-                return pipeline_loader, tool_registry.registry
-            except ImportError:
-                raise RuntimeError(_UNAVAILABLE)
+import lib.pipeline_loader as pipeline_loader
+import tools.tool_registry as tool_registry
+tool_registry.registry.discover()
+"""
 
     def list_pipelines(self) -> dict[str, Any]:
-        try:
-            loader, _ = self._sdk()
-            defs_dir = Path("external-components/openmontage/pipeline_defs").resolve()
-            pipelines = loader.list_pipelines(defs_dir=defs_dir)
-            return {"ok": True, "pipelines": pipelines}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + """
+try:
+    defs_dir = "external-components/openmontage/pipeline_defs"
+    pipelines = pipeline_loader.list_pipelines(defs_dir=defs_dir)
+    print(json.dumps({"ok": True, "pipelines": pipelines}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": str(e)}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def get_pipeline(self, name: str) -> dict[str, Any]:
-        try:
-            loader, _ = self._sdk()
-            defs_dir = Path("external-components/openmontage/pipeline_defs").resolve()
-            pipeline = loader.load_pipeline(name, defs_dir=defs_dir)
-            return {"ok": True, "pipeline": pipeline}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + f"""
+try:
+    defs_dir = "external-components/openmontage/pipeline_defs"
+    pipeline = pipeline_loader.load_pipeline({repr(name)}, defs_dir=defs_dir)
+    print(json.dumps({{"ok": True, "pipeline": pipeline}}))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": str(e)}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def list_tools(self, capability: Optional[str] = None) -> dict[str, Any]:
-        try:
-            _, registry = self._sdk()
-            if capability:
-                tools = registry.find_by_capability(capability)
-            else:
-                tools = registry.get_available()
-
-            tool_infos = [t.get_info() for t in tools]
-            return {"ok": True, "tools": tool_infos}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + f"""
+try:
+    capability = {repr(capability)}
+    if capability:
+        tools = tool_registry.registry.find_by_capability(capability)
+    else:
+        tools = tool_registry.registry.get_available()
+    
+    tool_infos = [t.get_info() for t in tools]
+    print(json.dumps({{"ok": True, "tools": tool_infos}}))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": str(e)}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def execute_tool(self, tool_name: str, inputs: dict[str, Any]) -> dict[str, Any]:
-        try:
-            _, registry = self._sdk()
-            tool = registry.get(tool_name)
-            if not tool:
-                return {"ok": False, "error": f"Tool {tool_name} not found"}
-
-            # Execute tool directly
-            result = tool.execute(inputs)
-
-            # Ensure it returns plain dict
-            if hasattr(result, "to_dict"):
-                return {"ok": True, "result": result.to_dict()}
-            elif hasattr(result, "__dict__"):
-                return {"ok": True, "result": result.__dict__}
-            else:
-                return {"ok": True, "result": str(result)}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + f"""
+try:
+    tool = tool_registry.registry.get({repr(tool_name)})
+    if not tool:
+        print(json.dumps({{"ok": False, "error": f"Tool {repr(tool_name)} not found"}}))
+    else:
+        result = tool.execute({json.dumps(inputs)})
+        if hasattr(result, "to_dict"):
+            res_dict = result.to_dict()
+        elif hasattr(result, "__dict__"):
+            res_dict = result.__dict__
+        else:
+            res_dict = str(result)
+        print(json.dumps({{"ok": True, "result": res_dict}}))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": str(e)}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)

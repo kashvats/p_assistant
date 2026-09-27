@@ -154,7 +154,7 @@ class BrowserController:
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(
-                    headless=True,
+                    headless=False,
                     args=self._resolver_args(auth.get('pinned_hosts', {})),
                 )
                 context = browser.new_context(accept_downloads=False)
@@ -233,7 +233,7 @@ class BrowserController:
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(
-                    headless=True,
+                    headless=False,
                     args=self._resolver_args(auth.get('pinned_hosts', {})),
                 )
                 context = browser.new_context(accept_downloads=False)

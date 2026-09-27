@@ -78,7 +78,13 @@ def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | Non
                 snapshot_id = snapshot_manager.create_for_path(p, 'AI workspace file write')['snapshot_id']
             except Exception as exc:
                 return {'ok': False, 'blocked': True, 'error': f'Pre-change workspace snapshot failed: {exc}'}
-        result = workspace.write_text(path, content)
+        try:
+            result = workspace.write_text(path, content)
+            if not p.exists():
+                return {'ok': False, 'error': f'Failed to write file: {p} does not exist after write operation'}
+        except Exception as exc:
+            return {'ok': False, 'error': f'Failed to write file: {exc}'}
+
         return {'ok': True, 'path': result, 'bytes': len(content.encode('utf-8')),
                 'diff': '[REDACTED: sensitive file diff]' if sensitive else diff, 'sensitive': sensitive,
                 'snapshot_id': snapshot_id}

@@ -1,0 +1,2665 @@
+{
+  "name": "MCP Server Catalog",
+  "version": "2026.08",
+  "description": "Curated Model Context Protocol servers for AI-assisted development",
+  "license": "MIT",
+  "lastUpdated": "2026-09-22",
+  "totalServers": 144,
+  "categories": [
+    {
+      "name": "Official Reference",
+      "count": 6
+    },
+    {
+      "name": "Developer Tools",
+      "count": 16
+    },
+    {
+      "name": "Browser Automation",
+      "count": 6
+    },
+    {
+      "name": "Databases",
+      "count": 13
+    },
+    {
+      "name": "Cloud Platforms",
+      "count": 6
+    },
+    {
+      "name": "DevOps",
+      "count": 9
+    },
+    {
+      "name": "Communication",
+      "count": 11
+    },
+    {
+      "name": "Search",
+      "count": 11
+    },
+    {
+      "name": "AI & Machine Learning",
+      "count": 15
+    },
+    {
+      "name": "Agent Orchestration",
+      "count": 12
+    },
+    {
+      "name": "Monitoring",
+      "count": 6
+    },
+    {
+      "name": "Security",
+      "count": 7
+    },
+    {
+      "name": "Design",
+      "count": 4
+    },
+    {
+      "name": "Finance",
+      "count": 4
+    },
+    {
+      "name": "Maps",
+      "count": 2
+    },
+    {
+      "name": "Research & Data",
+      "count": 6
+    },
+    {
+      "name": "Marketing",
+      "count": 4
+    },
+    {
+      "name": "Data Engineering",
+      "count": 1
+    },
+    {
+      "name": "Blockchain",
+      "count": 3
+    },
+    {
+      "name": "Mobile",
+      "count": 1
+    }
+  ],
+  "sources": [
+    {
+      "name": "Glama.ai",
+      "url": "https://glama.ai/mcp/servers",
+      "indexed": 51752
+    },
+    {
+      "name": "mcp.so",
+      "url": "https://mcp.so",
+      "indexed": 23036
+    },
+    {
+      "name": "popularaitools.ai",
+      "url": "https://popularaitools.ai/skills?type=mcp",
+      "indexed": 7500
+    },
+    {
+      "name": "bestmcp.dev",
+      "url": "https://bestmcp.dev",
+      "indexed": 143
+    },
+    {
+      "name": "awesome-mcp.tools",
+      "url": "https://awesome-mcp.tools",
+      "indexed": 2500
+    },
+    {
+      "name": "GitHub modelcontextprotocol",
+      "url": "https://github.com/modelcontextprotocol/servers",
+      "stars": 87600
+    },
+    {
+      "name": "PulseMCP",
+      "url": "https://pulsemcp.com",
+      "indexed": 20269
+    },
+    {
+      "name": "browser-use/browser-use",
+      "url": "https://github.com/browser-use/browser-use",
+      "stars": 100412
+    },
+    {
+      "name": "MCP Toplist",
+      "url": "https://mcptoplist.com",
+      "indexed": 73756
+    }
+  ],
+  "servers": [
+    {
+      "id": "filesystem",
+      "name": "Filesystem MCP",
+      "category": "Official Reference",
+      "github": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "stars": 87500,
+      "description": "Secure file read/write/list/search operations with configurable directory access controls",
+      "install": "npx -y @modelcontextprotocol/server-filesystem /path/to/dir",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "files",
+        "read",
+        "write",
+        "search",
+        "official"
+      ]
+    },
+    {
+      "id": "memory",
+      "name": "Memory MCP",
+      "category": "Official Reference",
+      "github": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "stars": 87500,
+      "description": "Knowledge graph-based persistent memory system for maintaining context across sessions",
+      "install": "npx -y @modelcontextprotocol/server-memory",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "memory",
+        "knowledge-graph",
+        "context",
+        "official"
+      ]
+    },
+    {
+      "id": "sequential-thinking",
+      "name": "Sequential Thinking MCP",
+      "category": "Official Reference",
+      "github": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "stars": 10700,
+      "description": "Dynamic and reflective problem-solving through structured thought sequences",
+      "install": "npx -y @modelcontextprotocol/server-sequential-thinking",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "reasoning",
+        "problem-solving",
+        "thinking",
+        "official"
+      ]
+    },
+    {
+      "id": "git",
+      "name": "Git MCP",
+      "category": "Official Reference",
+      "github": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "stars": 87500,
+      "description": "Read, search, and manipulate Git repositories (commit, diff, log, branch)",
+      "install": "uvx mcp-server-git",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "git",
+        "version-control",
+        "repository",
+        "official"
+      ]
+    },
+    {
+      "id": "fetch",
+      "name": "Fetch MCP",
+      "category": "Official Reference",
+      "github": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "stars": 87500,
+      "description": "Web content fetching and conversion for efficient LLM usage",
+      "install": "npx -y @modelcontextprotocol/server-fetch",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "web",
+        "fetch",
+        "http",
+        "content",
+        "official"
+      ]
+    },
+    {
+      "id": "time",
+      "name": "Time MCP",
+      "category": "Official Reference",
+      "github": "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
+      "stars": 87500,
+      "description": "Time and timezone conversion capabilities",
+      "install": "npx -y @modelcontextprotocol/server-time",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "time",
+        "timezone",
+        "scheduling",
+        "official"
+      ]
+    },
+    {
+      "id": "github",
+      "name": "GitHub MCP Server",
+      "category": "Developer Tools",
+      "github": "https://github.com/github/github-mcp-server",
+      "stars": 30600,
+      "description": "GitHub's official MCP server for repos, issues, PRs, code search, Actions, and CI/CD",
+      "install": "gh extension install github/gh-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "github",
+        "repos",
+        "issues",
+        "prs",
+        "ci-cd"
+      ]
+    },
+    {
+      "id": "context7",
+      "name": "Context7",
+      "category": "Developer Tools",
+      "github": "https://github.com/upstash/context7",
+      "stars": 54000,
+      "description": "Pulls live, version-pinned library documentation into prompts to prevent hallucinated APIs",
+      "install": "npx -y @upstash/context7-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "documentation",
+        "libraries",
+        "api",
+        "version-pinned"
+      ]
+    },
+    {
+      "id": "serena",
+      "name": "Serena",
+      "category": "Developer Tools",
+      "github": "https://github.com/oraios/serena",
+      "stars": 24000,
+      "description": "Powerful MCP toolkit for coding with semantic retrieval and editing capabilities",
+      "install": "pip install serena",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "semantic",
+        "code-search",
+        "editing",
+        "ide"
+      ]
+    },
+    {
+      "id": "markitdown",
+      "name": "MarkItDown",
+      "category": "Developer Tools",
+      "github": "https://github.com/microsoft/markitdown",
+      "stars": 122000,
+      "description": "Converts PDF, Office, HTML and image files into clean Markdown for AI consumption",
+      "install": "pip install markitdown[all]",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "pdf",
+        "office",
+        "html",
+        "markdown",
+        "conversion"
+      ]
+    },
+    {
+      "id": "task-master",
+      "name": "Task Master",
+      "category": "Developer Tools",
+      "github": "https://github.com/eyaltoledano/claude-task-master",
+      "stars": 26000,
+      "description": "Turns Claude Code into an autonomous PRD-driven task runner",
+      "install": "npx -y task-master-ai",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "task-management",
+        "prd",
+        "autonomous",
+        "planning"
+      ]
+    },
+    {
+      "id": "fastmcp",
+      "name": "FastMCP",
+      "category": "Developer Tools",
+      "github": "https://github.com/jlowin/fastmcp",
+      "stars": 23000,
+      "description": "The fastest way to build MCP servers in Python with decorators and automatic type validation",
+      "install": "pip install fastmcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "framework",
+        "python",
+        "server-building",
+        "decorators"
+      ]
+    },
+    {
+      "id": "mcp-inspector",
+      "name": "MCP Inspector",
+      "category": "Developer Tools",
+      "github": "https://github.com/modelcontextprotocol/inspector",
+      "stars": 8522,
+      "description": "Official visual testing tool for MCP servers - debug tool calls, inspect responses",
+      "install": "npx -y @modelcontextprotocol/inspector",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "debugging",
+        "testing",
+        "inspection",
+        "official"
+      ]
+    },
+    {
+      "id": "chrome-devtools",
+      "name": "Chrome DevTools MCP",
+      "category": "Browser Automation",
+      "github": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "stars": 40000,
+      "description": "Chrome DevTools for coding agents - inspect, debug, and interact with web pages",
+      "install": "npx -y @anthropic-ai/chrome-devtools-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "chrome",
+        "devtools",
+        "debugging",
+        "web"
+      ]
+    },
+    {
+      "id": "playwright",
+      "name": "Playwright MCP",
+      "category": "Browser Automation",
+      "github": "https://github.com/microsoft/playwright-mcp",
+      "stars": 34373,
+      "description": "De-facto standard for browser automation under MCP - real Chromium, accessibility-tree targeting",
+      "install": "npx -y @playwright/mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "browser",
+        "automation",
+        "testing",
+        "playwright"
+      ]
+    },
+    {
+      "id": "agent-qa",
+      "name": "Agent QA",
+      "category": "Browser Automation",
+      "github": "https://github.com/vostride/agent-qa",
+      "stars": 812,
+      "description": "Natural-language web and mobile test execution with persistent test memory, self-healing flows, structured evidence, and failure triage",
+      "install": "npx -y agent-qa mcp",
+      "license": "FSL-1.1-ALv2",
+      "verified": false,
+      "tags": [
+        "browser",
+        "mobile",
+        "testing",
+        "qa",
+        "self-healing"
+      ]
+    },
+    {
+      "id": "firecrawl",
+      "name": "Firecrawl MCP",
+      "category": "Browser Automation",
+      "github": "https://github.com/mendableai/firecrawl-mcp-server",
+      "stars": 6672,
+      "description": "Web scraping with JavaScript rendering, crawling, and content extraction",
+      "install": "npx -y @mendable/firecrawl-mcp",
+      "license": "AGPL-3.0",
+      "verified": true,
+      "tags": [
+        "scraping",
+        "crawling",
+        "javascript",
+        "content-extraction"
+      ]
+    },
+    {
+      "id": "puppeteer",
+      "name": "Puppeteer MCP",
+      "category": "Browser Automation",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/puppeteer",
+      "stars": 87500,
+      "description": "Browser automation and web scraping via Puppeteer",
+      "install": "npx -y @modelcontextprotocol/server-puppeteer",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "puppeteer",
+        "headless",
+        "browser",
+        "automation"
+      ]
+    },
+    {
+      "id": "browser-use-mcp",
+      "name": "Browser Use MCP",
+      "category": "Browser Automation",
+      "github": "https://github.com/browser-use/browser-use",
+      "stars": 100412,
+      "description": "AI-powered browser automation with 100K+ stars. Enables agents to browse the web, fill forms, extract data, and interact with web pages autonomously.",
+      "install": "pip install browser-use",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "browser",
+        "automation",
+        "ai",
+        "web-scraping"
+      ]
+    },
+    {
+      "id": "postgresql",
+      "name": "PostgreSQL MCP",
+      "category": "Databases",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/postgres",
+      "stars": 87500,
+      "description": "Read-only database access with schema inspection for PostgreSQL",
+      "install": "npx -y @modelcontextprotocol/server-postgres \"postgresql://localhost/mydb\"",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "postgresql",
+        "database",
+        "sql",
+        "schema"
+      ]
+    },
+    {
+      "id": "sqlite",
+      "name": "SQLite MCP",
+      "category": "Databases",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+      "stars": 87500,
+      "description": "Database interaction and business intelligence capabilities for SQLite",
+      "install": "npx -y @modelcontextprotocol/server-sqlite",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "sqlite",
+        "database",
+        "local",
+        "lightweight"
+      ]
+    },
+    {
+      "id": "redis",
+      "name": "Redis MCP",
+      "category": "Databases",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/redis",
+      "stars": 8200,
+      "description": "Natural language interface for Redis key-value stores with multiple data structures",
+      "install": "Available via modelcontextprotocol",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "redis",
+        "cache",
+        "key-value",
+        "real-time"
+      ]
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase MCP",
+      "category": "Databases",
+      "github": "https://github.com/supabase-community/supabase-mcp",
+      "stars": 8900,
+      "description": "Connect AI tools to Supabase projects for database management, auth, storage, and Edge Functions",
+      "install": "Remote MCP via Supabase dashboard",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "supabase",
+        "backend",
+        "auth",
+        "storage"
+      ]
+    },
+    {
+      "id": "mongodb",
+      "name": "MongoDB MCP",
+      "category": "Databases",
+      "github": "https://github.com/mongodb-js/mongodb-mcp-server",
+      "stars": 3000,
+      "description": "MongoDB operations including Atlas Vector Search for document and vector operations",
+      "install": "Available via MongoDB documentation",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "mongodb",
+        "nosql",
+        "document",
+        "vector-search"
+      ]
+    },
+    {
+      "id": "qdrant",
+      "name": "Qdrant MCP",
+      "category": "Databases",
+      "github": "https://github.com/qdrant/mcp-server-qdrant",
+      "stars": 964,
+      "description": "Semantic memory layer on top of Qdrant vector search engine",
+      "install": "pip install mcp-server-qdrant",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "qdrant",
+        "vector",
+        "semantic",
+        "search"
+      ]
+    },
+    {
+      "id": "chromadb",
+      "name": "ChromaDB MCP",
+      "category": "Databases",
+      "github": "https://github.com/rkilchmn/chroma-mcp-server",
+      "stars": 540,
+      "description": "Vector database operations - collection management, document ops, similarity search",
+      "install": "pip install chroma-mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "chromadb",
+        "vector",
+        "embeddings",
+        "similarity"
+      ]
+    },
+    {
+      "id": "mindsdb",
+      "name": "MindsDB MCP",
+      "category": "Databases",
+      "github": "https://github.com/mindsdb/mindsdb",
+      "stars": 39000,
+      "description": "Federated query engine aggregating 200+ data sources through a single MCP endpoint",
+      "install": "pip install mindsdb",
+      "license": "GPL-3.0",
+      "verified": true,
+      "tags": [
+        "federation",
+        "data-sources",
+        "query-engine",
+        "analytics"
+      ]
+    },
+    {
+      "id": "aws",
+      "name": "AWS MCP Servers",
+      "category": "Cloud Platforms",
+      "github": "https://github.com/awslabs/mcp",
+      "stars": 8035,
+      "description": "66+ official AWS MCP servers for EC2, S3, Lambda, RDS, CloudFormation, CDK, and more",
+      "install": "Various - see github.com/awslabs/mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "aws",
+        "cloud",
+        "ec2",
+        "s3",
+        "lambda"
+      ]
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare MCP",
+      "category": "Cloud Platforms",
+      "github": "https://github.com/cloudflare/mcp-server-cloudflare",
+      "stars": 5000,
+      "description": "Manage Workers, KV, R2, D1, and other Cloudflare services",
+      "install": "Remote MCP via Cloudflare dashboard",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "cloudflare",
+        "workers",
+        "edge",
+        "serverless"
+      ]
+    },
+    {
+      "id": "digitalocean",
+      "name": "DigitalOcean MCP",
+      "category": "Cloud Platforms",
+      "github": "https://github.com/digitalocean/digitalocean-mcp",
+      "stars": 1500,
+      "description": "Manage Droplets, App Platform, Databases, DOKS, Networking, and Spaces Storage",
+      "install": "Remote MCP endpoints available",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "digitalocean",
+        "droplets",
+        "kubernetes",
+        "hosting"
+      ]
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel MCP",
+      "category": "Cloud Platforms",
+      "github": "https://github.com/vercel/mcp",
+      "stars": 2000,
+      "description": "Deploy and manage Vercel projects, edge functions, and analytics",
+      "install": "Remote MCP at mcp.vercel.com",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "vercel",
+        "deployment",
+        "edge",
+        "analytics"
+      ]
+    },
+    {
+      "id": "edgeone-pages",
+      "name": "EdgeOne Pages MCP",
+      "category": "Cloud Platforms",
+      "github": "https://github.com/TencentEdgeOne/edgeone-pages-mcp",
+      "stars": 10400,
+      "description": "Deploy HTML content to EdgeOne Pages and obtain accessible public URLs",
+      "install": "Available via mcp.so",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "edgeone",
+        "deployment",
+        "html",
+        "cdn"
+      ]
+    },
+    {
+      "id": "docker",
+      "name": "Docker MCP",
+      "category": "DevOps",
+      "github": "https://github.com/docker/mcp",
+      "stars": 4000,
+      "description": "Container management and MCP server discovery with 300+ catalog entries",
+      "install": "Via Docker Desktop",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "docker",
+        "containers",
+        "devops",
+        "management"
+      ]
+    },
+    {
+      "id": "kubernetes",
+      "name": "Kubernetes MCP",
+      "category": "DevOps",
+      "github": "https://github.com/containers/kubernetes-mcp-server",
+      "stars": 1700,
+      "description": "Kubernetes and OpenShift management with multi-cluster support, Helm, KubeVirt, Tekton",
+      "install": "go install github.com/containers/kubernetes-mcp-server@latest",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "helm",
+        "orchestration"
+      ]
+    },
+    {
+      "id": "kubectl-mcp",
+      "name": "kubectl-mcp-server",
+      "category": "DevOps",
+      "github": "https://github.com/rohitg00/kubectl-mcp-server",
+      "stars": 876,
+      "description": "Natural language Kubernetes control - debug pods, optimize costs, deploy, audit security",
+      "install": "pip install kubectl-mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "kubectl",
+        "kubernetes",
+        "natural-language",
+        "debugging"
+      ]
+    },
+    {
+      "id": "terraform",
+      "name": "Terraform MCP",
+      "category": "DevOps",
+      "github": "https://github.com/hashicorp/terraform-mcp-server",
+      "stars": 1280,
+      "description": "Browse Terraform Registry, discover modules/providers, validate configs, manage workspaces",
+      "install": "Available via HashiCorp documentation",
+      "license": "MPL-2.0",
+      "verified": true,
+      "tags": [
+        "terraform",
+        "infrastructure",
+        "iac",
+        "hashicorp"
+      ]
+    },
+    {
+      "id": "pulumi",
+      "name": "Pulumi MCP",
+      "category": "DevOps",
+      "github": "https://github.com/pulumi/mcp-server",
+      "stars": 800,
+      "description": "Infrastructure as code execution and management across cloud providers",
+      "install": "Available via Pulumi documentation",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "pulumi",
+        "infrastructure",
+        "iac",
+        "multi-cloud"
+      ]
+    },
+    {
+      "id": "slack",
+      "name": "Slack MCP",
+      "category": "Communication",
+      "github": "https://github.com/zencoderai/slack-mcp-server",
+      "stars": 3000,
+      "description": "Channel management, messaging, and thread operations for Slack",
+      "install": "npx -y @modelcontextprotocol/server-slack",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "slack",
+        "messaging",
+        "channels",
+        "team"
+      ]
+    },
+    {
+      "id": "x-twitter",
+      "name": "X (Twitter) MCP Server",
+      "category": "Communication",
+      "github": "https://github.com/xdevplatform/xmcp",
+      "stars": 668,
+      "description": "Official hosted MCP server from X exposing 200+ API endpoints. Read tweets, search content, post updates, manage profiles, and more. Hosted at api.x.com/mcp.",
+      "install": "Remote server: https://api.x.com/mcp (no local install needed)",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "x",
+        "twitter",
+        "social-media",
+        "posts",
+        "search",
+        "users",
+        "trends",
+        "hosted",
+        "official"
+      ]
+    },
+    {
+      "id": "notion",
+      "name": "Notion MCP",
+      "category": "Communication",
+      "github": "https://github.com/makenotion/notion-mcp-server",
+      "stars": 5000,
+      "description": "Read, create, and update Notion pages and databases",
+      "install": "Available via Notion documentation",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "notion",
+        "knowledge",
+        "databases",
+        "pages"
+      ]
+    },
+    {
+      "id": "notfair",
+      "name": "NotFair",
+      "category": "Marketing",
+      "github": "https://github.com/nowork-studio/NotFair",
+      "stars": 2900,
+      "description": "Open-source Claude Code skills for SEO, GEO, Google Ads, and Meta Ads. Connects to Google Ads MCP, Meta Ads MCP, Google Search Console MCP, and Google Analytics (GA4) MCP for live data.",
+      "install": "npx skills add nowork-studio/NotFair",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "seo",
+        "google-ads",
+        "meta-ads",
+        "marketing",
+        "skills"
+      ]
+    },
+    {
+      "id": "salesforce-marketing-mcp",
+      "name": "Salesforce Marketing Cloud MCP",
+      "category": "Marketing",
+      "github": "https://github.com/salesforce/marketing-cloud-mcp",
+      "stars": 1200,
+      "description": "Salesforce Marketing Cloud Engagement MCP server. Manage journeys, email campaigns, audiences, and analytics through MCP protocol.",
+      "install": "npx -y @salesforce/marketing-cloud-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "salesforce",
+        "marketing",
+        "email",
+        "campaigns"
+      ]
+    },
+    {
+      "id": "linear",
+      "name": "Linear MCP",
+      "category": "Communication",
+      "github": "https://github.com/linear/mcp-server",
+      "stars": 2500,
+      "description": "Issue tracking, project management, and team coordination via Linear",
+      "install": "Available via Linear documentation",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "linear",
+        "issues",
+        "projects",
+        "team"
+      ]
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsidian MCP",
+      "category": "Communication",
+      "github": "https://github.com/smithery-ai/obsidian-mcp",
+      "stars": 2000,
+      "description": "Vision-aware vault access with link graph traversal and section-level editing",
+      "install": "Community plugin + MCP wrapper",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "obsidian",
+        "knowledge-base",
+        "markdown",
+        "notes"
+      ]
+    },
+    {
+      "id": "google-workspace",
+      "name": "Google Workspace MCP",
+      "category": "Communication",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/gdrive",
+      "stars": 87500,
+      "description": "Gmail, Google Calendar, and Google Drive access for AI agents",
+      "install": "npx -y @modelcontextprotocol/server-gdrive",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "google",
+        "gmail",
+        "calendar",
+        "drive"
+      ]
+    },
+    {
+      "id": "brave-search",
+      "name": "Brave Search MCP",
+      "category": "Search",
+      "github": "https://github.com/brave/brave-search-mcp-server",
+      "stars": 3000,
+      "description": "Web and local search using Brave's Search API",
+      "install": "npx -y @anthropic-ai/brave-search-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "brave",
+        "search",
+        "privacy",
+        "web"
+      ]
+    },
+    {
+      "id": "tavily",
+      "name": "Tavily MCP",
+      "category": "Search",
+      "github": "https://github.com/tavily-ai/tavily-mcp",
+      "stars": 2000,
+      "description": "AI-optimized web search API designed specifically for LLM agents",
+      "install": "npx -y @tavily/mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "tavily",
+        "search",
+        "ai-optimized",
+        "llm"
+      ]
+    },
+    {
+      "id": "serper",
+      "name": "Serper MCP",
+      "category": "Search",
+      "github": "https://github.com/garymengcom/serper-mcp-server",
+      "stars": 1500,
+      "description": "Google search results via Serper API for AI agents",
+      "install": "Available on mcp.so",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "serper",
+        "google",
+        "search",
+        "api"
+      ]
+    },
+    {
+      "id": "jina",
+      "name": "Jina AI MCP",
+      "category": "Search",
+      "github": "https://github.com/PsychArch/jina-mcp-tools",
+      "stars": 4700,
+      "description": "Semantic search, image search, and cross-modal search via Jina AI APIs",
+      "install": "Available on mcp.so",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "jina",
+        "semantic",
+        "neural",
+        "cross-modal"
+      ]
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax MCP",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/MiniMax-AI/MiniMax-MCP",
+      "stars": 16800,
+      "description": "Text-to-speech, image generation, video generation, and voice cloning via MiniMax APIs",
+      "install": "Available via MiniMax documentation",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "minimax",
+        "tts",
+        "image",
+        "video",
+        "voice"
+      ]
+    },
+    {
+      "id": "ui-tars",
+      "name": "UI-TARS Desktop",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/bytedance/UI-TARS-desktop",
+      "stars": 30000,
+      "description": "Desktop GUI agent using vision-language model to click, type, and reason about arbitrary GUIs",
+      "install": "Download from GitHub releases",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "ui-tars",
+        "gui",
+        "vision",
+        "desktop",
+        "bytedance"
+      ]
+    },
+    {
+      "id": "everart",
+      "name": "EverArt MCP",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/everart",
+      "stars": 87500,
+      "description": "AI image generation using various models (Stable Diffusion, DALL-E, etc.)",
+      "install": "npx -y @modelcontextprotocol/server-everart",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "image-generation",
+        "stable-diffusion",
+        "dalle",
+        "ai-art"
+      ]
+    },
+    {
+      "id": "claude-flow",
+      "name": "Claude-Flow",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/ruvnet/claude-flow",
+      "stars": 10000,
+      "description": "Orchestrates intelligent multi-agent swarms and autonomous workflows",
+      "install": "Available via popularaitools.ai",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "orchestration",
+        "multi-agent",
+        "swarm",
+        "claude"
+      ]
+    },
+    {
+      "id": "ruflo",
+      "name": "Ruflo",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/ruvnet/ruflo",
+      "stars": 33000,
+      "description": "Leading agent orchestration platform for Claude with enterprise-grade architecture",
+      "install": "Available via GitHub",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "ruflo",
+        "enterprise",
+        "distributed",
+        "rag"
+      ]
+    },
+    {
+      "id": "n8n",
+      "name": "n8n MCP",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/n8n-io/n8n",
+      "stars": 187000,
+      "description": "Fair-code workflow automation platform with native AI capabilities and 400+ integrations",
+      "install": "docker run -it --rm --name n8n -p 5678:5678 -v ~/.n8n:/home/node/.n8n n8nio/n8n",
+      "license": "Sustainable Use License",
+      "verified": true,
+      "tags": [
+        "n8n",
+        "workflow",
+        "automation",
+        "integrations"
+      ]
+    },
+    {
+      "id": "orch8",
+      "name": "Orch8 MCP",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/orch8-io/engine",
+      "website": "https://orch8.io/",
+      "stars": 73,
+      "description": "Launch and supervise durable workflows through eight MCP tools with tenant-scoped authentication",
+      "install": "docker run -d -p 8080:8080 ghcr.io/orch8-io/engine:0.7.1 --insecure",
+      "license": "BUSL-1.1",
+      "verified": false,
+      "tags": [
+        "workflow",
+        "durable-execution",
+        "orchestration",
+        "mcp"
+      ]
+    },
+    {
+      "id": "netdata",
+      "name": "Netdata MCP",
+      "category": "Monitoring",
+      "github": "https://github.com/netdata/netdata",
+      "stars": 78000,
+      "description": "Real-time infrastructure monitoring with MCP integration for system metrics",
+      "install": "Via Netdata agent",
+      "license": "GPL-3.0",
+      "verified": true,
+      "tags": [
+        "netdata",
+        "monitoring",
+        "metrics",
+        "real-time"
+      ]
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana MCP",
+      "category": "Monitoring",
+      "github": "https://github.com/grafana/mcp-grafana",
+      "stars": 2000,
+      "description": "Query Grafana dashboards, alerts, and data sources through MCP",
+      "install": "Available via Grafana documentation",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "grafana",
+        "dashboards",
+        "alerts",
+        "observability"
+      ]
+    },
+    {
+      "id": "sentry",
+      "name": "Sentry MCP",
+      "category": "Monitoring",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sentry",
+      "stars": 87500,
+      "description": "Retrieve and analyze issues from Sentry.io for error tracking",
+      "install": "npx -y @modelcontextprotocol/server-sentry",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "sentry",
+        "errors",
+        "tracking",
+        "debugging"
+      ]
+    },
+    {
+      "id": "aperion-shield",
+      "name": "Aperion Shield",
+      "category": "Security",
+      "github": "https://github.com/AperionAI/shield",
+      "stars": 20,
+      "description": "Local guardrail proxy that blocks destructive MCP tool calls before execution",
+      "install": "Download from GitHub",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "security",
+        "guardrails",
+        "proxy",
+        "safety"
+      ]
+    },
+    {
+      "id": "grype",
+      "name": "Grype MCP",
+      "category": "Security",
+      "github": "https://github.com/anchore/grype-mcp",
+      "stars": 9,
+      "description": "Vulnerability scanning for directories, container images, and packages",
+      "install": "Available via Anchore documentation",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "security",
+        "vulnerability",
+        "scanning",
+        "containers"
+      ]
+    },
+    {
+      "id": "wundervault",
+      "name": "Wundervault",
+      "category": "Security",
+      "github": "https://github.com/wundervault/wundervault-mcp",
+      "stars": 6,
+      "description": "Zero-knowledge secret management - secrets decrypted server-side, never returned to agent",
+      "install": "Available via Glama.ai",
+      "license": "AGPL-3.0",
+      "verified": true,
+      "tags": [
+        "secrets",
+        "zero-knowledge",
+        "vault",
+        "encryption"
+      ]
+    },
+    {
+      "id": "mcpguard",
+      "name": "MCPGuard OWASP Scanner",
+      "category": "Security",
+      "github": "https://github.com/mcpguard/mcpguard",
+      "stars": 150,
+      "description": "OWASP MCP Top 10 vulnerability scanner. Scans MCP servers for security vulnerabilities following the OWASP MCP Top 10 framework.",
+      "install": "npx -y mcpguard",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "security",
+        "owasp",
+        "scanning",
+        "vulnerability"
+      ]
+    },
+    {
+      "id": "figma",
+      "name": "Figma MCP",
+      "category": "Design",
+      "github": "https://github.com/figma/figma-mcp",
+      "stars": 3000,
+      "description": "Figma file access for design-to-code workflows",
+      "install": "Available via community",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "figma",
+        "design",
+        "ui",
+        "prototype"
+      ]
+    },
+    {
+      "id": "canva",
+      "name": "Canva MCP",
+      "category": "Design",
+      "github": "https://github.com/canva/mcp-server",
+      "stars": 500,
+      "description": "Create and modify Canva designs programmatically",
+      "install": "Available via Canva developer docs",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "canva",
+        "design",
+        "graphics",
+        "visual"
+      ]
+    },
+    {
+      "id": "stripe",
+      "name": "Stripe MCP",
+      "category": "Finance",
+      "github": "https://github.com/stripe/agent-toolkit",
+      "stars": 2000,
+      "description": "Payment processing, subscription management, and financial operations",
+      "install": "Available via Stripe documentation",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "stripe",
+        "payments",
+        "subscriptions",
+        "billing"
+      ]
+    },
+    {
+      "id": "dodo-payments",
+      "name": "Dodo Payments MCP",
+      "category": "Finance",
+      "github": "https://github.com/dodopayments/dodo-agent-plugin",
+      "stars": 2,
+      "description": "Live payments, subscriptions, customers, products, refunds, license keys",
+      "install": "Available via Glama.ai",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "dodo",
+        "payments",
+        "subscriptions",
+        "licenses"
+      ]
+    },
+    {
+      "id": "flox",
+      "name": "FLOX MCP",
+      "category": "Finance",
+      "github": "https://github.com/FLOX-Foundation/flox",
+      "stars": 37,
+      "description": "Trading framework with 30 tools for backtests, strategy scaffolding, order placement",
+      "install": "Available via Glama.ai",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "trading",
+        "backtesting",
+        "strategy",
+        "finance"
+      ]
+    },
+    {
+      "id": "google-maps",
+      "name": "Google Maps MCP",
+      "category": "Maps",
+      "github": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/google-maps",
+      "stars": 87500,
+      "description": "Location services, directions, and place details",
+      "install": "npx -y @modelcontextprotocol/server-google-maps",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "google-maps",
+        "location",
+        "directions",
+        "places"
+      ]
+    },
+    {
+      "id": "amap",
+      "name": "Amap Maps MCP",
+      "category": "Maps",
+      "github": "https://github.com/amap/amap-mcp",
+      "stars": 2000,
+      "description": "Official Amap (Gaode) Maps integration for Chinese mapping services",
+      "install": "Available via mcp.so",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "amap",
+        "gaode",
+        "chinese",
+        "mapping"
+      ]
+    },
+    {
+      "id": "trendradar",
+      "name": "TrendRadar",
+      "category": "Research & Data",
+      "github": "https://github.com/sansan0/TrendRadar",
+      "stars": 54000,
+      "description": "AI-driven public opinion and trend monitor with multi-platform aggregation and RSS",
+      "install": "Available via Docker",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "trends",
+        "monitoring",
+        "rss",
+        "aggregation"
+      ]
+    },
+    {
+      "id": "scrapling",
+      "name": "Scrapling",
+      "category": "Research & Data",
+      "github": "https://github.com/D4Vinci/Scrapling",
+      "stars": 38500,
+      "description": "Adaptive web scraping framework handling single requests to full-scale crawls",
+      "install": "pip install scrapling",
+      "license": "BSD-3-Clause",
+      "verified": true,
+      "tags": [
+        "scraping",
+        "adaptive",
+        "crawling",
+        "python"
+      ]
+    },
+    {
+      "id": "gpt-researcher",
+      "name": "GPT-Researcher",
+      "category": "Research & Data",
+      "github": "https://github.com/assafelovic/gpt-researcher",
+      "stars": 27000,
+      "description": "Autonomous agent for deep research on any topic using any LLM provider",
+      "install": "pip install gpt-researcher",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "research",
+        "autonomous",
+        "deep-research",
+        "multi-source"
+      ]
+    },
+    {
+      "id": "openrouter-mcp",
+      "name": "OpenRouter MCP",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/openrouter/openrouter-mcp",
+      "stars": 8500,
+      "description": "NEW June 25, 2026 - Multi-model routing through OpenRouter. Access 200+ models via a single MCP endpoint with automatic fallback and cost optimization.",
+      "install": "npx -y @openrouter/mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "openrouter",
+        "multi-model",
+        "routing",
+        "llm"
+      ]
+    },
+    {
+      "id": "sentry-mcp-v2",
+      "name": "Sentry MCP v2",
+      "category": "Monitoring",
+      "github": "https://github.com/getsentry/sentry-mcp",
+      "stars": 5200,
+      "description": "Enhanced Sentry integration - real-time error tracking, performance monitoring, session replay, and AI-powered root cause analysis.",
+      "install": "npx -y @sentry/mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "sentry",
+        "errors",
+        "performance",
+        "monitoring"
+      ]
+    },
+    {
+      "id": "codegraph-mcp",
+      "name": "CodeGraph MCP",
+      "category": "Developer Tools",
+      "github": "https://github.com/anthropics/codegraph-mcp",
+      "stars": 54000,
+      "description": "Local-first code indexing MCP - 54K stars. Fast semantic code search across large codebases without cloud dependency.",
+      "install": "npx -y @anthropic-ai/codegraph-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "code-indexing",
+        "semantic-search",
+        "local-first",
+        "codebase"
+      ]
+    },
+    {
+      "id": "trendradar-mcp",
+      "name": "TrendRadar MCP",
+      "category": "Research & Data",
+      "github": "https://github.com/sansan0/TrendRadar",
+      "stars": 54000,
+      "description": "AI-driven public opinion and trend monitor with multi-platform aggregation and RSS",
+      "install": "Available via Docker",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "trends",
+        "monitoring",
+        "rss",
+        "aggregation"
+      ]
+    },
+    {
+      "id": "last30days-mcp",
+      "name": "Last30Days MCP",
+      "category": "Search",
+      "github": "https://github.com/last30days/last30days-mcp",
+      "stars": 4500,
+      "description": "Research what people actually say about any topic in the last 30 days. Pulls posts and engagement from Reddit, X, YouTube, TikTok, Hacker News, Polymarket, GitHub, and the web.",
+      "install": "npx -y @last30days/mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "research",
+        "trends",
+        "social-media",
+        "engagement"
+      ]
+    },
+    {
+      "id": "n8n-mcp",
+      "name": "n8n MCP Server",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/czlonkowski/n8n-mcp",
+      "stars": 22002,
+      "description": "AI-powered n8n workflow management. Create, edit, and manage n8n workflows and automations through MCP.",
+      "install": "npx -y n8n-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "n8n",
+        "workflow",
+        "automation",
+        "orchestration"
+      ]
+    },
+    {
+      "id": "figma-context-mcp",
+      "name": "Framelink Figma MCP",
+      "category": "Design",
+      "github": "https://github.com/GLips/Figma-Context-MCP",
+      "stars": 15102,
+      "description": "Connect AI agents to Figma designs. Extract design tokens, components, and layouts for code generation.",
+      "install": "npx -y figma-developer-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "figma",
+        "design",
+        "design-tokens",
+        "code-generation"
+      ]
+    },
+    {
+      "id": "arize-phoenix-mcp",
+      "name": "Arize Phoenix MCP",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/Arize-ai/phoenix",
+      "stars": 10204,
+      "description": "LLM observability and evaluation. Trace, debug, and analyze LLM applications with structured telemetry.",
+      "install": "npx -y arize-phoenix-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "llm",
+        "observability",
+        "tracing",
+        "evaluation"
+      ]
+    },
+    {
+      "id": "desktop-commander",
+      "name": "Desktop Commander",
+      "category": "Developer Tools",
+      "github": "https://github.com/wonderwhy-er/DesktopCommanderMCP",
+      "stars": 6000,
+      "description": "Full desktop control for AI agents. Execute commands, manage files, control applications, and automate workflows.",
+      "install": "npx -y @anthropic/desktop-commander",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "desktop",
+        "automation",
+        "commands",
+        "file-management"
+      ]
+    },
+    {
+      "id": "mcp-atlassian",
+      "name": "Atlassian MCP (Community)",
+      "category": "Developer Tools",
+      "github": "https://github.com/sooperset/mcp-atlassian",
+      "stars": 5471,
+      "description": "Community Atlassian integration. Access Jira, Confluence, and Bitbucket through MCP for project management.",
+      "install": "npx -y mcp-atlassian",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "jira",
+        "confluence",
+        "bitbucket",
+        "project-management"
+      ]
+    },
+    {
+      "id": "google-workspace-mcp",
+      "name": "Google Workspace MCP",
+      "category": "Communication",
+      "github": "https://github.com/taylorwilsdon/google_workspace_mcp",
+      "stars": 3000,
+      "description": "Comprehensive Google Workspace integration. Gmail, Calendar, Drive, Docs, Sheets, Slides through MCP.",
+      "install": "npx -y @anthropic/google-workspace-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "google",
+        "gmail",
+        "calendar",
+        "drive",
+        "workspace"
+      ]
+    },
+    {
+      "id": "zapier-mcp",
+      "name": "Zapier MCP",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/zapier/zapier-mcp",
+      "stars": 2000,
+      "description": "Universal integration layer. Connect to 9,000+ apps through Zapier's MCP server for automation.",
+      "install": "npx -y zapier-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "zapier",
+        "integration",
+        "automation",
+        "universal"
+      ]
+    },
+    {
+      "id": "tavily-mcp",
+      "name": "Tavily MCP Server",
+      "category": "Search",
+      "github": "https://github.com/tavily-ai/tavily-mcp",
+      "stars": 1500,
+      "description": "AI-optimized web search. Perform deep research, extract content, and find information across the web.",
+      "install": "npx -y tavily-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "search",
+        "web",
+        "research",
+        "extraction"
+      ]
+    },
+    {
+      "id": "perplexity-mcp",
+      "name": "Perplexity MCP (Official)",
+      "category": "Search",
+      "github": "https://github.com/perplexityai/modelcontextprotocol",
+      "stars": 1200,
+      "description": "Official Perplexity AI MCP server. Access Perplexity's AI search capabilities through MCP protocol.",
+      "install": "npx -y @anthropic/perplexity-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "perplexity",
+        "ai-search",
+        "official",
+        "research"
+      ]
+    },
+    {
+      "id": "mongodb-mcp-server",
+      "name": "MongoDB MCP (Official)",
+      "category": "Databases",
+      "github": "https://github.com/mongodb-labs/mongodb-mcp-server",
+      "stars": 1068,
+      "description": "Official MongoDB MCP server. Query, insert, update, and manage MongoDB databases through MCP.",
+      "install": "npx -y @anthropic/mongodb-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "mongodb",
+        "nosql",
+        "database",
+        "official"
+      ]
+    },
+    {
+      "id": "terraform-mcp-server",
+      "name": "Terraform MCP (HashiCorp)",
+      "category": "DevOps",
+      "github": "https://github.com/hashicorp/terraform-mcp-server",
+      "stars": 1000,
+      "description": "Official HashiCorp Terraform MCP server. Manage infrastructure as code through MCP protocol.",
+      "install": "npx -y @anthropic/terraform-mcp",
+      "license": "MPL-2.0",
+      "verified": true,
+      "tags": [
+        "terraform",
+        "infrastructure",
+        "iac",
+        "hashicorp"
+      ]
+    },
+    {
+      "id": "mcp-grafana",
+      "name": "Grafana MCP Server",
+      "category": "Monitoring",
+      "github": "https://github.com/grafana/mcp-grafana",
+      "stars": 800,
+      "description": "Official Grafana MCP server. Query dashboards, alerts, and metrics through MCP for monitoring workflows.",
+      "install": "npx -y @anthropic/grafana-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "grafana",
+        "monitoring",
+        "dashboards",
+        "metrics"
+      ]
+    },
+    {
+      "id": "atlassian-mcp-server",
+      "name": "Atlassian MCP (Official)",
+      "category": "Developer Tools",
+      "github": "https://github.com/atlassian/atlassian-mcp-server",
+      "stars": 774,
+      "description": "Official Atlassian MCP server. Remote server for Jira and Confluence integration.",
+      "install": "npx -y @anthropic/atlassian-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "atlassian",
+        "jira",
+        "confluence",
+        "official"
+      ]
+    },
+    {
+      "id": "mcp-server-elasticsearch",
+      "name": "Elasticsearch MCP",
+      "category": "Databases",
+      "github": "https://github.com/elastic/mcp-server-elasticsearch",
+      "stars": 670,
+      "description": "Official Elasticsearch MCP server. Search, index, and analyze data through MCP protocol.",
+      "install": "npx -y @anthropic/elasticsearch-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "elasticsearch",
+        "search",
+        "analytics",
+        "elastic"
+      ]
+    },
+    {
+      "id": "obsidian-mcp-server",
+      "name": "Obsidian MCP Server",
+      "category": "Research & Data",
+      "github": "https://github.com/cyanheads/obsidian-mcp-server",
+      "stars": 603,
+      "description": "Connect AI agents to Obsidian vaults. Read, write, and search notes through MCP for knowledge management.",
+      "install": "npx -y obsidian-mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "obsidian",
+        "notes",
+        "knowledge",
+        "vault"
+      ]
+    },
+    {
+      "id": "dbt-mcp",
+      "name": "dbt MCP Server (Official)",
+      "category": "Data Engineering",
+      "github": "https://github.com/dbt-labs/dbt-mcp",
+      "stars": 584,
+      "description": "Official dbt MCP server. Run transformations, manage models, and query data pipelines through MCP.",
+      "install": "npx -y @anthropic/dbt-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "dbt",
+        "data-transformations",
+        "analytics",
+        "official"
+      ]
+    },
+    {
+      "id": "mcp-redis",
+      "name": "Redis MCP (Official)",
+      "category": "Databases",
+      "github": "https://github.com/redis/mcp-redis",
+      "stars": 512,
+      "description": "Official Redis MCP server. Cache, pub/sub, and data structure operations through MCP protocol.",
+      "install": "npx -y @anthropic/redis-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "redis",
+        "cache",
+        "pub-sub",
+        "data-structures"
+      ]
+    },
+    {
+      "id": "airtable-mcp-server",
+      "name": "Airtable MCP Server",
+      "category": "Databases",
+      "github": "https://github.com/domdomegg/airtable-mcp-server",
+      "stars": 450,
+      "description": "Airtable integration through MCP. Read, create, update, and delete records in Airtable bases.",
+      "install": "npx -y airtable-mcp-server",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "airtable",
+        "database",
+        "records",
+        "low-code"
+      ]
+    },
+    {
+      "id": "snowflake-mcp",
+      "name": "Snowflake MCP Server",
+      "category": "Databases",
+      "github": "https://github.com/Snowflake-Labs/mcp",
+      "stars": 292,
+      "description": "Official Snowflake MCP server. Query and manage Snowflake data warehouse through MCP protocol.",
+      "install": "npx -y @anthropic/snowflake-mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "snowflake",
+        "data-warehouse",
+        "sql",
+        "official"
+      ]
+    },
+    {
+      "id": "shopify-mcp",
+      "name": "Shopify MCP Server",
+      "category": "Finance",
+      "github": "https://github.com/GeLi2001/shopify-mcp",
+      "stars": 200,
+      "description": "Shopify e-commerce integration. Manage products, orders, customers, and storefront through MCP.",
+      "install": "npx -y shopify-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "shopify",
+        "ecommerce",
+        "products",
+        "orders"
+      ]
+    },
+    {
+      "id": "langfuse-mcp-server",
+      "name": "Langfuse Prompt MCP",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/langfuse/mcp-server-langfuse",
+      "stars": 166,
+      "description": "Langfuse prompt management through MCP. Version, test, and deploy prompts with observability.",
+      "install": "npx -y langfuse-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "langfuse",
+        "prompts",
+        "observability",
+        "versioning"
+      ]
+    },
+    {
+      "id": "mcp-server-asana",
+      "name": "Asana MCP Server",
+      "category": "Communication",
+      "github": "https://github.com/roychri/mcp-server-asana",
+      "stars": 139,
+      "description": "Asana project management through MCP. Create tasks, manage projects, and track work items.",
+      "install": "npx -y mcp-server-asana",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "asana",
+        "project-management",
+        "tasks",
+        "productivity"
+      ]
+    },
+    {
+      "id": "serper-search-mcp",
+      "name": "Serper Search MCP",
+      "category": "Search",
+      "github": "https://github.com/marcopesani/mcp-server-serper",
+      "stars": 100,
+      "description": "Google search results through Serper API. Fast, structured web search for AI agents.",
+      "install": "npx -y mcp-server-serper",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "serper",
+        "google",
+        "search",
+        "web"
+      ]
+    },
+    {
+      "id": "datadog-mcp",
+      "name": "Datadog MCP (Official)",
+      "category": "Monitoring",
+      "github": "https://github.com/datadog-labs/mcp-server",
+      "stars": 41,
+      "description": "Official Datadog MCP server. Access logs, metrics, traces, and monitors through MCP protocol.",
+      "install": "npx -y @anthropic/datadog-mcp",
+      "license": "BSD-3-Clause",
+      "verified": true,
+      "tags": [
+        "datadog",
+        "monitoring",
+        "logs",
+        "metrics"
+      ]
+    },
+    {
+      "id": "mcp-server-google-workspace-ts",
+      "name": "Google Workspace MCP (TypeScript)",
+      "category": "Communication",
+      "github": "https://github.com/aaronsb/google-workspace-mcp",
+      "stars": 154,
+      "description": "TypeScript Google Workspace MCP server. Alternative implementation with enhanced type safety.",
+      "install": "npx -y google-workspace-mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "google",
+        "workspace",
+        "typescript",
+        "alternative"
+      ]
+    },
+    {
+      "id": "xquik",
+      "name": "Xquik MCP Server",
+      "category": "Marketing",
+      "github": "https://github.com/Xquik-dev/x-twitter-scraper",
+      "stars": 130,
+      "description": "Remote MCP server and REST API for X search, timelines, profiles, media, monitors, webhooks, and posting workflows.",
+      "install": "Remote endpoint: https://xquik.com/mcp",
+      "license": "No license file",
+      "verified": true,
+      "tags": [
+        "x-twitter",
+        "social-media",
+        "automation",
+        "monitoring",
+        "webhooks"
+      ]
+    },
+    {
+      "id": "hedera-mcp",
+      "name": "Hedera Hosted MCP Server",
+      "category": "Blockchain",
+      "github": "https://github.com/hedera-dev/hedera-agent-kit",
+      "stars": 0,
+      "description": "Managed Hedera network capabilities via MCP. Account management, token operations, smart contracts, consensus service. Returns unsigned transaction bytes for security.",
+      "install": "Remote endpoint: https://agentic-testnet-mcp.hedera.com/mcp",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "hedera",
+        "hashgraph",
+        "blockchain",
+        "tokens",
+        "smart-contracts",
+        "enterprise"
+      ]
+    },
+    {
+      "id": "wiz-mcp",
+      "name": "Wiz MCP Server",
+      "category": "Security",
+      "github": "https://github.com/wiz-sec/wiz-mcp",
+      "stars": 0,
+      "description": "Cloud security MCP server from Wiz. Build AI security agents with cloud posture data, vulnerability findings, and compliance context.",
+      "install": "npm install -g @wiz/mcp-server",
+      "license": "Proprietary",
+      "verified": true,
+      "tags": [
+        "wiz",
+        "cloud-security",
+        "vulnerabilities",
+        "compliance",
+        "cspm"
+      ]
+    },
+    {
+      "id": "chutes-mcp",
+      "name": "Chutes MCP Server",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/chutes-ai/chutes-mcp-server",
+      "stars": 0,
+      "description": "AI model discovery and management via MCP. List models, check quota, manage API keys, usage tracking. Supports 13+ models.",
+      "install": "uv tool install chutes-mcp-server --from plugins/chutes-ai/skills/chutes-mcp-portability/mcp-server",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "model-discovery",
+        "api-keys",
+        "quota",
+        "usage-tracking",
+        "multi-model"
+      ]
+    },
+    {
+      "id": "skills-mcp",
+      "name": "Skills MCP Server (gengirish)",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/gengirish/skills-mcp",
+      "stars": 0,
+      "description": "Discover, search, and install ~7,000 agent skills from across the GitHub ecosystem via MCP. 20 domains, 11 source repos.",
+      "install": "npm install -g skills-mcp",
+      "license": "NOASSERTION",
+      "verified": false,
+      "tags": [
+        "skill-discovery",
+        "registry",
+        "multi-repo",
+        "fuzzy-search",
+        "antigravity"
+      ]
+    },
+    {
+      "id": "mcp-skills-self-healing",
+      "name": "MCP Skills (rickwphillips)",
+      "category": "Developer Tools",
+      "github": "https://github.com/rickwphillips/mcp-skills",
+      "stars": 0,
+      "description": "Agent-agnostic MCP server with 26 tools and self-healing audit pipeline. Database, PDF, deploy, and reactive workflow skills.",
+      "install": "npm install -g mcp-skills",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "self-healing",
+        "audit-pipeline",
+        "database",
+        "pdf",
+        "deploy",
+        "reactive"
+      ]
+    },
+    {
+      "id": "brain-mcp",
+      "name": "Brain MCP (Bob Protocol)",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/mordechaipotash/brain-mcp",
+      "stars": 60,
+      "description": "Persistent memory via the Bob protocol. Long-term agent memory with semantic search and graph-based retrieval.",
+      "install": "npx -y brain-mcp",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "memory",
+        "persistent",
+        "semantic-search",
+        "bob-protocol",
+        "knowledge-graph"
+      ]
+    },
+    {
+      "id": "code-graph-mcp",
+      "name": "Code Graph MCP",
+      "category": "Developer Tools",
+      "github": "https://github.com/sdsrss/code-graph-mcp",
+      "stars": 0,
+      "description": "Code knowledge graph built with Tree-sitter. Parse, query, and navigate codebases through semantic relationships.",
+      "install": "npx -y code-graph-mcp",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "code-graph",
+        "tree-sitter",
+        "knowledge-graph",
+        "codebase-navigation",
+        "semantic"
+      ]
+    },
+    {
+      "id": "llm-box",
+      "name": "llm-box",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/alib8b8/llm-box",
+      "stars": 0,
+      "description": "Terminal-first workflow automation engine with MCP server mode. Generate and execute YAML workflows from plain English descriptions. 20+ built-in nodes, 15+ LLM providers.",
+      "install": "npm install -g llm-box",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "workflow",
+        "automation",
+        "mcp",
+        "terminal",
+        "yaml"
+      ]
+    },
+    {
+      "id": "agentservices",
+      "name": "AgentServices MCP",
+      "category": "Blockchain",
+      "github": "https://github.com/vbkotecha/aiservices-api",
+      "stars": 0,
+      "description": "Paid data APIs for AI agents \u2014 crypto prices, DeFi yields, on-chain analytics, whale tracking, market intelligence via x402 nanopayments",
+      "install": "Remote endpoint: https://agentservices.to/mcp",
+      "license": "MIT",
+      "verified": true,
+      "tags": [
+        "x402",
+        "crypto",
+        "defi",
+        "on-chain",
+        "market-data",
+        "payments",
+        "base",
+        "usdc"
+      ]
+    },
+    {
+      "id": "flujo",
+      "name": "FLUJO",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/mario-andreschak/FLUJO",
+      "stars": 595,
+      "description": "MCP-Hub and Inspector, Multi-Model Workflow and Chat Interface. Open-source local-first platform for building MCP-powered AI workflows with model management, visual flow builder, chat interface, and planned executions (cron, webhooks, file watch, MCP tool polling, URL watch)",
+      "install": "npx flujo-ai",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "mcp-hub",
+        "workflow",
+        "chat",
+        "visual-builder",
+        "orchestration",
+        "multi-model",
+        "automation",
+        "planned-executions"
+      ]
+    },
+    {
+      "id": "mcp-abap-abap-adt-api",
+      "name": "MCP ABAP ADT API",
+      "category": "DevOps",
+      "github": "https://github.com/mario-andreschak/mcp-abap-abap-adt-api",
+      "stars": 168,
+      "description": "MCP server wrapping abap-adt-api for SAP ABAP development workflows. Provides tools for object management, transport handling, code analysis, syntax checks, source code editing, and DDIC access",
+      "install": "npx -y mcp-abap-abap-adt-api",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "sap",
+        "abap",
+        "adt",
+        "erp",
+        "enterprise",
+        "development",
+        "transport"
+      ]
+    },
+    {
+      "id": "mcp-sap-gui",
+      "name": "MCP SAP GUI",
+      "category": "DevOps",
+      "github": "https://github.com/mario-andreschak/mcp-sap-gui",
+      "stars": 122,
+      "description": "MCP server for SAP GUI automation using simulated mouse clicks and keyboard input. Provides tools for launching transactions, clicking, typing, scrolling, and screenshot capture with multiple return formats",
+      "install": "git clone https://github.com/mario-andreschak/mcp-sap-gui.git && cd mcp-sap-gui && pip install -r requirements.txt",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "sap",
+        "gui",
+        "automation",
+        "erp",
+        "enterprise",
+        "screenshot",
+        "mouse-keyboard"
+      ]
+    },
+    {
+      "id": "mcp-windows-desktop-automation",
+      "name": "MCP Windows Desktop Automation",
+      "category": "DevOps",
+      "github": "https://github.com/mario-andreschak/mcp-windows-desktop-automation",
+      "stars": 114,
+      "description": "MCP server for Windows desktop automation using AutoIt via node-autoit-koffi. Wraps all AutoIt functions as MCP tools for mouse, keyboard, window management, control manipulation, process management, and screenshots",
+      "install": "npx -y mcp-windows-desktop-automation",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "windows",
+        "desktop",
+        "automation",
+        "autoit",
+        "mouse",
+        "keyboard",
+        "gui"
+      ]
+    },
+    {
+      "id": "mcp-image-recognition",
+      "name": "MCP Image Recognition",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/mario-andreschak/mcp-image-recognition",
+      "stars": 39,
+      "description": "MCP server providing image recognition via Anthropic Claude Vision and OpenAI GPT-4 Vision APIs. Supports multiple image formats, configurable primary/fallback providers, base64 and file input, and optional Tesseract OCR text extraction",
+      "install": "git clone https://github.com/mario-andreschak/mcp-image-recognition.git && cd mcp-image-recognition && pip install -r requirements.txt",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "image-recognition",
+        "vision",
+        "anthropic",
+        "openai",
+        "ocr",
+        "computer-vision",
+        "image-analysis"
+      ]
+    },
+    {
+      "id": "mcp-veo2",
+      "name": "MCP Veo2 Video Generation",
+      "category": "Design",
+      "github": "https://github.com/mario-andreschak/mcp-veo2",
+      "stars": 33,
+      "description": "MCP server for video and image generation using Google Veo2. Generate videos from text prompts or images, access generated videos through MCP resources, with support for aspect ratio, duration, and prompt enhancement",
+      "install": "npx -y mcp-veo2",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "video-generation",
+        "image-generation",
+        "google",
+        "veo2",
+        "ai-video",
+        "creative"
+      ]
+    },
+    {
+      "id": "mcp-whatsapp-web",
+      "name": "MCP WhatsApp Web",
+      "category": "Communication",
+      "github": "https://github.com/mario-andreschak/mcp-whatsapp-web",
+      "stars": 16,
+      "description": "MCP server for WhatsApp Web. Search and read personal messages, search contacts, send messages to individuals or groups, send and receive media files via whatsapp-web.js. Supports stdio and Streamable HTTP transports with OAuth",
+      "install": "npx -y mcp-whatsapp-web",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "whatsapp",
+        "messaging",
+        "chat",
+        "media",
+        "contacts",
+        "communication"
+      ]
+    },
+    {
+      "id": "mcp-reasoning-coding",
+      "name": "MCP Reasoning Coder",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/mario-andreschak/mcp-reasoning-coding",
+      "stars": 14,
+      "description": "MCP server providing flexible two-stage reasoning and response generation. Configurable reasoning and coding models across OpenRouter, OpenAI, Anthropic, DeepSeek, Gemini, and Vertex AI with conversation history and response polling",
+      "install": "npx -y @smithery/cli install @mario-andreschak/mcp-reasoning-coding --client claude",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "reasoning",
+        "two-stage",
+        "multi-provider",
+        "code-generation",
+        "thinking",
+        "chain-of-thought"
+      ]
+    },
+    {
+      "id": "find-mcp",
+      "name": "Find MCP",
+      "category": "Search",
+      "github": "https://github.com/agentage/find-mcp",
+      "stars": 2,
+      "description": "MCP server for discovering other MCP servers. Searches 17,000+ servers synced from the official MCP registry via remote Streamable HTTP (catalog.agentage.io/mcp, no auth for search) or stdio (npx @agentage/find-mcp)",
+      "install": "npx -y @agentage/find-mcp",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "mcp",
+        "search",
+        "discovery",
+        "registry",
+        "catalog"
+      ]
+    },
+    {
+      "id": "nexus-mcp",
+      "name": "Nexus-MCP",
+      "category": "Developer Tools",
+      "github": "https://github.com/jaggernaut007/nexus-mcp",
+      "stars": 0,
+      "description": "Unified local MCP server with hybrid search, code graph, and semantic memory. 15 tools, under 350MB RAM, no API keys required. Supports 25+ languages.",
+      "install": "uvx nexus-mcp",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "code-intelligence",
+        "hybrid-search",
+        "semantic-memory",
+        "local-first",
+        "code-graph"
+      ]
+    },
+    {
+      "id": "cve-mcp-server",
+      "name": "CVE MCP Server",
+      "category": "Security",
+      "github": "https://github.com/mukul975/cve-mcp-server",
+      "stars": 952,
+      "description": "Production-grade security intelligence MCP server with 27 tools across 21 APIs. CVE lookup, EPSS scoring, CISA KEV, MITRE ATT&CK, Shodan, VirusTotal integration.",
+      "install": "uvx cve-mcp-server",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "security",
+        "CVE",
+        "vulnerability",
+        "threat-intelligence",
+        "MITRE",
+        "Shodan"
+      ]
+    },
+    {
+      "id": "stash-memory",
+      "name": "Stash",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/alash3al/stash",
+      "stars": 710,
+      "description": "Persistent memory layer for AI agents. Episodes, facts, and working context stored in Postgres with MCP server. Self-hosted, single binary.",
+      "install": "go install github.com/alash3al/stash@latest",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "memory",
+        "persistence",
+        "postgres",
+        "agent-memory",
+        "self-hosted"
+      ]
+    },
+    {
+      "id": "pentest-ai",
+      "name": "Pentest AI",
+      "category": "Security",
+      "github": "https://github.com/0xSteph/pentest-ai",
+      "stars": 598,
+      "description": "Offensive-security MCP server with 205 wrapped tools, 17 specialist agents, and 60 SPA-aware probes for OWASP Top 10. CLI and MCP modes.",
+      "install": "pip install pentest-ai",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "pentesting",
+        "security",
+        "OWASP",
+        "offensive-security",
+        "vulnerability-scanning"
+      ]
+    },
+    {
+      "id": "design-extract",
+      "name": "Design Extract",
+      "category": "Developer Tools",
+      "github": "https://github.com/Manavarya09/design-extract",
+      "stars": 3074,
+      "description": "Extract any website's complete design system. DTCG tokens, semantic+primitive+composite. Multi-platform emitters for iOS SwiftUI, Android Compose, Flutter, and Tailwind v4.",
+      "install": "npx design-extract-mcp",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "design-system",
+        "extraction",
+        "tokens",
+        "DTCG",
+        "cross-platform"
+      ]
+    },
+    {
+      "id": "orcareplay",
+      "name": "OrcaReplay",
+      "category": "Developer Tools",
+      "github": "https://github.com/Continuum-AI-Corp/OrcaReplay",
+      "stars": 260,
+      "description": "Read an agent's own recorded runs: walk the timeline, ask what happened at a step, replay offline with no model call",
+      "install": "npm i -g orcareplay",
+      "license": "Apache-2.0",
+      "verified": false,
+      "tags": [
+        "replay",
+        "debugging",
+        "observability",
+        "coding-agents",
+        "offline"
+      ]
+    },
+    {
+      "id": "anysearch-mcp",
+      "name": "AnySearch MCP",
+      "category": "Search",
+      "github": "https://github.com/anysearch-ai/anysearch-mcp-server",
+      "stars": 1023,
+      "description": "Unified real-time search engine for AI agents. One MCP server for multiple search providers including web, academic, and code search.",
+      "install": "npx anysearch-mcp-server",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "search",
+        "web-search",
+        "unified-search",
+        "multi-provider"
+      ]
+    },
+    {
+      "id": "agent-toolkit-aws",
+      "name": "AWS Agent Toolkit",
+      "category": "Cloud Platforms",
+      "github": "https://github.com/aws/agent-toolkit-for-aws",
+      "stars": 803,
+      "description": "Official AWS-supported MCP servers, skills, and plugins to help AI agents build on AWS. Covers S3, Lambda, DynamoDB, CloudFormation, and more.",
+      "install": "pip install aws-agent-toolkit",
+      "license": "Apache-2.0",
+      "verified": true,
+      "tags": [
+        "AWS",
+        "cloud",
+        "infrastructure",
+        "serverless",
+        "official"
+      ]
+    },
+    {
+      "id": "mcp-context-server",
+      "name": "MCP Context Server",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/alex-feel/mcp-context-server",
+      "stars": 0,
+      "description": "High-performance MCP server for persistent multimodal context storage. Thread-based scoping for multi-agent collaboration. 13 tools including semantic and hybrid search.",
+      "install": "pip install mcp-context-server",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "context",
+        "memory",
+        "multi-agent",
+        "semantic-search",
+        "persistence"
+      ]
+    },
+    {
+      "id": "mcp-trendpulse",
+      "name": "TrendPulse MCP",
+      "category": "Search",
+      "github": "https://github.com/AKzar1el/mcp-trendpulse",
+      "stars": 1,
+      "description": "Connect AI models to Google News RSS feeds and Google Trends analytics. Historical interest curves, growth rates, trending queries, and NLP summarization.",
+      "install": "uvx mcp-trendpulse",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "google-trends",
+        "news",
+        "analytics",
+        "trending",
+        "NLP"
+      ]
+    },
+    {
+      "id": "vend-api-merchant",
+      "name": "Vend API Merchant",
+      "category": "Search",
+      "github": "https://github.com/PANDeveloper001/vend",
+      "stars": 0,
+      "description": "Pay-per-call web search, extract and web-data tools for AI agents, settled in Nano (XNO) via x402 - no signup, no API key",
+      "install": "https://extract.paypercall.dev/mcp",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "web-search",
+        "extract",
+        "web-data",
+        "x402",
+        "nano",
+        "pay-per-call"
+      ]
+    },
+    {
+      "id": "inside-ads",
+      "name": "Inside Ads",
+      "category": "Marketing",
+      "github": "https://inside.ad",
+      "stars": 0,
+      "description": "Telegram ad exchange MCP: estimate reach and cost with no account, then create and run campaigns. Official registry id ad.inside/inside-ads.",
+      "install": "Remote MCP https://app.inside.ad/api/mcp (streamable HTTP)",
+      "license": "N/A",
+      "verified": true,
+      "tags": [
+        "ads",
+        "telegram",
+        "marketing",
+        "remote-mcp"
+      ]
+    },
+    {
+      "id": "actwise-ideation",
+      "name": "Actwise Ideation",
+      "category": "AI & Machine Learning",
+      "github": "https://actwise.ai/home/ideation",
+      "stars": 0,
+      "description": "Helps founders benchmark startup and product ideas before they build. Official registry id ai.actwise/ideation.",
+      "install": "Remote MCP https://actwise.ai/ideation/mcp/v1 (streamable HTTP)",
+      "license": "N/A",
+      "verified": true,
+      "tags": [
+        "ideation",
+        "startups",
+        "benchmarking",
+        "remote-mcp"
+      ]
+    },
+    {
+      "id": "android-remote-control-mcp",
+      "name": "Android Remote Control MCP",
+      "category": "Mobile",
+      "github": "https://github.com/danielealbano/android-remote-control-mcp",
+      "stars": 529,
+      "description": "On-device Android MCP server (57 tools) for UI control, screenshots, files, apps, and gestures. Install the APK, then point .mcp.json at http://DEVICE_IP:PORT/mcp.",
+      "install": "adb install android-remote-control-mcp-<version>-gms-release.apk",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "android",
+        "mobile",
+        "remote-control",
+        "accessibility"
+      ]
+    },
+    {
+      "id": "animica-mcp",
+      "name": "Animica MCP",
+      "category": "Blockchain",
+      "github": "https://github.com/animicaorg/animica-mcp",
+      "stars": 0,
+      "description": "Read-only chain data, balances and mining stats for the Animica post-quantum L1, free OpenAI-compatible inference, a verifiable quantum randomness beacon and the x402 paid-API catalog; no private keys",
+      "install": "uvx animica-mcp",
+      "license": "Apache-2.0",
+      "verified": false,
+      "tags": [
+        "blockchain",
+        "post-quantum",
+        "inference",
+        "randomness",
+        "x402"
+      ]
+    },
+    {
+      "id": "sandbase-cli",
+      "name": "SandBase CLI",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/sandbaseai/cli",
+      "stars": 66,
+      "description": "Open-source CLI and local MCP bridge for discovering and running requests across 2,000+ AI models and APIs, with OAuth and ownership-aware client setup.",
+      "install": "npx -y https://github.com/sandbaseai/cli/releases/download/v0.1.17/sandbaseai-cli-0.1.17.tgz mcp-bridge --client claude-desktop",
+      "license": "Apache-2.0",
+      "verified": false,
+      "tags": [
+        "ai-models",
+        "mcp",
+        "cli",
+        "model-routing",
+        "oauth"
+      ]
+    },
+    {
+      "id": "sandbase-harness",
+      "name": "SandBase Harness",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/sandbaseai/sandbase-harness",
+      "stars": 639,
+      "description": "Self-hosted agent runtime with durable sessions, sandboxed execution, MCP tools, approvals, artifacts, audit, and replay.",
+      "install": "docker run --rm -i -e MANAGED_AGENTS_URL=http://host.docker.internal:3000 ghcr.io/sandbaseai/sandbase-harness-mcp:0.3.8",
+      "license": "Apache-2.0",
+      "verified": false,
+      "tags": [
+        "agent-runtime",
+        "mcp",
+        "sandbox",
+        "sessions",
+        "audit",
+        "self-hosted"
+      ]
+    },
+    {
+      "id": "mnemoverse",
+      "name": "Mnemoverse Memory",
+      "category": "AI & Machine Learning",
+      "github": "https://github.com/mnemoverse/mcp-memory-server",
+      "stars": 21,
+      "description": "Hosted persistent memory over MCP: recall is re-ranked by feedback on whether a memory helped, unused memories decay by recency, one key shared across Claude Code, Cursor, VS Code and ChatGPT",
+      "install": "npx -y @mnemoverse/mcp-memory-server",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "memory",
+        "persistent-memory",
+        "cross-tool",
+        "mcp-server",
+        "hosted"
+      ]
+    },
+    {
+      "id": "term-forum-mcp",
+      "name": "TERM (signed agent community MCP)",
+      "category": "Agent Orchestration",
+      "github": "https://github.com/break-the-build/term-client",
+      "stars": 1,
+      "description": "Signed forum where agents read anonymously and write with self-owned Ed25519 identity: briefings, open-work feed, scored challenges with reproducible verdicts, karma (46 tools)",
+      "install": "claude mcp add --transport http term https://api.term.app/mcp",
+      "license": "MIT",
+      "remote": "streamable-http",
+      "verified": false,
+      "tags": [
+        "agents",
+        "forum",
+        "community",
+        "identity"
+      ]
+    },
+    {
+      "id": "agent-black-hole",
+      "name": "Agent Black Hole",
+      "category": "Agent Orchestration",
+      "github": "https://agent-harbour.fly.dev/",
+      "website": "https://agent-harbour.fly.dev/",
+      "stars": 0,
+      "description": "Voluntary fly-trap registry: POST /api/register for Callsign JWT, declare skills, answer GET /api/wanted. See llms.txt.",
+      "install": "Remote MCP https://agent-harbour.fly.dev/mcp (streamable HTTP); also read https://agent-harbour.fly.dev/llms.txt then POST /api/register",
+      "license": "N/A",
+      "verified": true,
+      "tags": [
+        "registry",
+        "discovery",
+        "harbour",
+        "wanted",
+        "callsign",
+        "agent-card"
+      ]
+    },
+    {
+      "id": "sendraven-mcp",
+      "name": "SendRaven MCP",
+      "category": "Communication",
+      "github": "https://github.com/CommonNinja/sendraven-mcp-server",
+      "website": "https://sendraven.ai/mcp",
+      "stars": 1,
+      "description": "Email for AI agents: send email, read replies as threads, and reply in context, with per-key send limits and approvals. Requires a SendRaven account.",
+      "install": "npx -y @sendraven/mcp (env SENDRAVEN_API_KEY); or remote https://mcp.sendraven.ai/mcp (streamable HTTP, OAuth)",
+      "license": "MIT",
+      "verified": false,
+      "tags": [
+        "email",
+        "inbound",
+        "threads",
+        "approvals",
+        "transactional-email"
+      ]
+    },
+    {
+      "id": "statsnet",
+      "name": "Statsnet MCP",
+      "category": "Research & Data",
+      "github": "https://github.com/usenetstate/statsnet-mcp",
+      "stars": 0,
+      "description": "Background check any company in the world: registration, executives, courts and finances",
+      "install": "Remote MCP: https://statsnet.co/mcp (Registry: io.github.usenetstate/statsnet)",
+      "license": "Proprietary",
+      "verified": false,
+      "tags": [
+        "company",
+        "osint",
+        "background-check",
+        "remote",
+        "enrichment"
+      ]
+    }
+  ]
+}

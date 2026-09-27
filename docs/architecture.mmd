@@ -1,6 +1,13 @@
 flowchart LR
     User["User (Chat / Voice / WebUI / CLI)"] --> Assistant["Living Assistant Core"]
 
+    subgraph LLM_Routing["Model Inference Routing"]
+        Assistant --> ModelManager["Model Manager"]
+        ModelManager --> Ollama["Ollama (Local Fallback)"]
+        ModelManager --> AirLLM["AirLLM (Layer Streaming)"]
+        ModelManager --> LiteLLM["Universal API / LiteLLM (OpenAI, Claude, Collibri)"]
+    end
+
     subgraph CustomSkills["Custom Skills System (FEAT-19)"]
         SkillCreator["Skill Creator"] --> SkillPackages["Skill Packages\n(manifest.json + SKILL.md)"]
         SkillPackages --> SkillGuard["Permission Guard & Snapshots"]
@@ -15,6 +22,11 @@ flowchart LR
         AgentExecutor --> ScopedMemory["Scoped Memory\n(Working, Notes, Knowledge)"]
     end
 
+    subgraph Isolation["Secure Execution Boundary (FEAT-21)"]
+        Assistant --> IsolatedExecutor["Isolated Subprocess Executor"]
+        IsolatedExecutor --> ComplexTools["Complex Tools\n(Browser-Use, OpenViking, Edge0)"]
+    end
+
     Assistant --> SkillCreator
     Assistant --> SkillExecutor
     Assistant --> AgentCreator
@@ -22,3 +34,4 @@ flowchart LR
 
     ToolAdapters --> Host["Host System & Workspaces"]
     AgentExecutor --> ToolAdapters
+    ComplexTools --> Host

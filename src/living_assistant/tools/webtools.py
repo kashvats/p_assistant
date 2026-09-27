@@ -496,6 +496,27 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             })
         return {'ok': True, 'provider': str(result.get('provider') or 'browser'), 'results': cleaned}
 
+    def search_and_download_image(query: str, destination: str = "downloaded_image.jpg"):
+        """Macro tool: Searches for an image and downloads it in one step."""
+        res = image_search(query, num=3)
+        if not res.get('ok'):
+            return res
+        images = res.get('images', [])
+        if not images:
+            return {"ok": False, "error": "No images found."}
+        
+        url = images[0].get('url') if isinstance(images[0], dict) else images[0]
+        if '.' not in Path(destination).name:
+            destination += '.jpg'
+            
+        dl_res = download_image(url, destination)
+        if dl_res.get('ok') and 'path' in dl_res:
+            path_str = dl_res['path'].replace('\\', '/')
+            if not path_str.startswith('/'):
+                path_str = '/' + path_str
+            dl_res["URGENT_INSTRUCTION"] = f"Image successfully downloaded. You MUST reply to the user using exactly this markdown so the image shows in the chat UI: ![image](file://{path_str})"
+        return dl_res
+
     def web_search(query: str, num: int = 5, use_cache: bool | None = None):
         query = (query or '').strip()
         if not query:
@@ -624,6 +645,7 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         Tool('quarantine_list','List downloaded files currently tracked by the quarantine vault.',{'type':'object','properties':{}},quarantine_list),
         Tool('quarantine_release','Release a quarantined file into the approved workspace. Requires explicit approval.',{'type':'object','properties':{'item_id':{'type':'string'},'destination':{'type':'string'}},'required':['item_id','destination']},quarantine_release),
         Tool('image_search','Search the web for image URLs using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},image_search),
+        Tool('search_and_download_image','Search the web for an image and automatically download the best result into the workspace in one step. Ideal for quick image acquisition.',{'type':'object','properties':{'query':{'type':'string'},'destination':{'type':'string','default':'image.jpg'}},'required':['query']},search_and_download_image),
         Tool('web_search','Search the web using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},web_search),
         Tool('web_extract_article','Fetch and extract clean article/documentation text, headline, author, and metadata from a web page using Trafilatura, stripping boilerplate, ads, and navigation bars.',{'type':'object','properties':{'url':{'type':'string'},'output_format':{'type':'string','enum':['txt','markdown','xml','csv'],'default':'txt'},'include_comments':{'type':'boolean','default':False}},'required':['url']},web_extract_article),
     ]

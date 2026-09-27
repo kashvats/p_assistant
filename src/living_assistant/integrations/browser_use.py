@@ -420,8 +420,10 @@ class BrowserUseAdapter:
     # ------------------------------------------------------------------
 
     def run(self, task: str, *, timeout_seconds: float = 120) -> dict[str, Any]:
-        """Run one bounded Browser Use task and return only JSON-like data."""
-
+        """Run one bounded Browser Use task via bulletproof Subprocess Isolation."""
+        from living_assistant.core.isolated_executor import run_isolated_tool
+        import json
+        
         task = str(task or "").strip()
         timeout = max(1.0, float(timeout_seconds))
 
@@ -444,11 +446,37 @@ class BrowserUseAdapter:
 
         try:
             remaining = max(1.0, timeout - (time.monotonic() - started))
-            try:
-                result = self._run_coroutine_factory(lambda: self._execute(task, remaining))
-            except Exception as exc:
-                return {"ok": False, "error": self._safe_error(exc, 2000)}
+            
+            # The script imports this very class, but IN A SUBPROCESS,
+            # bypassing _run_coroutine_factory and executing safely.
+            script = f"""
+import sys
+import json
+import asyncio
 
+# Prevent the subprocess from infinitely recurring into run_isolated_tool
+from living_assistant.integrations.browser_use import BrowserUseAdapter
+
+adapter = BrowserUseAdapter(
+    repository_path={repr(str(self.repository_path))},
+    ollama_url={repr(self.ollama_url)},
+    model={repr(self.model)},
+    max_steps={self.max_steps},
+    max_failures={self.max_failures},
+    use_vision={self.use_vision},
+    use_thinking={self.use_thinking},
+    use_judge={self.use_judge},
+)
+
+# We call _execute directly in the isolated subprocess event loop
+try:
+    result = asyncio.run(adapter._execute({repr(task)}, {remaining}))
+    print(json.dumps(result))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": str(e)}}))
+"""
+            result = run_isolated_tool(script, timeout=remaining)
+            
             # Preserve all legacy keys relied on by the current tool boundary.
             result.setdefault("task", task)
             result.setdefault("answer", "")

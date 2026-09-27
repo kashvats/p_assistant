@@ -22,6 +22,8 @@ dependencies = [
   "watchdog>=6,<7",
   "apscheduler>=3.10,<4",
   "trafilatura>=2,<3",
+  "hermes-agent>=0.19.0,<1",
+  "litellm>=1.0,<2",
 ]
 [project.optional-dependencies]
 desktop = [

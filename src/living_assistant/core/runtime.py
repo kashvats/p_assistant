@@ -13,7 +13,7 @@ from living_assistant.system.hardware import detect_hardware, choose_profile
 from living_assistant.core.workspace import Workspace
 from living_assistant.core.approval import ApprovalManager, ApprovalStore
 from living_assistant.core.memory import MemoryStore
-from living_assistant.core.model_provider import AirLLMProvider, CompositeModelProvider, OllamaProvider, ModelManager
+from living_assistant.core.model_provider import AirLLMProvider, CompositeModelProvider, LiteLLMProvider, OllamaProvider, ModelManager
 from living_assistant.agents.agents import SpecialistRouter
 from living_assistant.agents.orchestrator import Orchestrator
 from living_assistant.system.watchers import WatchRegistry
@@ -234,6 +234,13 @@ def build_runtime(interactive: bool = True) -> Runtime:
         base_url=ocfg['base_url'], allow_remote=bool(ocfg.get('allow_remote',False)),
         allow_insecure_remote=bool(ocfg.get('allow_insecure_remote',False)),
     )
+    litellm_cfg=cfg.get('litellm',{})
+    litellm_provider=None
+    if bool(litellm_cfg.get('enabled',False)):
+        litellm_provider=LiteLLMProvider(
+            base_url=str(litellm_cfg.get('base_url','http://127.0.0.1:8080/v1')),
+            api_key=str(litellm_cfg.get('api_key','dummy')),
+        )
     aircfg=cfg.get('airllm',{})
     configured_airllm=[]
     for profile_cfg in cfg.get('profiles',{}).values():
@@ -253,7 +260,10 @@ def build_runtime(interactive: bool = True) -> Runtime:
             max_input_tokens=int(aircfg.get('max_input_tokens',8192)),
             max_new_tokens=int(aircfg.get('max_new_tokens',512)),
         )
-        provider=CompositeModelProvider(ollama_provider,airllm_provider)
+        provider=CompositeModelProvider(ollama_provider,airllm_provider,litellm_provider=litellm_provider)
+    elif litellm_provider is not None:
+        airllm_provider=AirLLMProvider()
+        provider=CompositeModelProvider(ollama_provider,airllm_provider,litellm_provider=litellm_provider)
     else:
         provider=ollama_provider
     mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
@@ -511,6 +521,14 @@ def build_runtime(interactive: bool = True) -> Runtime:
         memory=memory,
     )
     tool_registry.extend(build_scheduler_tools(scheduler))
+
+    from living_assistant.tools.base import Tool
+    tool_registry.extend([Tool(
+        name="system_metabolize",
+        description="Clear unused AI models from memory (VRAM) and garbage collect RAM. Use this if the system feels slow or if you encounter OOM/memory errors.",
+        parameters={},
+        handler=lambda **kwargs: resource_manager.metabolize(),
+    )])
 
     tools=tool_registry.all()
 

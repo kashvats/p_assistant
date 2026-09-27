@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
-import sys
-import threading
+import json
 from pathlib import Path
 from typing import Any
+
+from living_assistant.core.isolated_executor import run_isolated_tool
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +15,9 @@ _UNAVAILABLE = (
 )
 
 class Edge0Adapter:
-    """Production boundary around Edge0 local model execution pipelines."""
-
-    _import_lock = threading.RLock()
+    """Production boundary around Edge0 local model execution pipelines.
+    Uses subprocess isolation to prevent sys.path and global state corruption.
+    """
 
     def __init__(
         self,
@@ -25,60 +25,65 @@ class Edge0Adapter:
         timeout: float = 30.0,
     ) -> None:
         self._timeout = timeout
-        self._path = Path(path).expanduser().resolve() if path else None
+        self._path = str(Path(path).expanduser().resolve()) if path else ""
 
-    def _sdk(self):
-        with self._import_lock:
-            candidates: list[Path] = []
-            if self._path:
-                candidates.extend([self._path / "src", self._path])
-            default_loc = Path("external-components/edge0/src").resolve()
-            if default_loc.is_dir():
-                candidates.append(default_loc)
-
-            for cand in candidates:
-                cand_str = str(cand)
-                if cand.is_dir() and cand_str not in sys.path:
-                    sys.path.insert(0, cand_str)
-
-            try:
-                import edge0
-                return edge0
-            except ImportError:
-                raise RuntimeError(_UNAVAILABLE)
+    def _build_preamble(self) -> str:
+        """Sets up sys.path exclusively inside the subprocess."""
+        return f"""
+import sys
+import json
+path = {repr(self._path)}
+if path:
+    sys.path.insert(0, path + '/src')
+    sys.path.insert(0, path)
+sys.path.insert(0, 'external-components/edge0/src')
+sys.path.insert(0, 'external-components/edge0')
+"""
 
     def list_models(self) -> dict[str, Any]:
         """List available Edge0 quantized models."""
-        try:
-            edge0 = self._sdk()
-            # If registry has a method to list models
-            if hasattr(edge0, "registry") and hasattr(edge0.registry, "list_models"):
-                models = edge0.registry.list_models()
-                return {"ok": True, "models": models}
-            return {"ok": True, "models": ["edge0-35b"]}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + """
+try:
+    import edge0
+    models = ["edge0-35b"]
+    if hasattr(edge0, "registry") and hasattr(edge0.registry, "list_models"):
+        models = edge0.registry.list_models()
+    print(json.dumps({"ok": True, "models": models}))
+except ImportError:
+    print(json.dumps({"ok": False, "error": "Edge0 SDK not found."}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": str(e)}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def generate(self, model: str, prompt: str, max_tokens: int = 100) -> dict[str, Any]:
         """Generate text using an Edge0 model."""
-        try:
-            edge0 = self._sdk()
-            engine = edge0.AutoEngine.from_pretrained(model)
-            if not hasattr(engine, "generate"):
-                return {"ok": False, "error": f"Edge0 engine for '{model}' does not expose a generate() method"}
-            result = engine.generate(prompt, max_tokens=max_tokens)
-            return {"ok": True, "text": str(result)}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + f"""
+try:
+    import edge0
+    engine = edge0.AutoEngine.from_pretrained({repr(model)})
+    if not hasattr(engine, "generate"):
+        print(json.dumps({{"ok": False, "error": "Edge0 engine does not expose generate()"}}))
+    else:
+        result = engine.generate({repr(prompt)}, max_tokens={max_tokens})
+        print(json.dumps({{"ok": True, "text": str(result)}}))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": str(e)}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def chat(self, model: str, messages: list[dict[str, str]]) -> dict[str, Any]:
         """Chat with an Edge0 model."""
-        try:
-            edge0 = self._sdk()
-            engine = edge0.AutoEngine.from_pretrained(model)
-            if not hasattr(engine, "chat"):
-                return {"ok": False, "error": f"Edge0 engine for '{model}' does not expose a chat() method"}
-            result = engine.chat(messages)
-            return {"ok": True, "text": str(result)}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        script = self._build_preamble() + f"""
+try:
+    import edge0
+    engine = edge0.AutoEngine.from_pretrained({repr(model)})
+    if not hasattr(engine, "chat"):
+        print(json.dumps({{"ok": False, "error": "Edge0 engine does not expose chat()"}}))
+    else:
+        result = engine.chat({json.dumps(messages)})
+        print(json.dumps({{"ok": True, "text": str(result)}}))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": str(e)}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)

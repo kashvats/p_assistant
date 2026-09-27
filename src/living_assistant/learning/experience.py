@@ -300,6 +300,9 @@ class ExperienceEngine:
             return ''
         # Jev filter: only inject Exact Match lessons into AirLLM context.
         # This prevents context bloat that degrades accuracy on heavy local models.
+        # Exception: automatic recovery_candidates that have already been promoted to
+        # 'active' via repeated observation skip the Jev gate — they have already
+        # earned their promotion through evidence and must reach the model.
         jev_filtered = []
         for item in candidates:
             trusted = bool(item.get('user_confirmed') or item.get('verified'))
@@ -310,10 +313,15 @@ class ExperienceEngine:
             )
             if not trusted and not automatic:
                 continue
-            is_exact, conf = self.jev.is_lesson_relevant(item, query)
-            if is_exact or (trusted and conf >= 0.60):
-                item['jev_relevance'] = conf
+            if automatic:
+                # Already promoted through repeated evidence — no second Jev gate.
+                item['jev_relevance'] = 1.0
                 jev_filtered.append(item)
+            else:
+                is_exact, conf = self.jev.is_lesson_relevant(item, query)
+                if is_exact or (trusted and conf >= 0.60):
+                    item['jev_relevance'] = conf
+                    jev_filtered.append(item)
             if len(jev_filtered) >= limit:
                 break
         if not jev_filtered:

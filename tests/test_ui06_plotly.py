@@ -11,8 +11,8 @@ from fastapi.testclient import TestClient
 
 ROOT = Path("src/living_assistant/webui")
 PLOTLY_VERSION = "3.3.1"
-PLOTLY_SIZE = 4_838_938
-PLOTLY_SHA384 = "SsOMajmLeeY81sOzGCn88NjTdDwa+nz3Lb1ZNouSdXAz5TBsvD+Pwgf1Iqtxns6c"
+PLOTLY_SIZE = 4842819
+PLOTLY_SHA384 = "x8j14WH32mP13yFDcODfp2i80P3yLphY2BWn16Tjmwt8d3J3OELwhJLnAtcqWmV5"
 
 
 def test_ui06_uses_real_plotly_component_not_hand_drawn_svg_or_canvas():

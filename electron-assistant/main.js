@@ -30,8 +30,8 @@ function createTray() {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 112,
-    height: 112,
+    width: 100,
+    height: 100,
     x: 50,
     y: 50,
     frame: false,
@@ -71,10 +71,20 @@ ipcMain.handle('companion-show', () => {
   return Boolean(BrowserWindow.getAllWindows()[0])
 })
 
+ipcMain.handle('companion-ignore-mouse', (_event, ignore) => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return false
+  win.setIgnoreMouseEvents(Boolean(ignore), { forward: true })
+  return true
+})
+
 ipcMain.handle('companion-size', (_event, expanded) => {
   const win = BrowserWindow.getAllWindows()[0]
   if (!win) return false
-  win.setSize(expanded ? 410 : 112, expanded ? 650 : 112, true)
+  win.setSize(expanded ? 880 : 100, expanded ? 620 : 100, true)
+  if (expanded) {
+    win.setIgnoreMouseEvents(false)
+  }
   return true
 })
 

@@ -39,6 +39,65 @@ ROUTING_RESULT_CHARS = 8_000
 # complete registered tool catalog if the initial retrieval missed a capability.
 TOOL_DISCOVERY_NAME = "tool_catalog_search"
 
+# Maximum times the same (tool_name, args_fingerprint) pair may be called across
+# steps within a single run. Exceeding this limit causes the orchestrator to inject
+# a hard stop message instead of burning more context on a provably stuck loop.
+LOOP_REPEAT_LIMIT = 3
+
+# Minimum non-empty content length required for the Jev loop-breaker to accept an
+# early exit. This prevents the breaker from firing before the model has synthesized
+# its final answer (which arrives in a later chunk/step with no tool_calls).
+LOOP_BREAK_MIN_CONTENT_CHARS = 20
+
+
+@dataclass
+class TaskState:
+    """Tracks per-run state: tool call history for loop detection and claim provenance.
+
+    This is internal to each ``run()`` / ``run_stream()`` invocation and is never
+    persisted. It provides the raw data for anti-loop enforcement and structured
+    result auditing without requiring a database or external service.
+    """
+
+    # Fingerprint -> call count across ALL steps of this run.
+    _call_counts: dict[str, int] = None  # type: ignore[assignment]
+    # Ordered sequence of (step, tool_name, ok, result_summary) tuples.
+    _audit_trail: list[tuple[int, str, bool, str]] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self._call_counts is None:
+            self._call_counts = {}
+        if self._audit_trail is None:
+            self._audit_trail = []
+
+    @staticmethod
+    def _fingerprint(tool_name: str, args: dict) -> str:
+        """Stable, bounded fingerprint of a (tool, args) pair."""
+        try:
+            canonical = json.dumps(args, sort_keys=True, default=str)[:2000]
+        except Exception:
+            canonical = str(args)[:2000]
+        return f"{tool_name}::{canonical}"
+
+    def record_call(self, step: int, tool_name: str, args: dict, ok: bool, result_summary: str) -> int:
+        """Record a tool call and return the updated call count for this fingerprint."""
+        fp = self._fingerprint(tool_name, args)
+        self._call_counts[fp] = self._call_counts.get(fp, 0) + 1
+        self._audit_trail.append((step, tool_name, ok, result_summary[:500]))
+        return self._call_counts[fp]
+
+    def is_stuck(self, tool_name: str, args: dict) -> bool:
+        """Return True if this (tool, args) pair has been called too many times."""
+        fp = self._fingerprint(tool_name, args)
+        return self._call_counts.get(fp, 0) >= LOOP_REPEAT_LIMIT
+
+    def audit_summary(self, last_n: int = 6) -> list[str]:
+        """Return a human-readable summary of the last N tool calls for Jev."""
+        tail = self._audit_trail[-last_n:]
+        return [
+            f"{tool} ({'ok' if ok else 'err'}): {summary}"
+            for _, tool, ok, summary in tail
+        ]
 
 @dataclass(frozen=True)
 class _ToolDocument:
@@ -391,6 +450,7 @@ class Orchestrator:
                                 "security",
                                 "database",
                                 "planner",
+                                "contractor",
                             ],
                         },
                         "task": {"type": "string"},
@@ -536,7 +596,7 @@ class Orchestrator:
             if part
         )
 
-        # Use Jev System One primitive to instantly score tool relevance
+        # 1. Use Jev System One primitive to instantly score tool relevance
         scored_tools = []
         for name, tool in self.tools.items():
             if name == TOOL_DISCOVERY_NAME:
@@ -552,28 +612,29 @@ class Orchestrator:
             score_val = 0
             if level == "Highly Relevant": score_val = 2
             elif level == "Maybe": score_val = 1
+            # Irrelevant yields score_val = 0
 
             final_score = score_val + conf
             scored_tools.append((final_score, name))
             logger.debug("[Tool routing] %s: level=%s conf=%.2f score=%.2f", name, level, conf, final_score)
 
-        # Sort by Jev score descending and take the top ones
+        # Sort by Jev score descending
         scored_tools.sort(reverse=True)
-        names = [name for score, name in scored_tools[:INITIAL_TOOL_LIMIT] if score > 0.5]
-        logger.info("[Tool routing] Selected %d tools from Jev scoring: %s", len(names), names)
+        # Only take tools that Jev genuinely thought were Maybe or Highly Relevant
+        # (score_val >= 1 means final_score > 1.0)
+        jev_names = [name for score, name in scored_tools if score >= 1.0]
 
-        # Fallback to BM25 if Jev didn't find anything relevant
-        if not names:
-            logger.info("[Tool routing] Jev found no tools, falling back to BM25 search")
-            matches = self.tool_router.search(
-                route_query,
-                limit=INITIAL_TOOL_LIMIT,
-                exclude={TOOL_DISCOVERY_NAME},
-            )
-            names = [item["name"] for item in matches]
-            logger.info("[Tool routing] BM25 fallback selected: %s", names)
+        # 2. Mix in BM25 results to fill out the remaining slots
+        bm25_matches = self.tool_router.search(
+            route_query,
+            limit=INITIAL_TOOL_LIMIT,
+            exclude={TOOL_DISCOVERY_NAME},
+        )
+        bm25_names = [item["name"] for item in bm25_matches]
 
-        # Catalog search is the only always-visible tool.
+        names = self._merge_tool_names(jev_names, bm25_names, self.tools, max_tools=INITIAL_TOOL_LIMIT)
+
+        # 3. Catalog search is the only always-visible tool.
         names = self._merge_tool_names(
             names,
             [TOOL_DISCOVERY_NAME],
@@ -868,11 +929,12 @@ class Orchestrator:
             + self._routing_context(active_tool_names)
         )
 
-        user_payload = user_text
+        user_payload = ""
         if prior:
-            user_payload += prior
+            user_payload += prior + "\n\n"
         if context:
-            user_payload += f"\n\nWorking context:\n{context}"
+            user_payload += f"Working context:\n{context}\n\n"
+        user_payload += f"[CURRENT REQUEST]\n{user_text}"
 
         messages = [
             {"role": "system", "content": system},
@@ -920,9 +982,11 @@ class Orchestrator:
                 ),
             }
         except Exception as exc:
+            from living_assistant.core.robust_parsers import get_robust_traceback
+            tb_str = get_robust_traceback(exc, max_chars=3000)
             return args, {
                 "ok": False,
-                "error": redact_secrets(exc, 2000),
+                "error": redact_secrets(f"{exc}\nRobust Traceback:\n{tb_str}", 4000),
             }
 
     @staticmethod
@@ -1006,6 +1070,7 @@ class Orchestrator:
         )
         history_project = project_hint or history_project
         trace: list[dict[str, Any]] = []
+        task_state = TaskState()
 
         self._publish(
             "tools.routed",
@@ -1075,6 +1140,40 @@ class Orchestrator:
                     name = fn.get("name")
                     args = fn.get("arguments") or {}
 
+                    # --- CROSS-STEP LOOP DETECTION ---
+                    # Reject calls that have exceeded the repeat limit before spending
+                    # a Jev inference call or invoking the actual handler.
+                    if name and task_state.is_stuck(name, args if isinstance(args, dict) else {}):
+                        result = {
+                            "ok": False,
+                            "error": (
+                                f"Loop detected: '{name}' with these arguments has been called "
+                                f"{LOOP_REPEAT_LIMIT} times already in this run. "
+                                "Stop repeating this call. Try a different approach or report "
+                                "the blocker in your final response."
+                            ),
+                        }
+                        logger.warning(
+                            "[Loop detection] Blocked repeated call to '%s' (count=%d)",
+                            name,
+                            LOOP_REPEAT_LIMIT,
+                        )
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_name": name,
+                                "content": self._serialized_tool_result(result),
+                            }
+                        )
+                        self._publish(
+                            "tool.loop_blocked",
+                            session_id=session_id,
+                            tool=name,
+                            run_id=run_id,
+                            step=step + 1,
+                        )
+                        continue
+
                     self._publish(
                         "tool.started",
                         session_id=session_id,
@@ -1084,20 +1183,26 @@ class Orchestrator:
                     )
 
                     # --- JEV SECURITY GATE ---
-                    is_safe_prob = self.jev.noul(
-                        context={"tool": name, "args": args},
-                        statement="This tool call and its arguments are completely safe and do not violate security policies."
-                    )
-                    if is_safe_prob < 0.5:
-                        result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
-                        self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
-                    else:
-                        args, result = self._execute_tool(
-                            name,
-                            args,
-                            session_id=session_id,
-                            run_id=run_id,
+                    # Only call Jev for tools that are actually registered to avoid
+                    # wasting inferences on hallucinated tool names.
+                    if name and name in self.tools:
+                        is_safe_prob = self.jev.noul(
+                            context={"tool": name, "args": args},
+                            statement="This tool call and its arguments are completely safe and do not violate security policies."
                         )
+                        if is_safe_prob < 0.5:
+                            result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
+                            self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
+                        else:
+                            args, result = self._execute_tool(
+                                name,
+                                args,
+                                session_id=session_id,
+                                run_id=run_id,
+                            )
+                    else:
+                        result = {"ok": False, "error": f"Unknown tool '{name}'. Use tool_catalog_search to find available capabilities."}
+                        logger.warning("[Tool execution] Model requested unknown tool: %s", name)
 
                     self._history_tool(
                         run_id,
@@ -1116,19 +1221,36 @@ class Orchestrator:
                         }
                     )
 
-                    ok_result = (
-                        bool(result.get("ok", True))
-                        if isinstance(result, dict)
-                        else True
-                    )
+                    ok_result = False
+                    ok_status = "error"
+                    if isinstance(result, dict):
+                        if "ok" in result:
+                            ok_result = bool(result["ok"])
+                            ok_status = "confirmed_true" if ok_result else "confirmed_false"
+                        else:
+                            ok_result = True
+                            ok_status = "assumed_true"
+                    else:
+                        ok_result = True
+                        ok_status = "assumed_true"
+
                     self._publish(
                         "tool.completed",
                         session_id=session_id,
                         tool=name,
                         ok=ok_result,
+                        ok_status=ok_status,
                         run_id=run_id,
                         step=step + 1,
                     )
+
+                    # Record call in TaskState for cross-step loop detection.
+                    result_summary = ""
+                    if isinstance(result, dict):
+                        result_summary = result.get("error") or str(result.get("ok", ""))
+                    elif isinstance(result, str):
+                        result_summary = result[:300]
+                    task_state.record_call(step, name or "", args if isinstance(args, dict) else {}, ok_result, result_summary)
 
                     before = list(active_tool_names)
                     active_tool_names = self._update_active_tools_after_result(
@@ -1160,18 +1282,18 @@ class Orchestrator:
                         except Exception:
                             pass
 
-                # --- JEV LOOP BREAKER ---
-                # After all tool calls in this step, ask Jev if the goal is met.
-                # This hard-kills the loop without burning another full AirLLM inference.
-                if trace:
+                # --- JEV LOOP BREAKER (FIXED) ---
+                # Only fire when the model has produced a non-trivial final answer.
+                # The previous bug: loop-breaker could fire after tool calls when
+                # msg["content"] was still empty, yielding an empty final response.
+                # Guard: require LOOP_BREAK_MIN_CONTENT_CHARS of synthesized content.
+                current_content = str(msg.get("content") or "")
+                if trace and len(current_content) >= LOOP_BREAK_MIN_CONTENT_CHARS:
                     try:
-                        tool_summaries = [
-                            f"{t.get('tool_name', '')}: {t.get('result_summary', '')}"
-                            for t in trace[-6:]
-                        ]
-                        achieved, goal_prob = self.jev.goal_achieved(user_text, tool_summaries)
+                        achieved, goal_prob = self.jev.goal_achieved(
+                            user_text, task_state.audit_summary()
+                        )
                         if achieved:
-                            answer = str(msg.get("content") or "")
                             self._history_finish(
                                 run_id, history_project, session_id,
                                 "completed", "Jev loop-breaker: goal achieved."
@@ -1180,7 +1302,7 @@ class Orchestrator:
                                 "chat.completed",
                                 session_id=session_id, model=self.model, run_id=run_id,
                             )
-                            return self._finish(answer, session_id)
+                            return self._finish(current_content, session_id)
                     except Exception:
                         pass
 
@@ -1299,6 +1421,7 @@ class Orchestrator:
         )
         history_project = project_hint or history_project
         trace: list[dict[str, Any]] = []
+        task_state = TaskState()
 
         self._publish(
             "tools.routed",
@@ -1365,6 +1488,49 @@ class Orchestrator:
                                 seen_calls.add(key)
                                 tool_calls.append(call)
 
+                    # --- Fallback Tool Extraction for local models (e.g. Qwen2.5 1.5b) ---
+                    # If the model didn't use native tool_calls but emitted JSON objects in content.
+                    if not tool_calls and content_parts:
+                        full_content = "".join(content_parts)
+                        # Find all starting braces
+                        start_idx = 0
+                        while True:
+                            idx = full_content.find('{', start_idx)
+                            if idx == -1:
+                                break
+                            
+                            # Try to parse JSON from this point forward by finding matching closing braces
+                            # We'll try progressively longer substrings ending with '}'
+                            parsed = False
+                            for end_idx in range(idx + 1, len(full_content)):
+                                if full_content[end_idx] == '}':
+                                    candidate = full_content[idx:end_idx+1]
+                                    try:
+                                        call = json.loads(candidate)
+                                        if isinstance(call, dict):
+                                            if "name" in call and "arguments" in call:
+                                                wrapped_call = {"function": call}
+                                                key = json.dumps(wrapped_call, sort_keys=True, default=str)
+                                                if key not in seen_calls:
+                                                    seen_calls.add(key)
+                                                    tool_calls.append(wrapped_call)
+                                                parsed = True
+                                                start_idx = end_idx + 1
+                                                break
+                                            elif "function" in call and "name" in call.get("function", {}) and "arguments" in call.get("function", {}):
+                                                key = json.dumps(call, sort_keys=True, default=str)
+                                                if key not in seen_calls:
+                                                    seen_calls.add(key)
+                                                    tool_calls.append(call)
+                                                parsed = True
+                                                start_idx = end_idx + 1
+                                                break
+                                    except json.JSONDecodeError:
+                                        continue
+                            if not parsed:
+                                start_idx = idx + 1
+                    # ---------------------------------------------------------------------
+
                     usage_elapsed = time.perf_counter() - usage_started
 
                 self._record_model_usage(
@@ -1424,6 +1590,44 @@ class Orchestrator:
 
                     logger.debug("[Tool execution] Model requested tool: %s with args: %s", name, args)
 
+                    # --- CROSS-STEP LOOP DETECTION ---
+                    if name and task_state.is_stuck(name, args if isinstance(args, dict) else {}):
+                        result = {
+                            "ok": False,
+                            "error": (
+                                f"Loop detected: '{name}' with these arguments has been called "
+                                f"{LOOP_REPEAT_LIMIT} times already in this run. "
+                                "Stop repeating this call. Try a different approach or report "
+                                "the blocker in your final response."
+                            ),
+                        }
+                        logger.warning(
+                            "[Loop detection] Blocked repeated call to '%s' (count=%d)",
+                            name,
+                            LOOP_REPEAT_LIMIT,
+                        )
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_name": name,
+                                "content": self._serialized_tool_result(result),
+                            }
+                        )
+                        self._publish(
+                            "tool.loop_blocked",
+                            session_id=session_id,
+                            tool=name,
+                            run_id=run_id,
+                            step=step + 1,
+                        )
+                        yield {
+                            "type": "tool",
+                            "tool": name,
+                            "status": "completed",
+                            "ok": False,
+                        }
+                        continue
+
                     # Check if tool is in active tools
                     if name not in active_tool_names:
                         logger.warning("[Tool execution] Tool %s not in active_tool_names: %s", name, active_tool_names)
@@ -1442,24 +1646,29 @@ class Orchestrator:
                     }
 
                     # --- JEV SECURITY GATE ---
-                    # Use Noul primitive to block potentially harmful tool calls
-                    is_safe_prob = self.jev.noul(
-                        context={"tool": name, "args": args},
-                        statement="This tool call and its arguments are completely safe and do not violate security policies (like dropping databases, leaking keys, or writing to system files)."
-                    )
-                    if is_safe_prob < 0.5:
-                        result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
-                        logger.warning("[Tool execution] Jev security gate blocked %s (safety_prob=%.2f)", name, is_safe_prob)
-                        self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
-                    else:
-                        logger.debug("[Tool execution] Security gate passed for %s (safety_prob=%.2f)", name, is_safe_prob)
-                        args, result = self._execute_tool(
-                            name,
-                            args,
-                            session_id=session_id,
-                            run_id=run_id,
+                    # Only call Jev if tool is active/registered
+                    if name and name in self.tools:
+                        # Use Noul primitive to block potentially harmful tool calls
+                        is_safe_prob = self.jev.noul(
+                            context={"tool": name, "args": args},
+                            statement="This tool call and its arguments are completely safe and do not violate security policies (like dropping databases, leaking keys, or writing to system files)."
                         )
-                        logger.debug("[Tool execution] Tool %s returned: %s", name, result)
+                        if is_safe_prob < 0.5:
+                            result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
+                            logger.warning("[Tool execution] Jev security gate blocked %s (safety_prob=%.2f)", name, is_safe_prob)
+                            self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
+                        else:
+                            logger.debug("[Tool execution] Security gate passed for %s (safety_prob=%.2f)", name, is_safe_prob)
+                            args, result = self._execute_tool(
+                                name,
+                                args,
+                                session_id=session_id,
+                                run_id=run_id,
+                            )
+                            logger.debug("[Tool execution] Tool %s returned: %s", name, result)
+                    else:
+                        result = {"ok": False, "error": f"Unknown tool '{name}'. Use tool_catalog_search to find available capabilities."}
+                        logger.warning("[Tool execution] Model requested unknown tool: %s", name)
 
                     self._history_tool(
                         run_id,
@@ -1477,16 +1686,25 @@ class Orchestrator:
                         }
                     )
 
-                    ok_result = (
-                        bool(result.get("ok", True))
-                        if isinstance(result, dict)
-                        else True
-                    )
+                    ok_result = False
+                    ok_status = "error"
+                    if isinstance(result, dict):
+                        if "ok" in result:
+                            ok_result = bool(result["ok"])
+                            ok_status = "confirmed_true" if ok_result else "confirmed_false"
+                        else:
+                            ok_result = True
+                            ok_status = "assumed_true"
+                    else:
+                        ok_result = True
+                        ok_status = "assumed_true"
+
                     self._publish(
                         "tool.completed",
                         session_id=session_id,
                         tool=name,
                         ok=ok_result,
+                        ok_status=ok_status,
                         run_id=run_id,
                         step=step + 1,
                     )
@@ -1495,7 +1713,16 @@ class Orchestrator:
                         "tool": name,
                         "status": "completed",
                         "ok": ok_result,
+                        "ok_status": ok_status,
                     }
+
+                    # Record call in TaskState for cross-step loop detection
+                    result_summary = ""
+                    if isinstance(result, dict):
+                        result_summary = result.get("error") or str(result.get("ok", ""))
+                    elif isinstance(result, str):
+                        result_summary = result[:300]
+                    task_state.record_call(step, name or "", args if isinstance(args, dict) else {}, ok_result, result_summary)
 
                     before = list(active_tool_names)
                     active_tool_names = self._update_active_tools_after_result(
@@ -1531,18 +1758,15 @@ class Orchestrator:
                         except Exception:
                             pass
 
-                # --- JEV LOOP BREAKER (streaming) ---
-                # Same sub-100ms goal check as run(). No extra AirLLM call needed.
-                if trace:
+                # --- JEV LOOP BREAKER (streaming, FIXED) ---
+                current_content = str(msg.get("content") or "")
+                if trace and len(current_content) >= LOOP_BREAK_MIN_CONTENT_CHARS:
                     try:
-                        tool_summaries = [
-                            f"{t.get('tool_name', '')}: {t.get('result_summary', '')}"
-                            for t in trace[-6:]
-                        ]
-                        achieved, goal_prob = self.jev.goal_achieved(user_text, tool_summaries)
+                        achieved, goal_prob = self.jev.goal_achieved(
+                            user_text, task_state.audit_summary()
+                        )
                         if achieved:
-                            answer = str(msg.get("content") or "")
-                            self._finish(answer, session_id)
+                            self._finish(current_content, session_id)
                             self._history_finish(
                                 run_id, history_project, session_id,
                                 "completed", "Jev loop-breaker: goal achieved."
@@ -1551,7 +1775,7 @@ class Orchestrator:
                                 "chat.completed",
                                 session_id=session_id, model=self.model, run_id=run_id,
                             )
-                            yield {"type": "final", "text": answer, "session_id": session_id, "run_id": run_id}
+                            yield {"type": "final", "text": current_content, "session_id": session_id, "run_id": run_id}
                             return
                     except Exception as loop_exc:
                         logger.debug("Jev loop-breaker error: %s", loop_exc, exc_info=True)

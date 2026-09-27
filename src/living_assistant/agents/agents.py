@@ -8,12 +8,12 @@ from living_assistant.core.model_provider import ModelManager
 from living_assistant.agents.prompts import SPECIALISTS
 from living_assistant.system.resource_manager import ResourceManager
 
-HANDOFF_RE = re.compile(r"^HANDOFF::(general|coder|researcher|security|database|planner)::(.+)$", re.M)
+HANDOFF_RE = re.compile(r"^HANDOFF::(general|coder|researcher|security|database|planner|contractor)::(.+)$", re.M)
 
 class SpecialistRouter:
     def __init__(self, model_manager: ModelManager, models: dict[str,str], keep_alive: int = 45,
                  max_handoffs: int = 2, context_tokens: int = 4096, resource_manager: ResourceManager | None = None,
-                 timeout_seconds: float = 60.0, model_usage=None):
+                 timeout_seconds: float = 60.0, model_usage=None, tool_registry=None):
         self.mm = model_manager
         self.models = models
         self.keep_alive = keep_alive
@@ -22,12 +22,22 @@ class SpecialistRouter:
         self.resources = resource_manager
         self.timeout_seconds = max(1.0, float(timeout_seconds))
         self.model_usage = model_usage
+        self.tool_registry = tool_registry
         self._delegate_slots = threading.BoundedSemaphore(max(1, int(getattr(model_manager, 'max_concurrent_generations', 1) or 1)))
 
     def delegate(self, role: str, task: str, context: str = "", depth: int = 0,
                  session_id: str | None = None, run_id: str | None = None) -> dict:
         if role not in SPECIALISTS:
             return {"ok":False,"error":f"Unknown specialist role: {role}"}
+
+        if role == "contractor":
+            try:
+                from living_assistant.integrations.hermes_contractor import HermesContractor
+                contractor = HermesContractor(self.mm, session_id or "default", tool_registry=self.tool_registry)
+                return contractor.execute_task(task, context)
+            except Exception as e:
+                return {"ok": False, "error": f"Hermes Contractor initialization/execution failed: {e}"}
+
         if depth > self.max_handoffs:
             return {"ok":False,"error":"Specialist handoff depth limit reached."}
         if self.resources:

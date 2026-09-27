@@ -1,0 +1,55 @@
+# AI tool configs (private, not for repo)
+.opencode/
+.claude/
+.cursor/
+.windsurf/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+build/
+.cache/
+
+# Site (deployed separately via Vercel, not in repo)
+site/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+
+# Research (internal notes)
+research/
+.iter/
+
+# Marketing (internal, not for repo)
+marketing/
+
+# Drafts and submissions
+drafts/
+.submissions/
+*.draft.md
+
+# Archives (don't commit zips)
+*.zip
+
+# Scripts output
+scripts/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime
+*.pid
+*.seed

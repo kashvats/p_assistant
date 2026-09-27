@@ -49,190 +49,152 @@ class OpenVikingAdapter:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _sdk(self):
-        with self._import_lock:
-            candidates: list[Path] = []
-            if self._path:
-                candidates.extend([self._path / "sdk" / "python", self._path])
-            default_loc = Path("external-components/OpenViking/sdk/python").resolve()
-            if default_loc.is_dir():
-                candidates.append(default_loc)
+    def _build_preamble(self) -> str:
+        return f"""
+import sys
+import json
+path = {repr(self._path)}
+if path:
+    sys.path.insert(0, path + '/sdk/python')
+    sys.path.insert(0, path)
+sys.path.insert(0, 'external-components/OpenViking/sdk/python')
 
-            for cand in candidates:
-                cand_str = str(cand)
-                if cand.is_dir() and cand_str not in sys.path:
-                    sys.path.insert(0, cand_str)
+try:
+    from openviking_sdk import SyncHTTPClient, TextPart
+    has_tp = True
+except ImportError:
+    try:
+        from openviking_sdk import SyncHTTPClient
+        has_tp = False
+    except ImportError:
+        print(json.dumps({{"ok": False, "error": "OpenViking SDK not found"}}))
+        sys.exit(0)
 
-            if importlib.util.find_spec("openviking_sdk") is None:
-                raise RuntimeError(_UNAVAILABLE)
-            from openviking_sdk import SyncHTTPClient  # type: ignore[import]
-            return SyncHTTPClient
+kwargs = {{
+    "url": {repr(self._url)},
+    "timeout": {repr(self._timeout)},
+}}
+if {repr(self._api_key)}: kwargs["api_key"] = {repr(self._api_key)}
+if {repr(self._account)}: kwargs["account"] = {repr(self._account)}
+if {repr(self._user)}: kwargs["user"] = {repr(self._user)}
+if {repr(self._actor_peer_id)}: kwargs["actor_peer_id"] = {repr(self._actor_peer_id)}
 
-    def _ensure_client(self) -> Any:
-        try:
-            self._sdk()
-        except Exception:
-            pass
-        if self._client is not None:
-            return self._client
-        SyncHTTPClient = self._sdk()
-        kwargs: dict[str, Any] = {
-            "url": self._url,
-            "timeout": self._timeout,
-        }
-        if self._api_key:
-            kwargs["api_key"] = self._api_key
-        if self._account:
-            kwargs["account"] = self._account
-        if self._user:
-            kwargs["user"] = self._user
-        if self._actor_peer_id:
-            kwargs["actor_peer_id"] = self._actor_peer_id
-        client = SyncHTTPClient(**kwargs)
-        try:
-            client.initialize()
-        except Exception as exc:
-            logger.warning("OpenViking initialize() failed: %s", exc)
-        self._client = client
-        return client
-
-    def _safe(self, fn, *args, **kwargs) -> dict[str, Any]:
-        try:
-            result = fn(*args, **kwargs)
-            if isinstance(result, dict):
-                return result
-            return {"ok": True, "result": result}
-        except Exception as exc:
-            logger.warning("OpenViking call failed: %s", exc)
-            return {"ok": False, "error": str(exc)[:800]}
-
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
+client = SyncHTTPClient(**kwargs)
+try:
+    client.initialize()
+except Exception:
+    pass
+"""
 
     def available(self) -> bool:
-        if self._path and (self._path / "sdk" / "python" / "openviking_sdk").is_dir():
+        if self._path and (Path(self._path) / "sdk" / "python" / "openviking_sdk").is_dir():
             return True
         if Path("external-components/OpenViking/sdk/python/openviking_sdk").is_dir():
             return True
+        import importlib.util
         return importlib.util.find_spec("openviking_sdk") is not None
 
     def health(self) -> dict[str, Any]:
-        try:
-            client = self._ensure_client()
-            result = client.health()
-            return {"ok": True, "health": result}
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)[:400]}
+        from living_assistant.core.isolated_executor import run_isolated_tool
+        script = self._build_preamble() + """
+try:
+    print(json.dumps({"ok": True, "health": client.health()}))
+except Exception as exc:
+    print(json.dumps({"ok": False, "error": str(exc)[:400]}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def recall(self, query: str, uri: str = "", limit: int = 6) -> dict[str, Any]:
-        """Semantic recall — returns the most relevant context chunks."""
+        from living_assistant.core.isolated_executor import run_isolated_tool
         if not query or not query.strip():
             return {"ok": False, "error": "query must not be empty"}
-        try:
-            client = self._ensure_client()
-            kwargs: dict[str, Any] = {"query": query.strip()}
-            if uri:
-                kwargs["uri"] = uri
-            results = client.find(**kwargs)
-            items = results if isinstance(results, list) else results.get("items", [])
-            return {
-                "ok": True,
-                "query": query,
-                "items": [
-                    {
-                        "uri": getattr(r, "uri", None) or r.get("uri", ""),
-                        "content": getattr(r, "content", None) or r.get("content", ""),
-                        "score": getattr(r, "score", None) or r.get("score", None),
-                    }
-                    for r in (items[:limit] if isinstance(items, list) else [])
-                ],
-            }
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)[:800]}
+        script = self._build_preamble() + f"""
+try:
+    kwargs = {{"query": {repr(query.strip())}}}
+    if {repr(uri)}: kwargs["uri"] = {repr(uri)}
+    results = client.find(**kwargs)
+    items = results if isinstance(results, list) else results.get("items", [])
+    out_items = [
+        {{
+            "uri": getattr(r, "uri", None) or (r.get("uri", "") if isinstance(r, dict) else ""),
+            "content": getattr(r, "content", None) or (r.get("content", "") if isinstance(r, dict) else ""),
+            "score": getattr(r, "score", None) or (r.get("score", None) if isinstance(r, dict) else None),
+        }}
+        for r in (items[:{limit}] if isinstance(items, list) else [])
+    ]
+    print(json.dumps({{"ok": True, "query": {repr(query)}, "items": out_items}}))
+except Exception as exc:
+    print(json.dumps({{"ok": False, "error": str(exc)[:800]}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
-    def remember(
-        self,
-        content: str,
-        uri: str = "",
-        tags: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """Write a memory into the OpenViking store."""
+    def remember(self, content: str, uri: str = "", tags: list[str] | None = None) -> dict[str, Any]:
+        from living_assistant.core.isolated_executor import run_isolated_tool
         if not content or not content.strip():
             return {"ok": False, "error": "content must not be empty"}
-        try:
-            client = self._ensure_client()
-            try:
-                from openviking_sdk import TextPart  # type: ignore[import]
-                parts = [TextPart(text=content.strip())]
-            except Exception:
-                parts = [content.strip()]
-            kwargs: dict[str, Any] = {"parts": parts}
-            if uri:
-                kwargs["uri"] = uri
-            if tags:
-                kwargs["tags"] = tags
-            result = client.write(**kwargs)
-            return {"ok": True, "uri": uri or "", "result": result}
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)[:800]}
+        script = self._build_preamble() + f"""
+try:
+    if has_tp:
+        parts = [TextPart(text={repr(content.strip())})]
+    else:
+        parts = [{repr(content.strip())}]
+    kwargs = {{"parts": parts}}
+    if {repr(uri)}: kwargs["uri"] = {repr(uri)}
+    if {repr(tags)}: kwargs["tags"] = {repr(tags)}
+    result = client.write(**kwargs)
+    print(json.dumps({{"ok": True, "uri": {repr(uri or "")}, "result": result}}))
+except Exception as exc:
+    print(json.dumps({{"ok": False, "error": str(exc)[:800]}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
     def search(self, query: str, uri: str = "") -> dict[str, Any]:
-        """Keyword-aware search across a context subtree."""
+        from living_assistant.core.isolated_executor import run_isolated_tool
         if not query or not query.strip():
             return {"ok": False, "error": "query must not be empty"}
-        try:
-            client = self._ensure_client()
-            kwargs: dict[str, Any] = {"query": query.strip()}
-            if uri:
-                kwargs["uri"] = uri
-            results = client.search(**kwargs)
-            items = results if isinstance(results, list) else results.get("items", [])
-            return {
-                "ok": True,
-                "query": query,
-                "items": [
-                    {
-                        "uri": getattr(r, "uri", None) or r.get("uri", ""),
-                        "snippet": getattr(r, "snippet", None) or r.get("snippet", ""),
-                    }
-                    for r in (items if isinstance(items, list) else [])
-                ],
-            }
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)[:800]}
+        script = self._build_preamble() + f"""
+try:
+    kwargs = {{"query": {repr(query.strip())}}}
+    if {repr(uri)}: kwargs["uri"] = {repr(uri)}
+    results = client.search(**kwargs)
+    items = results if isinstance(results, list) else results.get("items", [])
+    out_items = [
+        {{
+            "uri": getattr(r, "uri", None) or (r.get("uri", "") if isinstance(r, dict) else ""),
+            "snippet": getattr(r, "snippet", None) or (r.get("snippet", "") if isinstance(r, dict) else ""),
+        }}
+        for r in (items if isinstance(items, list) else [])
+    ]
+    print(json.dumps({{"ok": True, "query": {repr(query)}, "items": out_items}}))
+except Exception as exc:
+    print(json.dumps({{"ok": False, "error": str(exc)[:800]}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)
 
-    def capture_session(
-        self,
-        session_id: str,
-        messages: list[dict],
-        token_budget: int = 4096,
-    ) -> dict[str, Any]:
-        """Push a conversation session into OpenViking memory for long-term recall."""
+    def capture_session(self, session_id: str, messages: list[dict], token_budget: int = 4096) -> dict[str, Any]:
+        from living_assistant.core.isolated_executor import run_isolated_tool
         if not session_id:
             return {"ok": False, "error": "session_id required"}
-        try:
-            client = self._ensure_client()
-            try:
-                from openviking_sdk import TextPart  # type: ignore[import]
-                has_tp = True
-            except Exception:
-                has_tp = False
-            client.create_session(session_id=session_id)
-            sc = client.session(session_id=session_id)
-            for msg in messages:
-                role = str(msg.get("role", "user"))
-                text = str(msg.get("content", ""))
-                if not text.strip():
-                    continue
-                if role == "assistant":
-                    if has_tp:
-                        sc.add_message(role="assistant", parts=[TextPart(text=text)])
-                    else:
-                        sc.add_message(role="assistant", content=text)
-                else:
-                    sc.add_message(role="user", content=text)
-            ctx = sc.get_session_context(token_budget=token_budget)
-            return {"ok": True, "session_id": session_id, "context_length": len(str(ctx))}
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)[:800]}
+        script = self._build_preamble() + f"""
+try:
+    client.create_session(session_id={repr(session_id)})
+    sc = client.session(session_id={repr(session_id)})
+    messages = {json.dumps(messages)}
+    for msg in messages:
+        role = str(msg.get("role", "user"))
+        text = str(msg.get("content", ""))
+        if not text.strip():
+            continue
+        if role == "assistant":
+            if has_tp:
+                sc.add_message(role="assistant", parts=[TextPart(text=text)])
+            else:
+                sc.add_message(role="assistant", content=text)
+        else:
+            sc.add_message(role="user", content=text)
+    ctx = sc.get_session_context(token_budget={token_budget})
+    print(json.dumps({{"ok": True, "session_id": {repr(session_id)}, "context_length": len(str(ctx))}}))
+except Exception as exc:
+    print(json.dumps({{"ok": False, "error": str(exc)[:800]}}))
+"""
+        return run_isolated_tool(script, timeout=self._timeout)

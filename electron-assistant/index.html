@@ -1,106 +1,374 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Living Assistant</title>
+  <title>Hovering Assistant v2.1</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="assistant" class="assistant">
-    <header class="topbar">
-      <div class="brand" title="Provider status"><span id="status-dot" class="status-dot"></span><span>Living Assistant</span><span class="brand-subtitle">your desktop companion</span></div>
-      <div class="top-actions">
-        <button id="mode-button" class="icon-button" title="Expand assistant">↗</button>
-        <button id="settings-button" class="icon-button" title="Connection settings">⚙</button>
+  <!-- COMPACT ORB (Minimized State) -->
+  <div id="face-toggle" class="hovering-orb" title="Click to expand Hovering Assistant">
+    <div class="orb-chassis">
+      <div class="orb-ambient-ring"></div>
+      <div id="avatar" class="orb-aperture" data-expression="observing">
+        <div class="iris-glow"></div>
+        <div class="pupil-core">
+          <span class="eye left"></span>
+          <span class="eye right"></span>
+        </div>
+      </div>
+      <div class="orb-hover-reflection"></div>
+    </div>
+    <div class="orb-levitation-shadow"></div>
+  </div>
+
+  <!-- EXPANDED MASTER HUD PANEL -->
+  <main id="assistant" class="master-hud hidden">
+    <!-- Top Header Bar -->
+    <header class="hud-topbar drag-handle">
+      <div class="hud-brand">
+        <span id="status-dot" class="status-indicator"></span>
+        <span class="brand-title">Hovering Assistant</span>
+        <span class="brand-version">v2.1</span>
+      </div>
+
+      <!-- Mode Switcher Tabs -->
+      <nav class="hud-nav-tabs" aria-label="Assistant modes">
+        <button id="tab-overview" class="nav-tab active" data-tab="overview">Overview</button>
+        <button id="tab-focus" class="nav-tab" data-tab="focus">Focus &amp; Stats</button>
+        <button id="tab-voice" class="nav-tab" data-tab="voice">Voice &amp; Chat</button>
+        <button id="tab-detective" class="nav-tab" data-tab="detective">Failure Detective</button>
+        <button id="tab-settings" class="nav-tab" data-tab="settings">Settings</button>
+      </nav>
+
+      <!-- Right Header Actions -->
+      <div class="hud-top-actions">
+        <span id="provider-badge" class="provider-pill" title="Active local model">Ollama · Llama-3.1 8B · Local</span>
+        <button id="mode-button" class="hud-icon-btn" title="Collapse to orb">↙</button>
+        <button id="hide-assistant" class="hud-icon-btn" title="Hide to system tray">×</button>
       </div>
     </header>
-    <section id="face-toggle" class="hero drag-handle" aria-live="polite" title="Open assistant">
-      <div class="avatar-wrap">
-        <div id="avatar" class="avatar"><span class="eye left"></span><span class="eye right"></span><span class="smile"></span></div>
-        <span class="avatar-pulse"></span>
+
+    <!-- Master Panels Container -->
+    <div class="hud-content-area">
+      <!-- 1. OVERVIEW TAB -->
+      <section id="panel-overview" class="hud-panel tab-panel active">
+        <div class="panel-grid-2col">
+          <!-- Left Column: Stats & Context & Alerts -->
+          <div class="panel-col">
+            <!-- Real-Time System Stats -->
+            <div class="hud-card stat-card">
+              <div class="card-header">
+                <span class="card-icon">⚡</span>
+                <span class="card-title">Real-time System Stats</span>
+              </div>
+              <div class="stat-metrics">
+                <div class="stat-row">
+                  <span class="stat-label">Battery</span>
+                  <div class="stat-bar-wrap"><div id="stat-battery-bar" class="stat-bar" style="width: 87%;"></div></div>
+                  <span id="stat-battery-val" class="stat-value">87%</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">CPU</span>
+                  <div class="stat-sparkline-wrap">
+                    <canvas id="cpu-sparkline" width="90" height="20"></canvas>
+                  </div>
+                  <span id="stat-cpu-val" class="stat-value">12%</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Memory</span>
+                  <div class="stat-bar-wrap"><div id="stat-mem-bar" class="stat-bar cyan" style="width: 26%;"></div></div>
+                  <span id="stat-mem-val" class="stat-value">4.2GB/16GB</span>
+                </div>
+                <div class="stat-row">
+                  <span class="stat-label">Disk</span>
+                  <div class="stat-bar-wrap"><div id="stat-disk-bar" class="stat-bar orange" style="width: 25%;"></div></div>
+                  <span id="stat-disk-val" class="stat-value">25%</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Active Screen Context -->
+            <div class="hud-card context-card">
+              <div class="card-header">
+                <span class="card-icon">💻</span>
+                <span class="card-title">Active Screen Context</span>
+              </div>
+              <div class="context-details">
+                <div class="context-app-row">
+                  <span id="screen-app-badge" class="app-badge">VSCode</span>
+                  <span id="screen-file-path" class="file-path">workspace/auth_service.py</span>
+                </div>
+                <div id="screen-git-status" class="git-status">Git: main · 2 unstaged changes</div>
+              </div>
+            </div>
+
+            <!-- I NOTICED SOMETHING Alert Card -->
+            <div id="question-card" class="hud-card alert-card hidden">
+              <div class="alert-header">
+                <span class="alert-icon">⚠️</span>
+                <div class="alert-meta">
+                  <strong class="alert-title">I NOTICED SOMETHING</strong>
+                  <span id="question-time" class="alert-time">2 min ago</span>
+                </div>
+              </div>
+              <div id="question" class="alert-message">Failed build detected in Terminal.</div>
+              <div id="error-preview" class="error-log-preview hidden">
+                <div class="log-line"><code>41 | > ts-node src/index.ts</code></div>
+                <div class="log-line error"><code>42 | error TS2345: Argument of type 'string | undefined' is not assignable to 'string'.</code></div>
+                <div class="log-line"><code>43 | at src/utils/config.ts:42:12</code></div>
+              </div>
+              <div id="suggested-fix" class="suggested-fix-box">
+                <span class="fix-icon">💡</span>
+                <span id="suggested-fix-text">The variable 'apiKey' is possibly undefined. Add a guard or fallback value before passing to deployConfig.</span>
+              </div>
+              <div class="alert-actions">
+                <button id="ask-button" class="btn-primary-amber">Ask Assistant</button>
+                <button id="dismiss-button" class="btn-secondary">Dismiss</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Visualizer & Tasks & Chat -->
+          <div class="panel-col">
+            <!-- Live Audio Visualizer -->
+            <div class="hud-card audio-card">
+              <div class="card-header">
+                <span class="card-icon">🎙️</span>
+                <span class="card-title">Live Audio Visualizer</span>
+                <span id="voice-indicator-pill" class="pill-listening">Ready</span>
+              </div>
+              <div class="waveform-wrap">
+                <canvas id="waveform-canvas" width="340" height="42"></canvas>
+              </div>
+            </div>
+
+            <!-- Priority Tasks -->
+            <div class="hud-card tasks-card">
+              <div class="card-header">
+                <span class="card-icon">📋</span>
+                <span class="card-title">Priority Tasks</span>
+                <button id="new-task-btn" class="mini-text-btn">+ Add</button>
+              </div>
+              <ul id="task-list" class="task-list">
+                <li class="task-item done">
+                  <label><input type="checkbox" checked><span class="task-title">Refine priority inspection</span></label>
+                  <span class="task-due p1">P1</span>
+                </li>
+                <li class="task-item">
+                  <label><input type="checkbox"><span class="task-title">Check live system governor</span></label>
+                  <span class="task-due p2">P2</span>
+                </li>
+                <li class="task-item">
+                  <label><input type="checkbox"><span class="task-title">Complete memory sync to SQLite</span></label>
+                  <span class="task-due p3">P3</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Clean Chat Stream -->
+            <div class="hud-card chat-card">
+              <div class="card-header">
+                <span class="card-icon">💬</span>
+                <span class="card-title">Conversation Stream</span>
+                <button id="new-session" class="mini-text-btn">New</button>
+              </div>
+              <div id="chat-history" class="chat-stream-log" role="log">
+                <div id="chat-empty" class="chat-placeholder">Conversation stream is ready. Ask anything or speak to the assistant.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. FOCUS & STATS TAB -->
+      <section id="panel-focus" class="hud-panel tab-panel">
+        <div class="panel-grid-2col">
+          <div class="panel-col">
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Deep Work Timer</span></div>
+              <div class="timer-display">
+                <div class="timer-dial">42:13</div>
+                <div class="timer-sub">Session target: 60 min · In flow · No interruptions</div>
+              </div>
+            </div>
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Eye Tracking &amp; Gaze</span></div>
+              <div class="focus-metric-wrap">
+                <div class="focus-metric-num">Focus Level: 94%</div>
+                <div class="focus-bar"><div class="focus-fill" style="width: 94%;"></div></div>
+                <div class="focus-sub">Gaze stable · Attention on primary task · Blink rate normal</div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-col">
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Distraction Blocker</span><span class="pill-active">Active</span></div>
+              <p class="card-copy">Blocked 12 distractions today (Social media, News sites, Unfocused notifications).</p>
+            </div>
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Ambient Sound</span></div>
+              <div class="ambient-chips">
+                <button class="chip active">Rain</button>
+                <button class="chip">Forest</button>
+                <button class="chip">Office Quiet</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. VOICE & CHAT TAB -->
+      <section id="panel-voice" class="hud-panel tab-panel">
+        <div class="hud-card full-height-chat">
+          <div class="card-header">
+            <span class="card-title">Voice Companion Mode</span>
+            <span id="voice-status-badge" class="pill-listening">Listening for "Hey Jarvis"</span>
+          </div>
+          <div class="voice-large-waveform">
+            <canvas id="voice-large-canvas" width="760" height="70"></canvas>
+          </div>
+          <div class="voice-transcription-preview">
+            <span class="mic-badge">MICROPHONE · LOCAL-ONLY</span>
+            <span id="live-transcription-text">Processing stays 100% on-device. No audio leaves this machine.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. FAILURE DETECTIVE TAB -->
+      <section id="panel-detective" class="hud-panel tab-panel">
+        <div class="hud-card">
+          <div class="card-header">
+            <span class="card-title">Failure Detective &amp; Log Inspector</span>
+            <button id="scan-terminal-btn" class="btn-primary compact">Scan Active Workspace</button>
+          </div>
+          <div class="detective-body">
+            <div class="detective-box">
+              <div class="detective-subtitle">Recent Terminal &amp; Process Events</div>
+              <div id="detective-log-content" class="code-log-box">
+                [14:32:09] Build monitor: Process exited with status 1
+                [14:32:10] AST Analyzer: Identified 1 error in src/utils/config.ts
+                [14:32:10] Suggestion generated: Add null check for process.env.API_KEY
+              </div>
+            </div>
+            <div class="detective-controls">
+              <label class="switch-row">
+                <input id="screen-access-toggle" type="checkbox" checked>
+                <span>Allow screen snapshot inspection for debugging</span>
+              </label>
+              <label class="switch-row">
+                <input id="ast-validation-toggle" type="checkbox" checked>
+                <span>Enforce AST safety gate before self-modifying code</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. SETTINGS TAB -->
+      <section id="panel-settings" class="hud-panel tab-panel">
+        <div class="panel-grid-2col">
+          <div class="panel-col">
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Local Model Provider</span></div>
+              <label for="model-name">Ollama Model</label>
+              <div class="model-select-row">
+                <select id="model-name"><option value="">Loading local models…</option></select>
+                <button id="select-model" class="btn-secondary compact">Use</button>
+              </div>
+              <div id="model-catalog-status" class="sub-note">Local Ollama models running offline.</div>
+              <label for="api-url">Backend Assistant URL</label>
+              <input id="api-url" value="http://127.0.0.1:8787">
+              <label for="api-token">Access Token <span class="auto-token-label">auto-loaded</span></label>
+              <input id="api-token" type="password" placeholder="Supplied by run.bat">
+            </div>
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Privacy &amp; Learning</span></div>
+              <label class="switch-row"><input id="observation-toggle" type="checkbox" checked><span>Observe cursor &amp; idle signals</span></label>
+              <label class="switch-row"><input id="learning-toggle" type="checkbox" checked><span>Learn repeated workflow patterns</span></label>
+              <button id="clear-learning" class="btn-secondary compact mt-8">Clear learned patterns</button>
+            </div>
+          </div>
+          <div class="panel-col">
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Voice &amp; Audio</span></div>
+              <label class="switch-row"><input id="voice-enabled-toggle" type="checkbox" checked><span>Enable voice engine</span></label>
+              <label class="switch-row"><input id="hands-free-toggle" type="checkbox" checked><span>Listen for “Hey Jarvis”</span></label>
+              <div id="voice-status" class="sub-note">Checking voice status…</div>
+            </div>
+            <div class="hud-card">
+              <div class="card-header"><span class="card-title">Resource Governor</span></div>
+              <div class="slider-row">
+                <label>Memory Cap Ceiling: <span id="mem-cap-label">16 GB</span></label>
+                <input id="mem-cap-slider" type="range" min="4" max="32" value="16" class="range-slider">
+              </div>
+              <div class="sub-note">Monitored by psutil engine. Hard throttles before host OOM.</div>
+              <button id="save-settings" class="btn-primary mt-12">Save Configuration</button>
+              <div id="connection-error" class="error-text"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Bottom Memory Timeline ("What It Learned Today") -->
+    <section class="hud-memory-strip">
+      <div class="memory-header">
+        <span class="memory-icon">🧠</span>
+        <span class="memory-title">Memory Timeline: What It Learned Today</span>
       </div>
-      <div class="hero-copy">
-        <div id="headline" class="headline">Hi — I’m keeping an eye on your work.</div>
-        <div id="provider-badge" class="provider-badge">Provider: checking…</div>
-        <div id="context" class="context">Connect me to the local assistant to begin.</div>
+      <div id="memory-timeline" class="memory-cards-row">
+        <div class="memory-pill">
+          <span class="mem-time">09:12</span>
+          <span class="mem-text">Focus peaks 09:00-11:00</span>
+        </div>
+        <div class="memory-pill">
+          <span class="mem-time">10:45</span>
+          <span class="mem-text">Prefers dark mode &amp; low ambient sound</span>
+        </div>
+        <div class="memory-pill">
+          <span class="mem-time">11:30</span>
+          <span class="mem-text">Saved: Draft report to memory vault</span>
+        </div>
+        <div class="memory-pill">
+          <span class="mem-time">14:32</span>
+          <span class="mem-text">Observed: Build failure in ts-node</span>
+        </div>
       </div>
     </section>
-    <section id="connection-card" class="connection-card hidden">
-      <div class="connection-icon">↗</div>
-      <div class="connection-copy">
-        <strong id="connection-title">I’m ready when you are</strong>
-        <span id="connection-message">Connect to the local assistant so I can watch activity and answer you.</span>
-      </div>
-      <button id="connect-button" class="primary compact">Connect</button>
-    </section>
-    <section id="question-card" class="question-card hidden">
-      <div class="eyebrow">I noticed something</div>
-      <div id="question" class="question"></div>
-      <div class="actions">
-        <button id="ask-button" class="primary">Ask assistant</button>
-        <button id="dismiss-button" class="secondary">Not now</button>
-      </div>
-    </section>
-    <section class="quick-controls" aria-label="Quick controls">
-      <button id="open-chat-quick" class="quick-control chat-quick-button" title="Open chat">💬 Chat</button>
-      <button id="pause-observation" class="quick-control">Pause observing</button>
-      <button id="toggle-learning" class="quick-control">Learning on</button>
-      <button id="clear-learning-quick" class="quick-control">Clear learning</button>
-      <button id="hide-assistant-quick" class="quick-control">Hide me</button>
-    </section>
-    <section id="chat-panel" class="chat-panel hidden">
-      <div class="chat-heading"><span>Talk to me</span><button id="close-chat" class="close-button" title="Close chat">×</button></div>
-      <div id="chat-history" class="chat-history" role="log" aria-live="polite" aria-label="Conversation history">
-        <div id="chat-empty" class="chat-empty">Your conversation history will appear here.</div>
-      </div>
-      <form id="chat-form" class="chat-row">
-        <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Ask anything, or say “check my screen”…" autocomplete="off"></textarea>
-        <button id="send-chat" class="primary send-button" type="submit" title="Send message">↑</button>
-        <button id="voice-chat" class="secondary send-button" type="button" title="Record a voice message">●</button>
+
+    <!-- Floating Capsule Input Bar -->
+    <section class="hud-input-capsule">
+      <form id="chat-form" class="capsule-form">
+        <div class="quick-pill-group">
+          <button id="pill-screen" type="button" class="action-pill">🔍 Ask about screen</button>
+          <button id="pill-anything" type="button" class="action-pill">✨ Ask me anything</button>
+          <button id="pill-voice" type="button" class="action-pill">🎙️ Talk to me</button>
+        </div>
+        <div class="input-row">
+          <textarea id="chat-input" rows="1" maxlength="2000" placeholder="Ask about screen, or type a command… (Enter to send, Esc to dock)"></textarea>
+          <button id="voice-chat" type="button" class="icon-submit-btn" title="Push-to-talk">🎙️</button>
+          <button id="send-chat" type="submit" class="icon-submit-btn primary" title="Send message">↑</button>
+          <button id="cancel-chat" type="button" class="icon-submit-btn cancel hidden" title="Cancel">⏹</button>
+        </div>
+        <div id="chat-status" class="chat-status-text"></div>
       </form>
-      <div id="chat-status" class="chat-status" role="status"></div>
     </section>
-    <section id="settings" class="settings hidden">
-      <div class="settings-heading"><span>Connection</span><button id="close-settings" class="close-button" title="Close settings">×</button></div>
-      <label for="api-url">Local assistant URL</label>
-      <input id="api-url" value="http://127.0.0.1:8787" autocomplete="url">
-      <label for="api-token">Local assistant access token <span class="auto-token-label">auto-loaded by run.bat</span></label>
-      <input id="api-token" type="password" autocomplete="off" placeholder="Only for local dashboard access">
-      <div class="settings-note">Ollama and AirLLM run locally and need no provider token. This separate local API token is auto-loaded by run.bat for companion-to-backend access.</div>
-      <div id="provider-credential-prompt" class="provider-credential-prompt hidden"></div>
-      <div class="privacy-heading">Companion controls</div>
-      <div class="privacy-controls">
-        <label class="switch-row"><input id="observation-toggle" type="checkbox" checked><span>Observe activity signals</span></label>
-        <label class="switch-row"><input id="learning-toggle" type="checkbox" checked><span>Learn repeated patterns</span></label>
-        <button id="clear-learning" class="secondary compact">Clear learned behavior</button>
-        <button id="hide-assistant" class="secondary compact">Hide floating assistant</button>
-        <label class="switch-row"><input id="screen-access-toggle" type="checkbox"><span>Allow screen inspection</span></label>
+
+    <!-- Privacy Shield Footer -->
+    <footer class="hud-footer">
+      <div class="footer-privacy">
+        <span class="shield-icon">🛡️</span>
+        <span class="privacy-text">100% On-Device · Memory Secured · Local Processing</span>
       </div>
-      <div class="voice-heading">Voice capability</div>
-      <div class="voice-controls">
-        <label class="switch-row"><input id="voice-enabled-toggle" type="checkbox"><span>Enable voice features</span></label>
-        <label class="switch-row"><input id="hands-free-toggle" type="checkbox"><span>Listen for “Hey Jarvis”</span></label>
-        <span id="voice-status" class="privacy-status">Checking voice readiness…</span>
+      <div class="footer-telemetry">
+        <span id="activity-dot" class="telemetry-dot"></span>
+        <span id="activity">System healthy · Zero external requests</span>
       </div>
-      <div class="provider-heading">Model providers</div>
-      <div id="provider-settings" class="provider-settings">Loading provider requirements…</div>
-      <div class="model-select-row">
-        <select id="model-name" aria-label="Select local Ollama model">
-          <option value="">Loading local Ollama models…</option>
-        </select>
-        <button id="select-model" class="secondary compact">Use model</button>
-      </div>
-      <div id="model-catalog-status" class="privacy-status"></div>
-      <div id="privacy-status" class="privacy-status">Observed: waiting for a local signal.</div>
-      <button id="save-settings" class="primary">Save connection</button>
-      <div id="connection-error" class="error"></div>
-    </section>
-    <footer class="activity">
-      <span class="activity-label"><span id="activity-dot" class="activity-dot"></span> Activity</span>
-      <span id="activity">Waiting for activity…</span>
     </footer>
   </main>
+
   <script src="renderer.js"></script>
 </body>
 </html>
