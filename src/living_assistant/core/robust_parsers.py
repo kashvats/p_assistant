@@ -1,4 +1,4 @@
-﻿import traceback
+import traceback
 import sys
 
 def get_robust_traceback(exc: Exception, max_chars: int = 3000) -> str:
@@ -18,7 +18,7 @@ def get_robust_traceback(exc: Exception, max_chars: int = 3000) -> str:
         
         # Filter out internal orchestrator frames to not confuse the LLM
         # (Only keep frames that actually belong to the tools/skills)
-        filtered_tb = [frame for frame in tb if "living_assistant/agents/orchestrator.py" not in frame.filename]
+        filtered_tb = [frame for frame in tb if "living_assistant/agents/orchestrator.py" not in frame.filename.replace("\\", "/")]
         
         if not filtered_tb:
             filtered_tb = tb # Fallback if everything was filtered

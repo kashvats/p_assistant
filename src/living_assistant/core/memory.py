@@ -65,12 +65,92 @@ class MemoryStore:
         if "notified" not in cols:
             self.conn.execute("ALTER TABLE todos ADD COLUMN notified INTEGER NOT NULL DEFAULT 0")
 
-    def remember(self, content: str, kind: str = "fact", metadata: dict | None = None) -> int:
+    def remember(
+        self,
+        content: str,
+        kind: str = "fact",
+        metadata: dict | None = None,
+        deduplicate: bool = True,
+        key: str | None = None,
+    ) -> int:
+        clean_content = redact_secrets(content, 12000).strip()
+        meta = dict(metadata or {})
+        meta.setdefault("confidence", 1.0)
+        meta.setdefault("source", "user")
+        if key:
+            meta["key"] = key
+        clean_key = key or meta.get("key")
+        now_ts = dt.datetime.now().isoformat(timespec="seconds")
+
+        # 1. Contradiction resolution: if a specific preference/fact key is updated, override old value
+        if clean_key:
+            # Look for existing memory with this key in metadata
+            rows = self.conn.execute("SELECT id, metadata FROM memories WHERE kind=?", (kind,)).fetchall()
+            for row in rows:
+                try:
+                    row_meta = json.loads(row["metadata"])
+                    if row_meta.get("key") == clean_key:
+                        existing_id = int(row["id"])
+                        self.conn.execute(
+                            "UPDATE memories SET content=?, metadata=?, created_at=? WHERE id=?",
+                            (clean_content, json.dumps(meta), now_ts, existing_id),
+                        )
+                        self.conn.commit()
+                        return existing_id
+                except Exception:
+                    continue
+
+        # 2. Deduplication: avoid creating 150 duplicate records for the exact same statement
+        if deduplicate:
+            existing = self.conn.execute(
+                "SELECT id FROM memories WHERE kind=? AND content=?",
+                (kind, clean_content),
+            ).fetchone()
+            if existing:
+                existing_id = int(existing["id"])
+                self.conn.execute(
+                    "UPDATE memories SET metadata=?, created_at=? WHERE id=?",
+                    (json.dumps(meta), now_ts, existing_id),
+                )
+                self.conn.commit()
+                return existing_id
+
+        # 3. Insert new memory
         cur = self.conn.execute(
             "INSERT INTO memories(kind, content, metadata, created_at) VALUES(?,?,?,?)",
-            (kind, redact_secrets(content, 12000), json.dumps(metadata or {}), dt.datetime.now().isoformat(timespec="seconds"))
+            (kind, clean_content, json.dumps(meta), now_ts),
         )
-        self.conn.commit(); return int(cur.lastrowid)
+        self.conn.commit()
+        return int(cur.lastrowid)
+
+    def get_memory(self, memory_id: int) -> dict | None:
+        row = self.conn.execute("SELECT * FROM memories WHERE id=?", (memory_id,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["metadata"] = json.loads(d["metadata"])
+        except Exception:
+            pass
+        return d
+
+    def delete_memory(self, memory_id: int) -> bool:
+        """Permanently delete a memory record.
+        
+        The SQLite trigger automatically purges it from memories_fts.
+        """
+        cur = self.conn.execute("DELETE FROM memories WHERE id=?", (memory_id,))
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def clear_memories(self, kind: str | None = None) -> int:
+        """Permanently delete memories, optionally filtered by kind."""
+        if kind:
+            cur = self.conn.execute("DELETE FROM memories WHERE kind=?", (kind,))
+        else:
+            cur = self.conn.execute("DELETE FROM memories")
+        self.conn.commit()
+        return cur.rowcount
 
     def search(self, query: str, limit: int = 8) -> list[dict]:
         query = (query or '').strip()
@@ -83,7 +163,15 @@ class MemoryStore:
                WHERE memories_fts MATCH ? ORDER BY bm25(memories_fts) LIMIT ?""",
             (fts_query, bounded_limit),
         ).fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["metadata"] = json.loads(d["metadata"])
+            except Exception:
+                pass
+            out.append(d)
+        return out
 
     def add_todo(self, title: str, due_at: str | None = None) -> int:
         cur = self.conn.execute(

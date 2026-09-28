@@ -9,6 +9,7 @@ import threading
 from typing import Any
 import yaml
 
+from living_assistant.security.sandboxed_corpus import CorpusUnavailable, SandboxedCorpus
 from living_assistant.security.security_utils import redact_secrets
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,14 @@ INSTRUCTION_KEYWORDS = {
 DELIMITER_CHARS = {"```", "---", "===", "###", "<|", "|>", "[INST]", "[/INST]", "<<SYS>>"}
 
 
+def cybersecurity_mode(cfg: dict) -> str:
+    """An explicit local path keeps legacy local mode; otherwise the corpus lives in the sandbox."""
+    mode = str(cfg.get("mode") or "").strip().lower()
+    if mode in {"local", "sandbox"}:
+        return mode
+    return "local" if cfg.get("path") else "sandbox"
+
+
 class CybersecuritySkillsAdapter:
     """Production boundary around the Anthropic-Cybersecurity-Skills repository.
 
@@ -59,9 +68,11 @@ class CybersecuritySkillsAdapter:
 
     _lock = threading.RLock()
 
-    def __init__(self, path: str | Path | None = None) -> None:
-        self._path = Path(path).expanduser().resolve() if path else None
-        if not self._path or not self._path.is_dir():
+    def __init__(self, path: str | Path | None = None, corpus: SandboxedCorpus | None = None) -> None:
+        # With a sandboxed corpus the skills never exist on the host filesystem.
+        self._corpus = corpus
+        self._path = None if corpus else (Path(path).expanduser().resolve() if path else None)
+        if not corpus and (not self._path or not self._path.is_dir()):
             default_candidate = Path("external-components/Anthropic-Cybersecurity-Skills").resolve()
             if default_candidate.is_dir():
                 self._path = default_candidate
@@ -76,15 +87,41 @@ class CybersecuritySkillsAdapter:
 
     def available(self) -> bool:
         """Check if checkout and index/skills directory are present."""
+        if self._corpus is not None:
+            return self._corpus.ready()
         if not self._path or not self._path.is_dir():
             return False
         return (self._path / "index.json").is_file() or (self._path / "skills").is_dir()
+
+    def sandbox_status(self) -> dict[str, Any]:
+        if self._corpus is None:
+            return {"ok": True, "mode": "local", "path": str(self._path) if self._path else None}
+        return {"ok": True, "mode": "sandbox", **self._corpus.status()}
+
+    def sync_sandbox(self) -> dict[str, Any]:
+        if self._corpus is None:
+            return {"ok": False, "error": "Security skills are not configured for sandbox mode."}
+        result = self._corpus.sync()
+        if result.get("ok"):
+            with self._lock:
+                self._index = None
+                self._skills_list = []
+        return result
 
     def _ensure_index(self) -> None:
         if self._index is not None:
             return
         with self._lock:
             if self._index is not None:
+                return
+            if self._corpus is not None:
+                try:
+                    raw = self._corpus.read_text("index.json")
+                except CorpusUnavailable as exc:
+                    raise RuntimeError(str(exc)) from exc
+                data = json.loads(raw) if raw else {"skills": []}
+                self._index = data
+                self._skills_list = data.get("skills", [])
                 return
             if self._path and (self._path / "index.json").is_file():
                 try:
@@ -117,7 +154,10 @@ class CybersecuritySkillsAdapter:
 
     def get_catalog_info(self) -> dict[str, Any]:
         """Get summary info about the loaded cybersecurity skills catalog."""
-        self._ensure_index()
+        try:
+            self._ensure_index()
+        except RuntimeError as exc:
+            return {"ok": False, "error": str(exc)}
         assert self._index is not None
         return {
             "ok": True,
@@ -132,7 +172,10 @@ class CybersecuritySkillsAdapter:
 
     def search_skills(self, query: str, domain: str = "", limit: int = 10) -> dict[str, Any]:
         """Search cybersecurity skills by keyword, attack vector, or technique."""
-        self._ensure_index()
+        try:
+            self._ensure_index()
+        except RuntimeError as exc:
+            return {"ok": False, "error": str(exc), "count": 0, "skills": []}
         clean_query = (query or "").strip().lower()
         clean_domain = (domain or "").strip().lower()
 
@@ -186,10 +229,12 @@ class CybersecuritySkillsAdapter:
 
     def get_skill(self, name_or_path: str) -> dict[str, Any]:
         """Retrieve full details, frontmatter metadata, and instructions for a skill."""
+        clean_name = name_or_path.strip().replace("skills/", "").strip("/")
+        if self._corpus is not None:
+            return self._get_skill_sandboxed(clean_name, name_or_path)
         if not self._path:
             return {"ok": False, "error": "Cybersecurity skills directory not configured"}
 
-        clean_name = name_or_path.strip().replace("skills/", "")
         skill_dir = self._path / "skills" / clean_name
         skill_file = skill_dir / "SKILL.md"
 
@@ -202,7 +247,32 @@ class CybersecuritySkillsAdapter:
             else:
                 return {"ok": False, "error": f"Skill not found: {name_or_path}"}
 
-        content = skill_file.read_text(encoding="utf-8")
+        scripts = [s.name for s in (skill_dir / "scripts").iterdir() if s.is_file()] if (skill_dir / "scripts").is_dir() else []
+        references = [r.name for r in (skill_dir / "references").iterdir() if r.is_file()] if (skill_dir / "references").is_dir() else []
+        return self._skill_payload(skill_dir.name, skill_file.read_text(encoding="utf-8"), scripts, references)
+
+    def _get_skill_sandboxed(self, clean_name: str, requested: str) -> dict[str, Any]:
+        try:
+            self._ensure_index()
+        except RuntimeError as exc:
+            return {"ok": False, "error": str(exc)}
+        names = [str(s.get("name", "")) for s in self._skills_list]
+        if clean_name not in names:
+            partial = [n for n in names if clean_name.lower() in n.lower()]
+            if not partial:
+                return {"ok": False, "error": f"Skill not found: {requested}"}
+            clean_name = partial[0]
+        try:
+            found = self._corpus.bundle(f"skills/{clean_name}", "SKILL.md", ("scripts", "references"))
+        except (CorpusUnavailable, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
+        if found is None:
+            return {"ok": False, "error": f"Skill not found: {requested}"}
+        listings = found["listings"]
+        return self._skill_payload(clean_name, found["content"], listings.get("scripts", []), listings.get("references", []))
+
+    @staticmethod
+    def _skill_payload(dir_name: str, content: str, scripts: list[str], references: list[str]) -> dict[str, Any]:
         parts = content.split("---", 2)
         metadata: dict[str, Any] = {}
         instructions = content
@@ -213,17 +283,9 @@ class CybersecuritySkillsAdapter:
             except Exception:
                 pass
 
-        scripts = []
-        if (skill_dir / "scripts").is_dir():
-            scripts = [s.name for s in (skill_dir / "scripts").iterdir() if s.is_file()]
-
-        references = []
-        if (skill_dir / "references").is_dir():
-            references = [r.name for r in (skill_dir / "references").iterdir() if r.is_file()]
-
         return {
             "ok": True,
-            "name": metadata.get("name", skill_dir.name),
+            "name": metadata.get("name", dir_name),
             "description": metadata.get("description", ""),
             "domain": metadata.get("domain", "cybersecurity"),
             "subdomain": metadata.get("subdomain", ""),

@@ -17,7 +17,6 @@ class ExternalSkillCollections:
     """Discovers and selectively imports compatible skills from external-components without auto-activation."""
 
     COLLECTION_PATHS = {
-        "cybersecurity": Path("external-components/Anthropic-Cybersecurity-Skills/skills"),
         "scientific": Path("external-components/scientific-agent-skills/skills"),
         "diagram": Path("external-components/diagram-design/skills"),
     }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import logging
 from pathlib import Path
 import sys
@@ -95,6 +96,11 @@ except Exception:
         return importlib.util.find_spec("openviking_sdk") is not None
 
     def health(self) -> dict[str, Any]:
+        if self._client is not None:
+            try:
+                return {"ok": True, "health": self._client.health()}
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)[:400]}
         from living_assistant.core.isolated_executor import run_isolated_tool
         script = self._build_preamble() + """
 try:
@@ -105,9 +111,30 @@ except Exception as exc:
         return run_isolated_tool(script, timeout=self._timeout)
 
     def recall(self, query: str, uri: str = "", limit: int = 6) -> dict[str, Any]:
-        from living_assistant.core.isolated_executor import run_isolated_tool
         if not query or not query.strip():
             return {"ok": False, "error": "query must not be empty"}
+        if self._client is not None:
+            try:
+                kwargs: dict[str, Any] = {"query": query.strip()}
+                if uri:
+                    kwargs["uri"] = uri
+                results = self._client.find(**kwargs)
+                items = results if isinstance(results, list) else results.get("items", [])
+                return {
+                    "ok": True,
+                    "query": query,
+                    "items": [
+                        {
+                            "uri": getattr(r, "uri", None) or (r.get("uri", "") if isinstance(r, dict) else ""),
+                            "content": getattr(r, "content", None) or (r.get("content", "") if isinstance(r, dict) else ""),
+                            "score": getattr(r, "score", None) or (r.get("score", None) if isinstance(r, dict) else None),
+                        }
+                        for r in (items[:limit] if isinstance(items, list) else [])
+                    ],
+                }
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)[:800]}
+        from living_assistant.core.isolated_executor import run_isolated_tool
         script = self._build_preamble() + f"""
 try:
     kwargs = {{"query": {repr(query.strip())}}}
@@ -129,9 +156,20 @@ except Exception as exc:
         return run_isolated_tool(script, timeout=self._timeout)
 
     def remember(self, content: str, uri: str = "", tags: list[str] | None = None) -> dict[str, Any]:
-        from living_assistant.core.isolated_executor import run_isolated_tool
         if not content or not content.strip():
             return {"ok": False, "error": "content must not be empty"}
+        if self._client is not None:
+            try:
+                kwargs: dict[str, Any] = {"parts": [content.strip()]}
+                if uri:
+                    kwargs["uri"] = uri
+                if tags:
+                    kwargs["tags"] = tags
+                res = self._client.write(**kwargs)
+                return {"ok": True, "uri": uri or "", "result": res}
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)[:800]}
+        from living_assistant.core.isolated_executor import run_isolated_tool
         script = self._build_preamble() + f"""
 try:
     if has_tp:
@@ -149,6 +187,28 @@ except Exception as exc:
         return run_isolated_tool(script, timeout=self._timeout)
 
     def search(self, query: str, uri: str = "") -> dict[str, Any]:
+        if not query or not query.strip():
+            return {"ok": False, "error": "query must not be empty"}
+        if self._client is not None:
+            try:
+                kwargs: dict[str, Any] = {"query": query.strip()}
+                if uri:
+                    kwargs["uri"] = uri
+                results = self._client.search(**kwargs)
+                items = results if isinstance(results, list) else results.get("items", [])
+                return {
+                    "ok": True,
+                    "query": query,
+                    "items": [
+                        {
+                            "uri": getattr(r, "uri", None) or (r.get("uri", "") if isinstance(r, dict) else ""),
+                            "snippet": getattr(r, "snippet", None) or (r.get("snippet", "") if isinstance(r, dict) else ""),
+                        }
+                        for r in (items if isinstance(items, list) else [])
+                    ],
+                }
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)[:800]}
         from living_assistant.core.isolated_executor import run_isolated_tool
         if not query or not query.strip():
             return {"ok": False, "error": "query must not be empty"}
@@ -172,9 +232,23 @@ except Exception as exc:
         return run_isolated_tool(script, timeout=self._timeout)
 
     def capture_session(self, session_id: str, messages: list[dict], token_budget: int = 4096) -> dict[str, Any]:
-        from living_assistant.core.isolated_executor import run_isolated_tool
         if not session_id:
             return {"ok": False, "error": "session_id required"}
+        if self._client is not None:
+            try:
+                self._client.create_session(session_id=session_id)
+                sc = self._client.session(session_id=session_id)
+                for msg in messages:
+                    role = str(msg.get("role", "user"))
+                    text = str(msg.get("content", ""))
+                    if not text.strip():
+                        continue
+                    sc.add_message(role=role, content=text)
+                ctx = sc.get_session_context(token_budget=token_budget)
+                return {"ok": True, "session_id": session_id, "context_length": len(str(ctx))}
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)[:800]}
+        from living_assistant.core.isolated_executor import run_isolated_tool
         script = self._build_preamble() + f"""
 try:
     client.create_session(session_id={repr(session_id)})

@@ -128,10 +128,37 @@ class AgentManager:
     def create_draft(self, prompt: str, form_data: dict[str, Any] | None = None) -> AgentPackage:
         return self.creator.create_draft(prompt, form_data=form_data)
 
+    def validate_agent(self, manifest: AgentManifest, agent_md: str, check_duplicate: bool = False) -> None:
+        """Validate agent definition against Section 84 requirements."""
+        import re
+        if not manifest.name or not manifest.name.strip():
+            raise ValueError("Agent name cannot be empty.")
+        if not re.match(r"^[a-zA-Z0-9_\- ]+$", manifest.name):
+            raise ValueError("Agent name must be alphanumeric with spaces, hyphens, or underscores.")
+        if check_duplicate:
+            existing = self.store.get_by_name(manifest.name)
+            if existing and existing.get("agent_id") != manifest.id:
+                raise ValueError(f"Agent name '{manifest.name}' is already in use by another agent.")
+        if not agent_md or not agent_md.strip():
+            raise ValueError("Agent prompt (instructions) cannot be empty.")
+        model_name = getattr(manifest.model_preference, "model_name", None)
+        if model_name and self.model_manager and hasattr(self.model_manager, "validate_model_selection"):
+            try:
+                self.model_manager.validate_model_selection(model_name)
+            except Exception as e:
+                raise ValueError(f"Unsupported model '{model_name}': {e}")
+        # Verify capability scoping: check required tools exist
+        if hasattr(self.tool_registry, "has_tool"):
+            for t in manifest.allowed_tools:
+                if not self.tool_registry.has_tool(t):
+                    raise ValueError(f"Required tool dependency '{t}' is missing from registry.")
+
     def update_agent(self, agent_id: str, manifest_data: dict[str, Any], agent_md: str) -> AgentPackage:
         manifest = AgentManifest.from_json(manifest_data)
         if manifest.id != agent_id:
             raise ValueError(f"Manifest ID '{manifest.id}' does not match target agent_id '{agent_id}'")
+
+        self.validate_agent(manifest, agent_md, check_duplicate=True)
 
         p_dir = self.agents_dir / agent_id
         pkg = AgentPackage(root=p_dir, manifest=manifest, agent_md=agent_md)
@@ -181,6 +208,14 @@ class AgentManager:
     def archive_agent(self, agent_id: str) -> dict[str, Any]:
         self.store.set_state(agent_id, "ARCHIVED")
         return {"ok": True, "state": "ARCHIVED", "agent_id": agent_id}
+
+    def rollback_agent(self, agent_id: str, target_version: str) -> AgentPackage:
+        """Rollback an agent to a previously snapshot version."""
+        manifest, agent_md = self.store.rollback_version(agent_id, target_version)
+        p_dir = self.agents_dir / agent_id
+        pkg = AgentPackage(root=p_dir, manifest=manifest, agent_md=agent_md)
+        pkg.save()
+        return pkg
 
     def execute_agent(
         self,

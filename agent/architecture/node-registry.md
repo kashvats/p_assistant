@@ -22,3 +22,13 @@
 | `NODE_DIAGRAM_DESIGN` | adapter | `src/living_assistant/integrations/diagram_design.py` | Editorial diagram engine with deterministic IR extraction (Mermaid, Draw.io, Excalidraw), accessible SVG generation, and safety self-check across 41 diagram types. |
 | `NODE_CYBERSECURITY_SKILLS` | adapter | `src/living_assistant/integrations/cybersecurity_skills.py` | Cybersecurity skills catalog adapter with 800+ defensive techniques, threat modeling, and multi-layered OWASP prompt injection auditing. |
 | `NODE_GRAFT_MEMORY` | adapter | `src/living_assistant/integrations/graft.py` | Persistent local AI agent memory layer with verified recall, hybrid retrieval, graph exploration, and embedded SQLite FTS5 fallback. |
+| `NODE_RETRY_POLICY` | core | `src/living_assistant/core/retry_policy.py` | Differentiated HTTP retry policy with exponential backoff and jitter. |
+| `NODE_IDEMPOTENCY_STORE` | core | `src/living_assistant/core/idempotency.py` | Thread-safe deduplication store preventing duplicate side-effecting operations. |
+| `NODE_BROWSER_DOWNLOAD_TRACKER` | desktop | `src/living_assistant/desktop/download_tracker.py` | Ingests, normalizes, verifies completion of, and quarantines dangerous browser downloads. |
+| `NODE_SYSTEM_GRAPH_VALIDATOR` | system | `src/living_assistant/system/graph_validator.py` | Validates system.graph.yaml integrity against code reality, duplicate node IDs, and cycles. |
+| `NODE_CONFIG_VALIDATOR` | core | `src/living_assistant/core/config_validator.py` | Enforces configuration schema boundaries for ports, timeouts, URLs, and providers. |
+| `NODE_CONFIG_MANAGER` | core | `src/living_assistant/core/config_manager.py` | Atomic configuration hot-reload coordinator and secret rotation manager. |
+| `NODE_MIGRATION_MANAGER` | core | `src/living_assistant/core/migration.py` | Transactional schema migration engine guaranteeing data integrity and rollbacks. |
+| `NODE_BACKUP_MANAGER` | core | `src/living_assistant/core/backup.py` | Creates state recovery backups excluding plaintext secrets and safely restores them. |
+| `NODE_AUDIT_LOGGER` | security | `src/living_assistant/security/audit.py` | Immutable security audit log maintaining audit trail for privileged operations. |
+

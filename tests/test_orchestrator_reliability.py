@@ -9,8 +9,7 @@ from living_assistant.tools.base import Tool
 from living_assistant.tools.filesystem import build_filesystem_tools
 from living_assistant.core.workspace import Workspace
 
-@pytest.fixture
-def mock_orchestrator():
+def create_mock_orchestrator():
     mm = MagicMock(spec=ModelManager)
     mm.provider = MagicMock()
     tools = [
@@ -29,6 +28,10 @@ def mock_orchestrator():
     orc.tool_router = MagicMock()
     orc.tool_router.search.return_value = [{"name": "bm25_tool"}]
     return orc
+
+@pytest.fixture
+def mock_orchestrator():
+    return create_mock_orchestrator()
 
 # CASE A: Strict result validation (ok_result defaults to False when missing "ok")
 def test_case_a_strict_result_validation(mock_orchestrator):

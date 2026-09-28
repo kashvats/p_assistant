@@ -1,12 +1,31 @@
 import json
 import logging
+import os
+import sys
 from dataclasses import dataclass
-from tests.test_orchestrator_reliability import test_case_a_strict_result_validation, \
-    test_case_b_cross_step_loop_detection, test_case_c_jev_loop_breaker_content_length, \
-    test_case_d_context_ordering, test_case_e_active_tool_check, test_case_f_taskstate_fingerprint, \
-    test_case_g_taskstate_audit_summary, test_case_h_filesystem_write_verification, \
-    test_case_i_tool_routing_bm25_fallback, test_case_j_tool_routing_core_tools, \
-    test_case_k_loop_injection_hard_stop
+from pathlib import Path
+
+# Ensure root and src are on sys.path when run directly
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+if str(_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_ROOT / "src"))
+
+from tests.test_orchestrator_reliability import (
+    create_mock_orchestrator,
+    test_case_a_strict_result_validation,
+    test_case_b_cross_step_loop_detection,
+    test_case_c_jev_loop_breaker_content_length,
+    test_case_d_context_ordering,
+    test_case_e_active_tool_check,
+    test_case_f_taskstate_fingerprint,
+    test_case_g_taskstate_audit_summary,
+    test_case_h_filesystem_write_verification,
+    test_case_i_tool_routing_bm25_fallback,
+    test_case_j_tool_routing_core_tools,
+    test_case_k_loop_injection_hard_stop,
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -51,9 +70,6 @@ def run_eval_harness():
         ("M11", test_case_k_loop_injection_hard_stop, True),
     ]
     
-    # Needs mock orchestrator fixture
-    from tests.test_orchestrator_reliability import mock_orchestrator
-    
     total_weight = sum(m.weight for m in METRICS)
     passed_weight = 0.0
     
@@ -68,7 +84,7 @@ def run_eval_harness():
                     with tempfile.TemporaryDirectory() as td:
                         test_func(Path(td))
                 else:
-                    test_func(mock_orchestrator())
+                    test_func(create_mock_orchestrator())
             else:
                 test_func()
             metric.passed = True

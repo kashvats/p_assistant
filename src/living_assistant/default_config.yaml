@@ -15,7 +15,12 @@ model_usage:
   # Store counters/timing only; prompts and responses are never persisted here.
   retention_days: 365
 
+llamacpp:
+  base_url: ${LLAMACPP_BASE_URL:http://127.0.0.1:8080}
+  timeout_seconds: 180
+
 ollama:
+  enabled: false
   base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
   keep_alive_seconds: 45
 
@@ -40,7 +45,7 @@ model_runtime:
   max_parallel_per_model: 1
   resident_keep_alive_seconds: 300
   admission_timeout_seconds: 120
-  reserve_ram_gb_by_profile: {lite: 1.0, balanced: 3.0, power: 6.0}
+  reserve_ram_gb_by_profile: {lite: 0.5, balanced: 1.5, power: 3.0}
   reserve_vram_gb: 1.0
   dedicated_vram_gb_for_two: 16
   dedicated_vram_gb_for_three: 24
@@ -60,13 +65,13 @@ profiles:
     max_handoffs: 1
     max_tool_steps: 6
     models:
-      orchestrator: qwen3.5:0.8b
-      general: qwen3.5:0.8b
-      coder: qwen3.5:0.8b
-      researcher: qwen3.5:0.8b
-      security: qwen3.5:0.8b
-      database: qwen3.5:0.8b
-      planner: qwen3.5:0.8b
+      orchestrator: openai/local-model
+      general: openai/local-model
+      coder: openai/local-model
+      researcher: openai/local-model
+      security: openai/local-model
+      database: openai/local-model
+      planner: openai/local-model
 
   balanced:
     min_ram_gb: 12
@@ -74,13 +79,13 @@ profiles:
     max_handoffs: 2
     max_tool_steps: 10
     models:
-      orchestrator: qwen3.5:4b
-      general: qwen3.5:4b
-      coder: qwen3.5:4b
-      researcher: qwen3.5:2b
-      security: qwen3.5:2b
-      database: qwen3.5:2b
-      planner: qwen3.5:2b
+      orchestrator: openai/local-model
+      general: openai/local-model
+      coder: openai/local-model
+      researcher: openai/local-model
+      security: openai/local-model
+      database: openai/local-model
+      planner: openai/local-model
 
   power:
     min_ram_gb: 48
@@ -88,13 +93,13 @@ profiles:
     max_handoffs: 3
     max_tool_steps: 16
     models:
-      orchestrator: qwen3.5:9b
-      general: qwen3.5:9b
-      coder: qwen3.5:9b
-      researcher: qwen3.5:4b
-      security: qwen3.5:4b
-      database: qwen3.5:4b
-      planner: qwen3.5:4b
+      orchestrator: openai/local-model
+      general: openai/local-model
+      coder: openai/local-model
+      researcher: openai/local-model
+      security: openai/local-model
+      database: openai/local-model
+      planner: openai/local-model
 
 policy:
   require_execute_approval: true

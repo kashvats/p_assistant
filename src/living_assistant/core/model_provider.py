@@ -16,6 +16,62 @@ class ModelError(RuntimeError):
     pass
 
 
+def to_openai_messages(messages: list[dict]) -> list[dict]:
+    """Normalize internal (Ollama-style) messages to the OpenAI chat schema.
+
+    Converts `images` (base64 strings) into image_url content parts, ensures every
+    assistant tool call has an id and string arguments, and links tool results to
+    their call via tool_call_id (OpenAI-compatible servers reject unlinked results).
+    """
+    import json as _json
+
+    out: list[dict] = []
+    pending_ids: list[str] = []
+    for raw in messages:
+        if not isinstance(raw, dict):
+            continue
+        role = raw.get("role", "user")
+        msg: dict[str, Any] = {"role": role}
+        content = raw.get("content")
+        images = raw.get("images") or []
+        if images:
+            parts: list[dict] = [{"type": "text", "text": str(content or "")}]
+            for img in images:
+                url = img if str(img).startswith("data:") else f"data:image/png;base64,{img}"
+                parts.append({"type": "image_url", "image_url": {"url": url}})
+            msg["content"] = parts
+        else:
+            msg["content"] = content if isinstance(content, list) else str(content or "")
+
+        if role == "assistant" and raw.get("tool_calls"):
+            calls = []
+            for i, call in enumerate(raw["tool_calls"]):
+                fn = (call or {}).get("function") or {}
+                args = fn.get("arguments")
+                if not isinstance(args, str):
+                    args = _json.dumps(args or {})
+                calls.append({
+                    "id": call.get("id") or f"call_{len(out)}_{i}",
+                    "type": "function",
+                    "function": {"name": fn.get("name") or "", "arguments": args},
+                })
+            msg["tool_calls"] = calls
+            pending_ids = [c["id"] for c in calls]
+        elif role == "tool":
+            call_id = raw.get("tool_call_id")
+            if call_id in pending_ids:
+                pending_ids.remove(call_id)
+            elif not call_id and pending_ids:
+                call_id = pending_ids.pop(0)
+            if call_id:
+                msg["tool_call_id"] = call_id
+            name = raw.get("name") or raw.get("tool_name")
+            if name:
+                msg["name"] = name
+        out.append(msg)
+    return out
+
+
 ONLINE_PROVIDER_SPECS = {
     "openai": {
         "name": "OpenAI",
@@ -70,9 +126,22 @@ def model_provider_info(model: str | None) -> dict:
                 "model": selected,
                 "supported": False,
             }
+    if lowered.startswith("ollama:"):
+        return {
+            "id": "ollama",
+            "name": "Ollama (local)",
+            "mode": "local",
+            "local": True,
+            "credentials_required": False,
+            "credentials_configured": False,
+            "credential_env": None,
+            "credential_label": None,
+            "model": selected,
+            "supported": True,
+        }
     return {
-        "id": "ollama",
-        "name": "Ollama (local)",
+        "id": "llamacpp",
+        "name": "llama.cpp (local)",
         "mode": "local",
         "local": True,
         "credentials_required": False,
@@ -82,6 +151,306 @@ def model_provider_info(model: str | None) -> dict:
         "model": selected,
         "supported": True,
     }
+
+
+@dataclass
+class ModelCapability:
+    """Explicit metadata declaring capabilities of a model.
+    
+    Never infer critical capabilities solely from the model filename.
+    """
+    name: str
+    provider: str
+    supports_text: bool = True
+    supports_vision: bool = False
+    supports_tools: bool = True
+    supports_json: bool = True
+    supports_streaming: bool = True
+    context_length: int = 4096
+    estimated_vram_mb: int = 0
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "provider": self.provider,
+            "supports_text": self.supports_text,
+            "supports_vision": self.supports_vision,
+            "supports_tools": self.supports_tools,
+            "supports_json": self.supports_json,
+            "supports_streaming": self.supports_streaming,
+            "context_length": self.context_length,
+            "estimated_vram_mb": self.estimated_vram_mb,
+        }
+
+
+class CapabilityRegistry:
+    """Registry maintaining verified model capability declarations."""
+    def __init__(self):
+        self._capabilities: dict[str, ModelCapability] = {}
+
+    def register(self, capability: ModelCapability) -> None:
+        self._capabilities[capability.name] = capability
+
+    def get(self, model_name: str) -> ModelCapability | None:
+        return self._capabilities.get(model_name)
+
+    def validate_capability(self, model_name: str, requires_vision: bool = False, requires_tools: bool = False) -> tuple[bool, str]:
+        cap = self.get(model_name)
+        if cap is None:
+            if requires_vision:
+                return False, f"Model '{model_name}' has no declared vision capability metadata."
+            return True, ""
+        if requires_vision and not cap.supports_vision:
+            return False, f"Model '{model_name}' does not support vision tasks."
+        if requires_tools and not cap.supports_tools:
+            return False, f"Model '{model_name}' does not support tool calling."
+        return True, ""
+
+
+@dataclass
+class LlamaCppProvider:
+    base_url: str = "http://127.0.0.1:8080"
+    timeout_seconds: float = 180.0
+    api_key: str = "dummy"
+
+    def __post_init__(self):
+        from urllib.parse import urlparse
+        parsed = urlparse(self.base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ModelError("llama.cpp base_url must be an http/https URL with a hostname.")
+
+    def _client(self):
+        return httpx.Client(base_url=self.base_url.rstrip("/"), timeout=self.timeout_seconds, trust_env=False)
+
+    @staticmethod
+    def _clean_model_name(raw: str) -> str:
+        if not raw:
+            return "local-model"
+        norm = raw.replace("\\", "/").rstrip("/")
+        base = norm.split("/")[-1]
+        if base.lower().endswith(".gguf"):
+            return base[:-5]
+        return base or raw
+
+    def available_models(self) -> list[str]:
+        return list(self.model_inventory().keys())
+
+    def model_inventory(self) -> dict[str, dict]:
+        """Fetch models from the running llama.cpp server (/v1/models or /models)."""
+        result: dict[str, dict] = {}
+        try:
+            with self._client() as c:
+                r = None
+                for path in ("/v1/models", "/models"):
+                    try:
+                        resp = c.get(path)
+                        if resp.status_code == 200:
+                            r = resp
+                            break
+                    except Exception:
+                        pass
+                if r is not None and r.status_code == 200:
+                    data = r.json()
+                    models_list = data.get("models") or data.get("data") or []
+                    for item in models_list:
+                        raw = str(item.get("name") or item.get("id") or item.get("model") or "")
+                        if raw:
+                            clean = self._clean_model_name(raw)
+                            size_bytes = (
+                                item.get("meta", {}).get("size")
+                                or item.get("size")
+                                or 0
+                            )
+                            try:
+                                size_bytes = int(size_bytes)
+                            except (TypeError, ValueError):
+                                size_bytes = 0
+                            meta = {
+                                "name": clean,
+                                "model": clean,
+                                "raw_name": raw,
+                                "provider": "llamacpp",
+                                "loaded": True,
+                                "size": size_bytes,
+                                "size_bytes": size_bytes,
+                                "status": "loaded",
+                            }
+                            result[clean] = meta
+        except Exception:
+            pass
+
+        if not result:
+            result["openai/local-model"] = {
+                "name": "openai/local-model",
+                "model": "openai/local-model",
+                "provider": "llamacpp",
+                "loaded": True,
+                "size": 0,
+                "size_bytes": 0,
+                "status": "loaded",
+            }
+        else:
+            first_clean = next(iter(result.keys()))
+            result["openai/local-model"] = {
+                "name": "openai/local-model",
+                "model": first_clean,
+                "provider": "llamacpp",
+                "loaded": True,
+                "size": result[first_clean]["size"],
+                "size_bytes": result[first_clean]["size_bytes"],
+                "status": "loaded",
+            }
+        return result
+
+    def model_size_bytes(self, model: str) -> int | None:
+        return 0
+
+    def running_models(self) -> list[dict]:
+        inv = self.model_inventory()
+        specific = [v for k, v in inv.items() if k != "openai/local-model"]
+        return specific if specific else list(inv.values())[:1]
+
+    def preload(self, model: str, keep_alive: int | str = 300) -> dict:
+        return {"ok": True, "model": model, "provider": "llamacpp"}
+
+    def unload(self, model: str):
+        pass
+
+    def pull(self, model: str) -> dict:
+        return {"ok": True, "model": model, "status": "llama.cpp models are loaded directly by the server"}
+
+    def delete(self, model: str) -> dict:
+        return {"ok": True, "model": model, "status": "deleted"}
+
+    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None,
+             keep_alive: int | str = 45, options: dict | None = None) -> dict:
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": to_openai_messages(messages),
+            "stream": False,
+        }
+        if tools:
+            payload["tools"] = tools
+        opts = options or {}
+        if "temperature" in opts:
+            payload["temperature"] = float(opts["temperature"])
+        if "num_predict" in opts:
+            payload["max_tokens"] = int(opts["num_predict"])
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        with self._client() as c:
+            r = c.post("/v1/chat/completions", json=payload, headers=headers)
+            if r.status_code >= 400:
+                raise ModelError(f"llama.cpp error {r.status_code}: {redact_secrets(r.text, 1200)}")
+            data = r.json()
+            choice = data["choices"][0]
+            msg = choice.get("message", {})
+            out_msg: dict[str, Any] = {
+                "role": msg.get("role", "assistant"),
+                "content": msg.get("content") or "",
+            }
+            if msg.get("tool_calls"):
+                out_msg["tool_calls"] = []
+                for tc in msg["tool_calls"]:
+                    fn = tc.get("function", {})
+                    out_msg["tool_calls"].append({
+                        "type": "function",
+                        "function": {
+                            "name": fn.get("name"),
+                            "arguments": fn.get("arguments"),
+                        }
+                    })
+            return {"model": data.get("model", model), "message": out_msg, "done": True}
+
+    def chat_stream(self, model: str, messages: list[dict], tools: list[dict] | None = None,
+                    keep_alive: int | str = 45, options: dict | None = None):
+        import json
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": to_openai_messages(messages),
+            "stream": True,
+        }
+        if tools:
+            payload["tools"] = tools
+        opts = options or {}
+        if "temperature" in opts:
+            payload["temperature"] = float(opts["temperature"])
+        if "num_predict" in opts:
+            payload["max_tokens"] = int(opts["num_predict"])
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        with self._client() as c:
+            with c.stream("POST", "/v1/chat/completions", json=payload, headers=headers) as r:
+                if r.status_code >= 400:
+                    body = r.read().decode("utf-8", errors="replace")
+                    raise ModelError(f"llama.cpp error {r.status_code}: {redact_secrets(body, 1200)}")
+                tool_call_chunks: dict[int, dict] = {}
+                for line in r.iter_lines():
+                    if not line:
+                        continue
+                    line_str = line.strip()
+                    if line_str.startswith("data:"):
+                        data_part = line_str[5:].strip()
+                        if data_part == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_part)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content") or ""
+                        tool_calls = delta.get("tool_calls")
+                        if tool_calls:
+                            for tc in tool_calls:
+                                idx = int(tc.get("index", 0))
+                                if idx not in tool_call_chunks:
+                                    tool_call_chunks[idx] = {
+                                        "id": tc.get("id") or f"call_{idx}",
+                                        "type": "function",
+                                        "function": {"name": "", "arguments": ""},
+                                    }
+                                if tc.get("id"):
+                                    tool_call_chunks[idx]["id"] = tc["id"]
+                                fn = tc.get("function") or {}
+                                if fn.get("name"):
+                                    tool_call_chunks[idx]["function"]["name"] += fn["name"]
+                                if fn.get("arguments"):
+                                    tool_call_chunks[idx]["function"]["arguments"] += fn["arguments"]
+
+                        if content:
+                            yield {
+                                "model": chunk.get("model", model),
+                                "message": {
+                                    "role": delta.get("role", "assistant"),
+                                    "content": content,
+                                },
+                                "done": False,
+                            }
+                if tool_call_chunks:
+                    assembled = []
+                    for idx in sorted(tool_call_chunks.keys()):
+                        item = tool_call_chunks[idx]
+                        if item.get("function", {}).get("name"):
+                            assembled.append(item)
+                    if assembled:
+                        yield {
+                            "model": model,
+                            "message": {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": assembled,
+                            },
+                            "done": True,
+                        }
 
 
 @dataclass
@@ -301,68 +670,102 @@ class LiteLLMProvider:
     def unload(self, model: str):
         pass
 
+    def _kwargs(self, options: dict | None) -> dict:
+        kwargs: dict[str, Any] = {}
+        if self.base_url:
+            kwargs["api_base"] = self.base_url
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        opts = options or {}
+        if "temperature" in opts:
+            kwargs["temperature"] = float(opts["temperature"])
+        if "num_predict" in opts:
+            kwargs["max_tokens"] = int(opts["num_predict"])
+        return kwargs
+
     def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None,
              keep_alive: int | str = 45, options: dict | None = None) -> dict:
         import litellm
         litellm.drop_params = True
-        kwargs = {}
-        if self.base_url: kwargs["api_base"] = self.base_url
-        if self.api_key: kwargs["api_key"] = self.api_key
-
         try:
             res = litellm.completion(
                 model=model,
-                messages=messages,
-                tools=tools,
-                **kwargs
+                messages=to_openai_messages(messages),
+                tools=tools or None,
+                **self._kwargs(options),
             )
-            # Convert LiteLLM ModelResponse to the format expected by Orchestrator
-            msg = res.choices[0].message
-            out_msg = {"role": msg.role, "content": msg.content or ""}
-            if msg.tool_calls:
-                out_msg["tool_calls"] = []
-                for tc in msg.tool_calls:
-                    out_msg["tool_calls"].append({
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
-                        }
-                    })
-            return {"model": model, "message": out_msg, "done": True}
         except Exception as e:
-            raise ModelError(str(e))
+            raise self._friendly_error(e) from e
+        msg = res.choices[0].message
+        out_msg: dict[str, Any] = {"role": msg.role or "assistant", "content": msg.content or ""}
+        if msg.tool_calls:
+            out_msg["tool_calls"] = [
+                {
+                    "id": tc.id or f"call_{i}",
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for i, tc in enumerate(msg.tool_calls)
+            ]
+        return {"model": model, "message": out_msg, "done": True}
 
     def chat_stream(self, model: str, messages: list[dict], tools: list[dict] | None = None,
                     keep_alive: int | str = 45, options: dict | None = None):
         import litellm
-        import json
         litellm.drop_params = True
-        kwargs = {}
-        if self.base_url: kwargs["api_base"] = self.base_url
-        if self.api_key: kwargs["api_key"] = self.api_key
-
         try:
             res = litellm.completion(
                 model=model,
-                messages=messages,
-                tools=tools,
+                messages=to_openai_messages(messages),
+                tools=tools or None,
                 stream=True,
-                **kwargs
+                **self._kwargs(options),
             )
+            calls: dict[int, dict] = {}
             for chunk in res:
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta
+                for tc in getattr(delta, "tool_calls", None) or []:
+                    idx = int(getattr(tc, "index", 0) or 0)
+                    slot = calls.setdefault(
+                        idx,
+                        {"id": f"call_{idx}", "type": "function", "function": {"name": "", "arguments": ""}},
+                    )
+                    if getattr(tc, "id", None):
+                        slot["id"] = tc.id
+                    fn = getattr(tc, "function", None)
+                    if fn is not None:
+                        if fn.name:
+                            slot["function"]["name"] += fn.name
+                        if fn.arguments:
+                            slot["function"]["arguments"] += fn.arguments
+                if delta.content:
+                    yield {
+                        "model": model,
+                        "message": {"role": "assistant", "content": delta.content},
+                        "done": False,
+                    }
+            assembled = [calls[i] for i in sorted(calls) if calls[i]["function"]["name"]]
+            if assembled:
                 yield {
                     "model": model,
-                    "message": {
-                        "role": delta.role or "assistant",
-                        "content": delta.content or "",
-                        # Tool call streaming might need custom reduction in orchestrator
-                    },
-                    "done": chunk.choices[0].finish_reason is not None
+                    "message": {"role": "assistant", "content": "", "tool_calls": assembled},
+                    "done": True,
                 }
+        except ModelError:
+            raise
         except Exception as e:
-            raise ModelError(str(e))
+            raise self._friendly_error(e) from e
+
+    def _friendly_error(self, exc: Exception) -> ModelError:
+        text = str(exc)
+        if any(marker in text for marker in ("10061", "Connection refused", "ConnectError", "Cannot connect", "APIConnectionError")):
+            return ModelError(
+                f"The local model server at {safe_display_url(self.base_url or '')} is not reachable. "
+                "Start llama.cpp/Collibri (llama-server) and try again."
+            )
+        return ModelError(redact_secrets(text, 2000))
 
 class AirLLMProvider:
     """Lazy local AirLLM provider for models that are larger than GPU VRAM.
@@ -634,49 +1037,78 @@ class AirLLMProvider:
 
 
 class CompositeModelProvider:
-    """Route normal model names to Ollama, litellm/ to LiteLLM, and airllm: to AirLLM."""
+    """Route normal model names to llama.cpp (primary), airllm: to AirLLM, litellm/ to LiteLLM, and ollama: to Ollama."""
 
-    def __init__(self, ollama: OllamaProvider, airllm: AirLLMProvider, litellm_provider: LiteLLMProvider | None = None):
-        self.ollama = ollama
-        self.airllm = airllm
+    def __init__(
+        self,
+        ollama: OllamaProvider | None = None,
+        airllm: AirLLMProvider | None = None,
+        litellm_provider: LiteLLMProvider | None = None,
+        llamacpp: LlamaCppProvider | None = None,
+        capability_registry: CapabilityRegistry | None = None,
+    ):
+        self.llamacpp = llamacpp
+        self.ollama = ollama or OllamaProvider()
+        self.airllm = airllm or AirLLMProvider()
+        self.litellm_enabled = litellm_provider is not None
         self.litellm_provider = litellm_provider or LiteLLMProvider(base_url="http://127.0.0.1:8080/v1", api_key="dummy")
-        # Desktop vision's existing locality gate reads provider.base_url. Ollama
-        # is the only network inference provider in this composite; AirLLM runs
-        # locally after any model download/splitting step.
-        self.base_url = ollama.base_url
+        self.capability_registry = capability_registry or CapabilityRegistry()
+        if self.llamacpp is not None:
+            self.base_url = self.llamacpp.base_url
+        elif ollama is not None and hasattr(ollama, "base_url"):
+            self.base_url = ollama.base_url
+        else:
+            self.llamacpp = LlamaCppProvider()
+            self.base_url = self.llamacpp.base_url
 
     def _route(self, model: str):
         if self.airllm.is_airllm_model(model):
             return self.airllm, self.airllm.normalize_model(model)
-        if model.startswith("openai/") or model.startswith("anthropic/") or model.startswith("ollama/") or model.startswith("huggingface/") or model.startswith("groq/") or model.startswith("openrouter/"):
+        if model.startswith("ollama:"):
+            return self.ollama, model[7:]
+        if model.startswith(("anthropic/", "huggingface/", "groq/", "openrouter/")):
             return self.litellm_provider, model
+        # Collibri / llama.cpp are addressed through LiteLLM's OpenAI-compatible alias.
+        if self.litellm_enabled and model.startswith("openai/"):
+            return self.litellm_provider, model
+        if self.llamacpp is not None:
+            return self.llamacpp, model
         return self.ollama, model
 
     def available_models(self) -> list[str]:
+        llamacpp_models = []
+        if self.llamacpp is not None:
+            try:
+                llamacpp_models = self.llamacpp.available_models()
+            except Exception:
+                pass
         air = self.airllm.available_models()
         lite = self.litellm_provider.available_models()
         try:
             ollama = self.ollama.available_models()
         except Exception:
-            if air or lite:
-                return list(dict.fromkeys([*lite, *air]))
-            raise
-        return list(dict.fromkeys([*ollama, *air, *lite]))
+            ollama = []
+        return list(dict.fromkeys([*llamacpp_models, *lite, *air, *ollama]))
 
     def model_inventory(self) -> dict[str, dict]:
-        air = self.airllm.model_inventory()
-        lite = self.litellm_provider.model_inventory()
+        result = {}
+        if self.llamacpp is not None:
+            try:
+                result.update(self.llamacpp.model_inventory())
+            except Exception:
+                pass
         try:
-            result = self.ollama.model_inventory()
+            result.update(self.airllm.model_inventory())
         except Exception:
-            if air or lite:
-                result = {}
-                result.update(air)
-                result.update(lite)
-                return result
-            raise
-        result.update(air)
-        result.update(lite)
+            pass
+        try:
+            result.update(self.litellm_provider.model_inventory())
+        except Exception:
+            pass
+        try:
+            result.update(self.ollama.model_inventory())
+        except Exception:
+            pass
         return result
 
     def model_size_bytes(self, model: str) -> int | None:
@@ -684,13 +1116,18 @@ class CompositeModelProvider:
         return provider.model_size_bytes(routed)
 
     def running_models(self) -> list[dict]:
+        if self.llamacpp is not None:
+            try:
+                running = self.llamacpp.running_models()
+                if running:
+                    return running
+            except Exception:
+                pass
         air = self.airllm.running_models()
         try:
             ollama = self.ollama.running_models()
         except Exception:
-            if air:
-                return air
-            raise
+            ollama = []
         return [*ollama, *air]
 
     def preload(self, model: str, keep_alive: int | str = 300) -> dict:
@@ -704,10 +1141,43 @@ class CompositeModelProvider:
             routed, messages, tools=tools, keep_alive=keep_alive, options=options
         )
 
+    def _failover_candidates(self, current_provider: Any, requires_vision: bool = False) -> list[tuple[Any, str]]:
+        candidates = []
+        pool = [
+            (self.ollama, "ollama:default"),
+            (self.litellm_provider, "openai/gpt-4o"),
+            (self.llamacpp, "local-model"),
+        ]
+        for prov, mname in pool:
+            if prov is not current_provider and prov is not None:
+                cap = self.capability_registry.get(mname)
+                if requires_vision and (cap is None or not cap.supports_vision):
+                    continue
+                candidates.append((prov, mname))
+        return candidates
+
     def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None,
              keep_alive: int | str = 45, options: dict | None = None) -> dict:
+        requires_vision = any(isinstance(m, dict) and ("images" in m or "image_url" in m) for m in messages)
+        valid, err = self.capability_registry.validate_capability(model, requires_vision=requires_vision, requires_tools=bool(tools))
+        if not valid:
+            raise ModelError(err)
+
         provider, routed = self._route(model)
-        return provider.chat(routed, messages, tools=tools, keep_alive=keep_alive, options=options)
+        try:
+            return provider.chat(routed, messages, tools=tools, keep_alive=keep_alive, options=options)
+        except (httpx.ConnectError, httpx.TimeoutException, ModelError) as exc:
+            for fallback_provider, fallback_model in self._failover_candidates(provider, requires_vision=requires_vision):
+                try:
+                    res = fallback_provider.chat(fallback_model, messages, tools=tools, keep_alive=keep_alive, options=options)
+                    if isinstance(res, dict):
+                        res["failover"] = True
+                        res["original_model"] = model
+                        res["active_provider"] = getattr(fallback_provider, "__class__", type(fallback_provider)).__name__
+                    return res
+                except Exception:
+                    continue
+            raise
 
     def unload(self, model: str):
         provider, routed = self._route(model)
@@ -913,27 +1383,28 @@ class ModelManager:
             self._global_slots.release()
             model_slot.release()
 
-    def _ollama_provider(self) -> OllamaProvider:
-        """Return the configured Ollama provider used for local model storage."""
+    def _local_provider(self):
+        """Return the configured local model provider (llama.cpp or Ollama)."""
+        candidate = getattr(self.provider, "llamacpp", None)
+        if candidate is not None:
+            return candidate
         candidate = getattr(self.provider, "ollama", self.provider)
-        if not isinstance(candidate, OllamaProvider):
-            raise ModelError("Local Ollama model management is unavailable for this provider.")
         return candidate
 
-    def resolve_local_model(self, requested: str | None) -> str | None:
-        """Resolve a saved Ollama model name to an installed model.
+    def _ollama_provider(self):
+        """Compatibility accessor for local model provider."""
+        return self._local_provider()
 
-        Ollama model tags are exact identifiers. A saved shorthand such as
-        ``qwen2.5:7b`` may correspond to an installed quantized/instruct tag.
-        Prefer an exact match, then a tag extension from the same requested
-        name, and otherwise leave the selection unchanged so callers can
-        report a real missing-model error.
-        """
+    def resolve_local_model(self, requested: str | None) -> str | None:
+        """Resolve a requested model name to an installed/running model."""
         if not requested or AirLLMProvider.is_airllm_model(str(requested)):
             return requested
         try:
-            names = sorted(self._ollama_provider().model_inventory())
-        except ModelError:
+            inv = self._local_provider().model_inventory()
+            names = sorted(inv.keys())
+        except Exception:
+            return requested
+        if not names:
             return requested
         if requested in names:
             return requested
@@ -1160,9 +1631,35 @@ class ModelManager:
                     "model": selected,
                     "supported": True,
                 }
+            if selected.startswith("ollama:"):
+                return {
+                    "id": "ollama",
+                    "name": "Ollama (local)",
+                    "mode": "local",
+                    "local": True,
+                    "credentials_required": False,
+                    "credentials_configured": False,
+                    "credential_env": None,
+                    "credential_label": None,
+                    "model": selected,
+                    "supported": True,
+                }
             return {
-                "id": "ollama",
-                "name": "Ollama (local)",
+                "id": "llamacpp",
+                "name": "llama.cpp (local)",
+                "mode": "local",
+                "local": True,
+                "credentials_required": False,
+                "credentials_configured": False,
+                "credential_env": None,
+                "credential_label": None,
+                "model": selected,
+                "supported": True,
+            }
+        if isinstance(provider, LlamaCppProvider):
+            return {
+                "id": "llamacpp",
+                "name": "llama.cpp (local)",
                 "mode": "local",
                 "local": True,
                 "credentials_required": False,
@@ -1222,4 +1719,89 @@ class ModelManager:
                 f"{info['name']} online inference is not configured in this "
                 "installation. Select an Ollama or AirLLM model for local use."
             ),
+        }
+
+    def handle_oom(self, failed_model: str, error_message: str = "") -> dict:
+        """Section 52: Detect GPU/system OOM, release failed model, clear caches, and select smaller fallback."""
+        lowered_err = (error_message or "").lower()
+        is_oom = any(
+            marker in lowered_err
+            for marker in ("out of memory", "cuda oom", "not enough memory", "oom", "resource exhausted", "allocation failed")
+        ) or not error_message
+
+        # 1. Release failed model from residency and unload provider
+        try:
+            self.provider.unload(failed_model)
+        except Exception:
+            pass
+        with self._condition:
+            self._resident.pop(failed_model, None)
+            if self.active_model == failed_model:
+                self.active_model = None
+
+        # 2. Clear recoverable cache via resource manager if available
+        cleared_caches = {}
+        if self.resources and hasattr(self.resources, "metabolize"):
+            try:
+                cleared_caches = self.resources.metabolize()
+            except Exception:
+                pass
+
+        # 3. Track failed model to avoid infinite fallback loops
+        if not hasattr(self, "_oom_failed_models"):
+            self._oom_failed_models: set[str] = set()
+        self._oom_failed_models.add(failed_model)
+
+        # 4. Select smaller model from available models
+        smaller_model = None
+        candidates = []
+        try:
+            inventory = self.status(refresh=False).get("models", [])
+            failed_size = None
+            for item in inventory:
+                if item["name"] == failed_model:
+                    failed_size = item.get("disk_size_bytes") or item.get("vram_bytes") or 0
+                    break
+
+            for item in inventory:
+                c_name = item["name"]
+                if c_name == failed_model or c_name in self._oom_failed_models:
+                    continue
+                c_size = item.get("disk_size_bytes") or item.get("vram_bytes") or 0
+                if failed_size is None or c_size < failed_size or failed_size == 0:
+                    candidates.append((c_size, c_name))
+            if candidates:
+                candidates.sort()
+                smaller_model = candidates[0][1]
+        except Exception:
+            pass
+
+        # If no smaller model found in current inventory, check lightweight fallbacks
+        if not smaller_model:
+            for fallback in ("llama3.2:1b", "gemma:2b", "qwen2.5:1.5b", "phi3:mini"):
+                if fallback != failed_model and fallback not in self._oom_failed_models:
+                    try:
+                        resolved = self.resolve_local_model(fallback)
+                        if resolved and resolved != fallback and resolved not in self._oom_failed_models:
+                            smaller_model = resolved
+                            break
+                    except Exception:
+                        pass
+
+        retry_allowed = bool(smaller_model and smaller_model not in self._oom_failed_models)
+        self._publish(
+            "model.oom_recovery",
+            failed_model=failed_model,
+            smaller_model=smaller_model,
+            retry_allowed=retry_allowed,
+        )
+
+        return {
+            "ok": True,
+            "detected_oom": is_oom,
+            "released_model": failed_model,
+            "cleared_caches": cleared_caches,
+            "smaller_model": smaller_model,
+            "retry_allowed": retry_allowed,
+            "error_detail": error_message,
         }

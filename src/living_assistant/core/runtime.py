@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 from dataclasses import dataclass
 from typing import Any
 from pathlib import Path
@@ -13,7 +14,7 @@ from living_assistant.system.hardware import detect_hardware, choose_profile
 from living_assistant.core.workspace import Workspace
 from living_assistant.core.approval import ApprovalManager, ApprovalStore
 from living_assistant.core.memory import MemoryStore
-from living_assistant.core.model_provider import AirLLMProvider, CompositeModelProvider, LiteLLMProvider, OllamaProvider, ModelManager
+from living_assistant.core.model_provider import AirLLMProvider, CompositeModelProvider, LiteLLMProvider, LlamaCppProvider, OllamaProvider, ModelManager
 from living_assistant.agents.agents import SpecialistRouter
 from living_assistant.agents.orchestrator import Orchestrator
 from living_assistant.system.watchers import WatchRegistry
@@ -49,6 +50,8 @@ from living_assistant.tools.filesystem import build_filesystem_tools
 from living_assistant.tools.shell import build_shell_tools, ProcessRegistry
 from living_assistant.tools.projects import build_project_tools, ProjectRegistry
 from living_assistant.tools.webtools import build_web_tools
+from living_assistant.tools.mediatools import build_media_tools
+from living_assistant.tools.logtools import build_log_tools
 from living_assistant.tools.database import build_database_tools
 from living_assistant.tools.personal import build_personal_tools
 from living_assistant.tools.security import build_security_tools
@@ -72,6 +75,7 @@ from living_assistant.tools.peertools import build_peer_tools
 from living_assistant.system.codebase_index import CodebaseIndex
 from living_assistant.system.workspace_snapshots import WorkspaceSnapshotManager
 from living_assistant.system.peer_agents import PeerAgentManager
+from living_assistant.integrations.cybersecurity_skills import cybersecurity_mode
 from living_assistant.integrations import AgentMemoryAdapter, BrowserUseAdapter, ExternalIntegrationRegistry, OpenVikingAdapter, CodebaseMemoryAdapter, DiagramDesignAdapter, CybersecuritySkillsAdapter, GraftAdapter, OpenMontageAdapter, Edge0Adapter, AgencyAgentsAdapter, ScientificSkillsAdapter, AwesomeHarnessAdapter, AwesomeAgentToolsAdapter
 from living_assistant.tools.vikingtools import build_viking_tools
 from living_assistant.tools.agentmemorytools import build_agentmemory_tools
@@ -151,6 +155,55 @@ class Runtime:
     agent_manager: Any = None
     scheduler: Any = None
 
+    def shutdown(self) -> dict:
+        """Section 63 Shutdown: Gracefully stop schedulers, browsers, voice engine, subprocesses, and models."""
+        results = {}
+
+        # 1. Stop scheduler
+        if self.scheduler is not None and hasattr(self.scheduler, "stop"):
+            try:
+                self.scheduler.stop()
+                results["scheduler_stopped"] = True
+            except Exception as exc:
+                results["scheduler_error"] = str(exc)
+
+        # 2. Stop voice hands-free listener and sleep STT/TTS models
+        if self.voice is not None:
+            try:
+                if hasattr(self.voice, "stop_hands_free"):
+                    self.voice.stop_hands_free()
+                if hasattr(self.voice, "sleep"):
+                    self.voice.sleep()
+                results["voice_stopped"] = True
+            except Exception as exc:
+                results["voice_error"] = str(exc)
+
+        # 3. Close open browser instances and release playwright
+        if self.browser is not None and hasattr(self.browser, "close_all_sessions"):
+            try:
+                self.browser.close_all_sessions()
+                results["browser_closed"] = True
+            except Exception as exc:
+                results["browser_error"] = str(exc)
+
+        # 4. Stop all managed subprocesses and process trees
+        if self.processes is not None and hasattr(self.processes, "stop_all"):
+            try:
+                stopped = self.processes.stop_all()
+                results["processes_stopped"] = len(stopped)
+            except Exception as exc:
+                results["processes_error"] = str(exc)
+
+        # 5. Flush and clear GPU VRAM / model memory
+        if self.resources is not None and hasattr(self.resources, "metabolize"):
+            try:
+                results["metabolize"] = self.resources.metabolize()
+            except Exception as exc:
+                results["metabolize_error"] = str(exc)
+
+        results["shutdown_clean"] = True
+        return results
+
 
 import threading
 
@@ -229,9 +282,14 @@ def build_runtime(interactive: bool = True) -> Runtime:
     planner=TaskGraphManager(approvals.path)
     events_bus=EventBus(max_events=int(cfg.get('ui',{}).get('activity_history',500)), path=approvals.path)
 
+    llamacpp_cfg = cfg.get('llamacpp', {})
+    llamacpp_base = llamacpp_cfg.get('base_url') or os.environ.get('LLAMACPP_BASE_URL', 'http://127.0.0.1:8080')
+    llamacpp_provider = LlamaCppProvider(base_url=str(llamacpp_base))
+
     ocfg=cfg.get('ollama',{})
     ollama_provider=OllamaProvider(
-        base_url=ocfg['base_url'], allow_remote=bool(ocfg.get('allow_remote',False)),
+        base_url=ocfg.get('base_url', 'http://127.0.0.1:11434'),
+        allow_remote=bool(ocfg.get('allow_remote',False)),
         allow_insecure_remote=bool(ocfg.get('allow_insecure_remote',False)),
     )
     litellm_cfg=cfg.get('litellm',{})
@@ -249,23 +307,23 @@ def build_runtime(interactive: bool = True) -> Runtime:
         for model_name in (profile_cfg.get('models') or {}).values():
             if AirLLMProvider.is_airllm_model(str(model_name or '')):
                 configured_airllm.append(str(model_name))
-    if bool(aircfg.get('enabled',False)) or configured_airllm:
-        airllm_provider=AirLLMProvider(
-            configured_models=configured_airllm,
-            compression=aircfg.get('compression'),
-            layer_shards_saving_path=aircfg.get('layer_shards_saving_path'),
-            hf_token_env=str(aircfg.get('hf_token_env','HF_TOKEN')),
-            prefetching=bool(aircfg.get('prefetching',True)),
-            delete_original=bool(aircfg.get('delete_original',False)),
-            max_input_tokens=int(aircfg.get('max_input_tokens',8192)),
-            max_new_tokens=int(aircfg.get('max_new_tokens',512)),
-        )
-        provider=CompositeModelProvider(ollama_provider,airllm_provider,litellm_provider=litellm_provider)
-    elif litellm_provider is not None:
-        airllm_provider=AirLLMProvider()
-        provider=CompositeModelProvider(ollama_provider,airllm_provider,litellm_provider=litellm_provider)
-    else:
-        provider=ollama_provider
+    airllm_provider = AirLLMProvider(
+        configured_models=configured_airllm,
+        compression=aircfg.get('compression'),
+        layer_shards_saving_path=aircfg.get('layer_shards_saving_path'),
+        hf_token_env=str(aircfg.get('hf_token_env','HF_TOKEN')),
+        prefetching=bool(aircfg.get('prefetching',True)),
+        delete_original=bool(aircfg.get('delete_original',False)),
+        max_input_tokens=int(aircfg.get('max_input_tokens',8192)),
+        max_new_tokens=int(aircfg.get('max_new_tokens',512)),
+    ) if (bool(aircfg.get('enabled',False)) or configured_airllm) else AirLLMProvider()
+
+    provider = CompositeModelProvider(
+        ollama=ollama_provider,
+        airllm=airllm_provider,
+        litellm_provider=litellm_provider,
+        llamacpp=llamacpp_provider,
+    )
     mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
     configured_model = str(pcfg["models"]["orchestrator"])
     resolved_model = mm.resolve_local_model(configured_model)
@@ -280,30 +338,22 @@ def build_runtime(interactive: bool = True) -> Runtime:
             )
             if not allowed or unsuitable_for_chat:
                 candidates = []
-                for candidate in ollama_provider.available_models():
+                for candidate in provider.available_models():
                     lowered_candidate = candidate.lower()
                     if any(
                         marker in lowered_candidate
                         for marker in ("embed", "nomic-embed", "moondream")
                     ):
                         continue
-                    size = ollama_provider.model_size_bytes(candidate)
-                    if size is None:
-                        continue
-                    fits, _ = resources.can_start_model(size)
-                    if fits:
-                        candidates.append((size, candidate))
+                    candidates.append((0, candidate))
                 if candidates:
-                    resolved_model = min(candidates, key=lambda item: item[0])[1]
+                    resolved_model = candidates[0][1]
         except Exception:
-            # Model inventory is an optional startup optimization. Normal
-            # selection and its explicit error remain authoritative if Ollama
-            # is unavailable during startup.
             pass
     if resolved_model and resolved_model != configured_model:
         pcfg["models"]["orchestrator"] = resolved_model
         save_model_preference(profile, resolved_model)
-    desktop_controller=DesktopController(ws, approval, cfg, provider=provider, model_manager=mm, quiet_provider=personal.is_quiet)
+    desktop_controller=DesktopController(ws, approval, cfg, provider=provider, model_manager=mm, quiet_provider=personal.is_quiet, default_model=str(pcfg['models']['orchestrator']))
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45))
     context_tokens=min(
         int(pcfg.get('context_tokens',4096)),
@@ -364,8 +414,20 @@ def build_runtime(interactive: bool = True) -> Runtime:
     cybersecurity_adapter = None
     cs_cfg = (cfg.get("external_integrations", {}).get("cybersecurity_skills", {}) or {})
     if bool(cs_cfg.get("enabled", False)):
+        corpus = None
+        if cybersecurity_mode(cs_cfg) == "sandbox":
+            from living_assistant.security.sandbox import ContainerRuntime
+            from living_assistant.security.sandboxed_corpus import SandboxedCorpus
+            corpus = SandboxedCorpus(
+                ContainerRuntime(str(((cfg.get("self_improvement", {}) or {}).get("sandbox", {}) or {}).get("runtime", "auto"))),
+                volume=str(cs_cfg.get("volume", "living-assistant-cybersecurity-skills")),
+                repository=str(cs_cfg.get("repository", "https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git")),
+                revision=str(cs_cfg.get("revision", "main")),
+                image=str(cs_cfg.get("image", "alpine/git:latest")),
+            )
         cybersecurity_adapter = CybersecuritySkillsAdapter(
             path=cs_cfg.get("path", project_root() / "external-components" / "Anthropic-Cybersecurity-Skills"),
+            corpus=corpus,
         )
 
     graft_adapter = None
@@ -445,6 +507,8 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tool_registry.extend(build_git_tools(ws,approval))
     tool_registry.extend(build_web_tools(ws,cfg,approval,quarantine,browser=browser,snapshot_manager=snapshots))
     tool_registry.extend(build_browser_tools(browser,enabled=browser_enabled,external=browser_use))
+    tool_registry.extend(build_media_tools(ws,cfg))
+    tool_registry.extend(build_log_tools(ws,projects))
     tool_registry.extend(build_database_tools(cfg))
     tool_registry.extend(build_personal_tools(memory,notifier))
     tool_registry.extend(build_calendar_tools(calendar))
@@ -472,7 +536,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     if diagram_adapter is not None:
         tool_registry.extend(build_diagram_tools(diagram_adapter))
     if cybersecurity_adapter is not None:
-        tool_registry.extend(build_security_skills_tools(cybersecurity_adapter))
+        tool_registry.extend(build_security_skills_tools(cybersecurity_adapter, approval))
     if graft_adapter is not None:
         tool_registry.extend(build_graft_tools(graft_adapter))
     if openmontage_adapter is not None:

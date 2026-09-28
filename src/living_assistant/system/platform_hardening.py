@@ -330,3 +330,59 @@ def service_status() -> dict:
         active = subprocess.run(["systemctl", "--user", "is-active", "living-assistant.service"], text=True, capture_output=True, timeout=8)
         return {"backend": backend, "installed": p.returncode == 0, "enabled": p.stdout.strip(), "active": active.stdout.strip()}
     return {"backend": backend, "installed": False, "detail": "No supported per-user service manager detected."}
+
+
+class SingleInstanceGuard:
+    """Cross-platform single-instance process lock.
+
+    Prevents accidental double startup of daemons, schedulers, or background workers.
+    Detects stale locks from prior crashed processes.
+    """
+    def __init__(self, name: str, lock_dir: Path | None = None):
+        from living_assistant.core.config import data_dir
+        self.name = name
+        self.lock_dir = lock_dir or data_dir()
+        self.lock_file = self.lock_dir / f"{name}.lock"
+        self._acquired = False
+
+    def acquire(self) -> bool:
+        import psutil
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+        my_pid = os.getpid()
+
+        if self.lock_file.exists():
+            try:
+                content = json.loads(self.lock_file.read_text(encoding="utf-8"))
+                existing_pid = int(content.get("pid", 0))
+                # Check if existing PID is still alive
+                if existing_pid > 0 and psutil.pid_exists(existing_pid) and existing_pid != my_pid:
+                    return False
+            except Exception:
+                pass  # Corrupt or unreadable lock file; treat as stale
+
+        payload = {
+            "name": self.name,
+            "pid": my_pid,
+            "started_at": time.time(),
+        }
+        self.lock_file.write_text(json.dumps(payload), encoding="utf-8")
+        self._acquired = True
+        return True
+
+    def release(self) -> None:
+        if self._acquired and self.lock_file.exists():
+            try:
+                content = json.loads(self.lock_file.read_text(encoding="utf-8"))
+                if int(content.get("pid", 0)) == os.getpid():
+                    self.lock_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+            self._acquired = False
+
+    def __enter__(self):
+        if not self.acquire():
+            raise RuntimeError(f"Another instance of '{self.name}' is already running.")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()

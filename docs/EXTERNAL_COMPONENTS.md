@@ -18,7 +18,10 @@ This document tracks external components vendored into our main repository.
 * Upstream: https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git
 * Integrated commit: 54a798831d2266a3ca61ce68a7acb80b81160d57
 * License: Unknown
-* Local path: external-components/Anthropic-Cybersecurity-Skills
+* Location: container volume `living-assistant-cybersecurity-skills` only (not vendored in this repo).
+  Its malware-analysis write-ups and YARA rules trip Windows Defender heuristics when stored on the host,
+  so the assistant reads them through network-less, read-only containers. Populate it with the
+  `security_skills_sync` tool (requires approval and Docker Desktop).
 
 ## awesome-ai-agent-tools
 * Upstream: https://github.com/michielhdoteth/awesome-ai-agent-tools.git

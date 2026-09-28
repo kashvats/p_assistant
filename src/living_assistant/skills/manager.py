@@ -256,17 +256,29 @@ class SkillManager:
         return self.store.reconcile_interrupted_run(run_id)
 
     def match_active_skills(self, text: str, limit: int = 3) -> list[dict[str, Any]]:
-        """Match user text against active skill triggers."""
+        """Match user text against active skill triggers using specificity and priority."""
         low = text.lower()
         active = self.list_skills(state="ACTIVE")
         scored = []
         for item in active:
             triggers = item.get("triggers", [])
-            score = sum(1 for t in triggers if t and t.lower() in low)
-            if score > 0:
+            matching_triggers = [t for t in triggers if t and t.lower() in low]
+            if matching_triggers:
+                # Specificity: longer matching triggers and higher word count have priority
+                max_len = max(len(t) for t in matching_triggers)
+                max_words = max(len(t.split()) for t in matching_triggers)
+                manifest = item.get("manifest") or {}
+                priority = int(manifest.get("priority", 50) or 50)
+                # Score tuple: (priority, word_count, char_length)
+                score = (priority, max_words, max_len)
                 scored.append((score, item))
-        scored.sort(key=lambda x: -x[0])
+        scored.sort(key=lambda x: x[0], reverse=True)
         return [item for _, item in scored[:limit]]
+
+    def resolve_skill_trigger(self, text: str) -> dict[str, Any] | None:
+        """Resolve ambiguous matches to the single most specific/highest priority active skill."""
+        matches = self.match_active_skills(text, limit=1)
+        return matches[0] if matches else None
 
     def get_orchestrator_summary(self) -> str:
         """Compact summary of active skills to expose to the Orchestrator without blowing prompt context."""

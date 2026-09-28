@@ -12,6 +12,7 @@ from living_assistant.api_routes.schemas import (
     ConnectorCallRequest,
     EnabledRequest,
     VoiceAskRequest,
+    VoiceSpeakRequest,
 )
 
 router = APIRouter(tags=["integrations"])
@@ -78,6 +79,39 @@ def voice_ask(
         "speech": speech,
         "model_provider": rt.model_manager.provider_info(rt.model_manager.active_model),
     }
+
+
+@router.post("/voice/transcribe")
+def voice_transcribe(
+    req: VoiceAskRequest,
+    authorization: str | None = Header(default=None),
+):
+    """Capture one utterance and return its transcript without running the assistant.
+
+    The dashboard sends the transcript through /chat/stream so voice and typed chat
+    share one session, one execution engine and the same live tool feed.
+    """
+    authorize(authorization)
+    rt = runtime()
+    recording = rt.voice.record_until_silence("artifacts/voice-input.wav", max_seconds=req.max_seconds)
+    if not recording.get("ok"):
+        return {"ok": False, "stage": "record", **recording}
+    transcript = rt.voice.transcribe("artifacts/voice-input.wav", req.language)
+    if not transcript.get("ok"):
+        return {"ok": False, "stage": "transcribe", **transcript}
+    text = rt.voice.clean_command_text(str(transcript.get("text", "")))
+    if not text:
+        return {"ok": False, "stage": "transcribe", "error": "No speech was detected."}
+    return {"ok": True, "transcript": text}
+
+
+@router.post("/voice/speak")
+def voice_speak(
+    req: VoiceSpeakRequest,
+    authorization: str | None = Header(default=None),
+):
+    authorize(authorization)
+    return runtime().voice.speak(req.text, allow_barge_in=True)
 
 
 @router.post("/voice/hands-free")

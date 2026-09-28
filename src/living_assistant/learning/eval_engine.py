@@ -53,6 +53,32 @@ DEFAULT_IGNORES = {
 def _sha_text(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
+
+def detect_test_manipulation(diff: str, new_content: str) -> tuple[bool, str]:
+    """Detect test manipulation / weakening patterns (Section 46).
+    
+    Prevents repair agents from passing test gates by weakening assertions,
+    marking tests skipped, or catching all exceptions.
+    """
+    if "@pytest.mark.skip" in new_content or "@unittest.skip" in new_content:
+        return True, "Test manipulation detected: test was marked as skipped."
+    removed_asserts = 0
+    added_asserts = 0
+    for line in diff.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("-") and not stripped.startswith("---"):
+            if "assert " in stripped or "self.assert" in stripped:
+                removed_asserts += 1
+        elif stripped.startswith("+") and not stripped.startswith("+++"):
+            if "assert " in stripped or "self.assert" in stripped:
+                added_asserts += 1
+    if removed_asserts > added_asserts and removed_asserts > 0:
+        return True, f"Test manipulation detected: {removed_asserts} assertion(s) were removed from tests."
+    if "except Exception: pass" in new_content or "except: pass" in new_content:
+        return True, "Test manipulation detected: broad exception swallowing in test."
+    return False, ""
+
+
 def _git(cwd: Path, args: list[str], timeout: int = 60, env: dict | None = None) -> dict:
     try:
         p = subprocess.run(
@@ -319,8 +345,8 @@ class EvaluationEngine:
                 return {'ok':False,'image_unavailable':True,'error':'Sandbox image must already exist locally; automatic pulls are disabled.','image':image_state}
             plan['sandbox_image_id']=image_state['image_id']
         vm = psutil.virtual_memory()
-        minimum_by_profile = self.config.get('minimum_available_ram_gb_by_profile', {'lite':0.5,'balanced':1.0,'power':2.0})
-        minimum_gb = float(minimum_by_profile.get(self.profile, 1.0)) if isinstance(minimum_by_profile, dict) else 1.0
+        minimum_by_profile = self.config.get('minimum_available_ram_gb_by_profile', {'lite':0.25,'balanced':0.5,'power':1.0})
+        minimum_gb = float(minimum_by_profile.get(self.profile, 0.5)) if isinstance(minimum_by_profile, dict) else 0.5
         available_gb = vm.available / (1024 ** 3)
         if available_gb < minimum_gb:
             return {'ok':False,'resource_blocked':True,'error':f'Only {available_gb:.2f} GB RAM is available; evaluation requires at least {minimum_gb:.2f} GB for profile {self.profile}.'}

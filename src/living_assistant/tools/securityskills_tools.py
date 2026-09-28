@@ -6,8 +6,19 @@ from .base import Tool
 from living_assistant.integrations.cybersecurity_skills import CybersecuritySkillsAdapter
 
 
-def build_security_skills_tools(adapter: CybersecuritySkillsAdapter) -> list[Tool]:
+def build_security_skills_tools(adapter: CybersecuritySkillsAdapter, approval=None) -> list[Tool]:
     """Build tool definitions for Anthropic-Cybersecurity-Skills capabilities."""
+
+    def security_skills_sync() -> dict[str, Any]:
+        if approval is not None:
+            req = approval.request(
+                "Download the pinned security skills library into its container sandbox volume",
+                "Fetches third-party security reference material from GitHub into an isolated Docker volume.",
+                "NETWORK_ACTION",
+            )
+            if not req.get("allowed"):
+                return {"ok": False, "approval_required": True, **req}
+        return adapter.sync_sandbox()
 
     def security_search_skills(query: str = "", domain: str = "", limit: int = 10) -> dict[str, Any]:
         """Search the 800+ cybersecurity skills library by keyword, vulnerability, or attack vector."""
@@ -97,5 +108,17 @@ def build_security_skills_tools(adapter: CybersecuritySkillsAdapter) -> list[Too
                 "required": ["component"],
             },
             security_threat_model,
+        ),
+        Tool(
+            "security_skills_sandbox_status",
+            "Report whether the security skills library is available inside the container sandbox.",
+            {"type": "object", "properties": {}},
+            lambda: adapter.sandbox_status(),
+        ),
+        Tool(
+            "security_skills_sync",
+            "Download the pinned security skills library into its container sandbox volume (never onto the host disk). Requires approval.",
+            {"type": "object", "properties": {}},
+            security_skills_sync,
         ),
     ]

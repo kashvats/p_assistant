@@ -232,7 +232,7 @@ def build_project_tools(workspace: Workspace, registry: ProjectRegistry, code_in
     return [
         Tool("project_detect", "Detect project type and likely start/test commands in a workspace directory.",
              {"type":"object","properties":{"path":{"type":"string","default":"."}}}, project_detect),
-        Tool("project_audit", "Run a bounded offline project health audit: dependencies, Python lint score, dead-code candidates, and security patterns.",
+        Tool("project_audit", "Analyze a codebase/project for bugs, errors, code quality problems, lint issues, dead code, risky dependencies and security patterns (offline health audit).",
              {"type":"object","properties":{"path":{"type":"string","default":"."}}}, project_audit),
         Tool("project_index_code", "Build or refresh a bounded local semantic vector index for source code in a workspace project. Sensitive, binary, generated and oversized files are excluded.",
              {"type":"object","properties":{"path":{"type":"string","default":"."}}}, project_index_code),

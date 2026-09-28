@@ -15,7 +15,12 @@ model_usage:
   # Store counters/timing only; prompts and responses are never persisted here.
   retention_days: 365
 
+llamacpp:
+  base_url: ${LLAMACPP_BASE_URL:http://127.0.0.1:8080}
+  timeout_seconds: 180
+
 ollama:
+  enabled: false
   base_url: ${OLLAMA_BASE_URL:http://127.0.0.1:11434}
   keep_alive_seconds: 45
 
@@ -46,7 +51,7 @@ model_runtime:
   max_parallel_per_model: 1
   resident_keep_alive_seconds: 300
   admission_timeout_seconds: 120
-  reserve_ram_gb_by_profile: {lite: 1.0, balanced: 3.0, power: 6.0}
+  reserve_ram_gb_by_profile: {lite: 0.5, balanced: 1.5, power: 3.0}
   reserve_vram_gb: 1.0
   dedicated_vram_gb_for_two: 16
   dedicated_vram_gb_for_three: 24
@@ -135,7 +140,7 @@ desktop:
   tray_enabled: true
   computer_use_enabled: true
   vision_enabled: true
-  vision_model: moondream
+  vision_model: ""  # empty = use the active orchestrator model (Collibri); OCR fallback when it has no vision
   allow_remote_vision: false
   require_vision_approval: false
   input_pause_seconds: 0.08
@@ -167,7 +172,8 @@ external_integrations:
   openviking: {enabled: false, revision: 053ddbbf392a1688fc7043d81529f47ef2cf86c8}
   codebase_memory_mcp: {enabled: false, revision: 85f1f36e6cac63630b988f63d153b16f881a11e9}
   diagram_design: {enabled: false, revision: 49c6e97775eaa18ba791bebe23162a70ae601c18}
-  cybersecurity_skills: {enabled: false, revision: 54a798831d2266a3ca61ce68a7acb80b81160d57}
+  # Security reference material lives only in a container volume (Defender flags it on the host).
+  cybersecurity_skills: {enabled: false, mode: sandbox, volume: living-assistant-cybersecurity-skills, image: "alpine/git:latest", repository: "https://github.com/mukul975/Anthropic-Cybersecurity-Skills.git", revision: 54a798831d2266a3ca61ce68a7acb80b81160d57}
   agency_agents: {enabled: false, revision: 579a0a96dab86857da7daa483aa0281d7dde8a17}
   openmontage: {enabled: false, revision: dc1ace47b99a419e42d01a03cb6ace5346efa8ae}
   graft: {enabled: false, revision: d8110c5ff87ccba887aaa726cdb780f2f84bef8d}

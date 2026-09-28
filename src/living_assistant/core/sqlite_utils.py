@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import sqlite3
 import threading
+import time
 
 
 class ThreadLocalSQLite:
@@ -35,10 +36,12 @@ class ThreadLocalSQLite:
             # query execution between threads.
             conn = sqlite3.connect(self.path, timeout=self.timeout, check_same_thread=False)
             conn.row_factory = self._row_factory
-            conn.execute('PRAGMA busy_timeout=5000')
+            busy_ms = max(10000, int(self.timeout * 1000))
+            conn.execute(f'PRAGMA busy_timeout={busy_ms}')
             if self.path != ':memory:':
                 try:
                     conn.execute('PRAGMA journal_mode=WAL')
+                    conn.execute('PRAGMA synchronous=NORMAL')
                 except sqlite3.DatabaseError:
                     pass
             if self.foreign_keys:
@@ -68,20 +71,43 @@ class ThreadLocalSQLite:
         if conn is not None:
             conn.row_factory = value
 
+    def _retry_on_locked(self, func, *args, **kwargs):
+        attempts = 8
+        base_delay = 0.05
+        last_exc = None
+        for i in range(attempts):
+            try:
+                return func(*args, **kwargs)
+            except sqlite3.OperationalError as exc:
+                msg = str(exc).lower()
+                if "locked" in msg or "busy" in msg:
+                    last_exc = exc
+                    try:
+                        conn = getattr(self._local, 'conn', None)
+                        if conn is not None:
+                            conn.rollback()
+                    except Exception:
+                        pass
+                    time.sleep(base_delay * (1.5 ** i))
+                    continue
+                raise
+        if last_exc is not None:
+            raise last_exc
+
     def execute(self, *args, **kwargs):
-        return self._connection().execute(*args, **kwargs)
+        return self._retry_on_locked(self._connection().execute, *args, **kwargs)
 
     def executemany(self, *args, **kwargs):
-        return self._connection().executemany(*args, **kwargs)
+        return self._retry_on_locked(self._connection().executemany, *args, **kwargs)
 
     def executescript(self, *args, **kwargs):
-        return self._connection().executescript(*args, **kwargs)
+        return self._retry_on_locked(self._connection().executescript, *args, **kwargs)
 
     def cursor(self, *args, **kwargs):
         return self._connection().cursor(*args, **kwargs)
 
     def commit(self):
-        return self._connection().commit()
+        return self._retry_on_locked(self._connection().commit)
 
     def rollback(self):
         return self._connection().rollback()

@@ -35,6 +35,10 @@ class VoiceEngine:
     _mic_lease_until: float = field(default=0.0, init=False, repr=False)
     _hands_free_stop: threading.Event | None = field(default=None, init=False, repr=False)
     _hands_free_thread: threading.Thread | None = field(default=None, init=False, repr=False)
+    _is_speaking: bool = field(default=False, init=False, repr=False)
+
+    def is_speaking(self) -> bool:
+        return bool(self._is_speaking)
 
     def _cfg(self) -> dict:
         return self.config.get("voice", {})
@@ -170,6 +174,8 @@ class VoiceEngine:
         seconds: float = 6.0,
         sample_rate: int = 16000,
     ) -> dict:
+        if self.is_speaking():
+            return {"ok": False, "suppressed": True, "error": "Microphone audio suppressed while assistant is speaking (echo prevention)."}
         seconds = max(0.5, min(float(seconds), 60.0))
         sample_rate = max(8000, min(int(sample_rate), 48000))
         target = self.workspace.resolve(destination)
@@ -181,8 +187,11 @@ class VoiceEngine:
             return {"ok": False, "approval_required": True, **req}
         sd, np = self._import_audio()
         frames = int(seconds * sample_rate)
-        audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype="int16")
-        sd.wait()
+        try:
+            audio = sd.rec(frames, samplerate=sample_rate, channels=1, dtype="int16")
+            sd.wait()
+        except Exception as exc:
+            return {"ok": False, "error": f"Microphone capture failed: {exc}"}
         self._write_wav(target, audio, sample_rate, np)
         self._approved_audio.add(str(target))
         return {"ok": True, "path": str(target), "seconds": seconds, "sample_rate": sample_rate}
@@ -203,6 +212,8 @@ class VoiceEngine:
         """
         if not self.enabled():
             return {"ok": False, "error": "Voice is disabled for this hardware/config profile."}
+        if self.is_speaking():
+            return {"ok": False, "suppressed": True, "error": "Microphone audio suppressed while assistant is speaking (echo prevention)."}
         cfg = self._cfg()
         vcfg = cfg.get("vad", {})
         max_seconds = min(max(float(max_seconds or vcfg.get("max_seconds", 15.0)), 1.0), 60.0)
@@ -324,13 +335,21 @@ class VoiceEngine:
         selected_language = language or (None if configured_language in {None, "", "auto"} else str(configured_language))
         segments, info = model.transcribe(str(source), language=selected_language, vad_filter=True)
         parts = []
+        confidences = []
         for seg in segments:
             text = (seg.text or "").strip()
             if text:
                 parts.append(text)
+                if hasattr(seg, "avg_logprob") and seg.avg_logprob is not None:
+                    try:
+                        confidences.append(math.exp(float(seg.avg_logprob)))
+                    except Exception:
+                        pass
+        avg_confidence = round(sum(confidences) / len(confidences), 3) if confidences else 1.0
         return {
             "ok": True,
             "text": " ".join(parts).strip(),
+            "confidence": avg_confidence,
             "language": getattr(info, "language", selected_language),
             "model": model_name,
         }
@@ -602,68 +621,96 @@ class VoiceEngine:
             return {"ok": False, "error": "Voice is disabled for this hardware/config profile."}
         try:
             import pyttsx3
-        except ImportError as e:
-            raise RuntimeError('Local TTS is optional. Install with: pip install -e ".[voice]"') from e
+        except ImportError:
+            return {"ok": False, "error": "Local TTS is optional. pyttsx3 is not installed.", "fallback_text": text}
         cfg = self._cfg()
         max_chars = int(cfg.get("tts_max_chars", 12000))
         spoken = text[:max(1, min(max_chars, 50000))]
-        engine = pyttsx3.init()
-        rate = cfg.get("tts_rate")
-        if rate:
-            engine.setProperty("rate", int(rate))
-        volume = cfg.get("tts_volume")
-        if volume is not None:
-            engine.setProperty("volume", min(max(float(volume), 0.0), 1.0))
-        hcfg = cfg.get("hands_free", {})
-        if not (allow_barge_in and bool(hcfg.get("barge_in_enabled", False))):
-            engine.say(spoken)
-            engine.runAndWait()
-            return {"ok": True, "characters": len(spoken), "interrupted": False}
 
-        req = self._ensure_microphone_approval(
-            "Monitor microphone for voice barge-in while assistant is speaking",
-            "Barge-in detection samples microphone levels while TTS is active.",
-            lease_seconds=90.0,
-        )
-        if not req.get("allowed"):
-            # Refusing microphone monitoring should not prevent ordinary TTS.
-            engine.say(spoken)
-            engine.runAndWait()
-            return {"ok": True, "characters": len(spoken), "interrupted": False, "barge_in_denied": True}
-
-        sd, np = self._import_audio()
-        threshold = max(float(hcfg.get("barge_in_rms", 1600.0)), 1.0)
-        consecutive_needed = max(1, int(hcfg.get("barge_in_blocks", 3)))
-        block_ms = 80
-        block_frames = int(16000 * block_ms / 1000)
-        done = threading.Event()
-        interrupted = False
-
-        def _speak() -> None:
-            try:
-                engine.say(spoken)
-                engine.runAndWait()
-            finally:
-                done.set()
-
-        thread = threading.Thread(target=_speak, name="living-assistant-tts", daemon=True)
-        thread.start()
-        loud_blocks = 0
+        self._is_speaking = True
         try:
-            with sd.RawInputStream(samplerate=16000, blocksize=block_frames, channels=1, dtype="int16") as stream:
-                while not done.wait(0.01):
-                    raw, _ = stream.read(block_frames)
-                    samples = np.frombuffer(raw, dtype=np.int16)
-                    rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2))) if samples.size else 0.0
-                    loud_blocks = loud_blocks + 1 if rms >= threshold else 0
-                    if loud_blocks >= consecutive_needed:
-                        interrupted = True
-                        engine.stop()
-                        done.set()
-                        break
+            try:
+                engine = pyttsx3.init()
+                rate = cfg.get("tts_rate")
+                if rate:
+                    engine.setProperty("rate", int(rate))
+                volume = cfg.get("tts_volume")
+                if volume is not None:
+                    engine.setProperty("volume", min(max(float(volume), 0.0), 1.0))
+            except Exception as exc:
+                return {"ok": False, "error": f"TTS engine failed: {exc}", "characters": len(spoken), "fallback_text": spoken}
+
+            hcfg = cfg.get("hands_free", {})
+            if not (allow_barge_in and bool(hcfg.get("barge_in_enabled", False))):
+                try:
+                    engine.say(spoken)
+                    engine.runAndWait()
+                    return {"ok": True, "characters": len(spoken), "interrupted": False}
+                except Exception as exc:
+                    return {"ok": False, "error": f"TTS engine failed: {exc}", "characters": len(spoken), "fallback_text": spoken}
+
+            req = self._ensure_microphone_approval(
+                "Monitor microphone for voice barge-in while assistant is speaking",
+                "Barge-in detection samples microphone levels while TTS is active.",
+                lease_seconds=90.0,
+            )
+            if not req.get("allowed"):
+                # Refusing microphone monitoring should not prevent ordinary TTS.
+                try:
+                    engine.say(spoken)
+                    engine.runAndWait()
+                    return {"ok": True, "characters": len(spoken), "interrupted": False, "barge_in_denied": True}
+                except Exception as exc:
+                    return {"ok": False, "error": f"TTS engine failed: {exc}", "characters": len(spoken), "fallback_text": spoken}
+
+            try:
+                sd, np = self._import_audio()
+            except Exception:
+                try:
+                    engine.say(spoken)
+                    engine.runAndWait()
+                    return {"ok": True, "characters": len(spoken), "interrupted": False, "barge_in_denied": True}
+                except Exception as exc:
+                    return {"ok": False, "error": f"TTS engine failed: {exc}", "characters": len(spoken), "fallback_text": spoken}
+
+            threshold = max(float(hcfg.get("barge_in_rms", 1600.0)), 1.0)
+            consecutive_needed = max(1, int(hcfg.get("barge_in_blocks", 3)))
+            block_ms = 80
+            block_frames = int(16000 * block_ms / 1000)
+            done = threading.Event()
+            interrupted = False
+
+            def _speak() -> None:
+                try:
+                    engine.say(spoken)
+                    engine.runAndWait()
+                except Exception:
+                    pass
+                finally:
+                    done.set()
+
+            thread = threading.Thread(target=_speak, name="living-assistant-tts", daemon=True)
+            thread.start()
+            loud_blocks = 0
+            try:
+                with sd.RawInputStream(samplerate=16000, blocksize=block_frames, channels=1, dtype="int16") as stream:
+                    while not done.wait(0.01):
+                        raw, _ = stream.read(block_frames)
+                        samples = np.frombuffer(raw, dtype=np.int16)
+                        rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2))) if samples.size else 0.0
+                        loud_blocks = loud_blocks + 1 if rms >= threshold else 0
+                        if loud_blocks >= consecutive_needed:
+                            interrupted = True
+                            engine.stop()
+                            done.set()
+                            break
+            except Exception:
+                pass
+            finally:
+                thread.join(timeout=2.0)
+            return {"ok": True, "characters": len(spoken), "interrupted": interrupted}
         finally:
-            thread.join(timeout=2.0)
-        return {"ok": True, "characters": len(spoken), "interrupted": interrupted}
+            self._is_speaking = False
 
     def sleep(self):
         self.stop_hands_free()

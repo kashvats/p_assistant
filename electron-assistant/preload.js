@@ -6,7 +6,12 @@ contextBridge.exposeInMainWorld('assistantDesktop', {
   onOpenSettings: (callback) => ipcRenderer.on('open-settings', () => callback()),
   hide: () => ipcRenderer.send('companion-hide'),
   show: () => ipcRenderer.invoke('companion-show'),
+  minimize: () => ipcRenderer.invoke('window-minimize'),
+  maximize: () => ipcRenderer.invoke('window-maximize'),
+  close: () => ipcRenderer.invoke('window-close'),
   setExpanded: (expanded) => ipcRenderer.invoke('companion-size', Boolean(expanded)),
   setIgnoreMouse: (ignore) => ipcRenderer.invoke('companion-ignore-mouse', Boolean(ignore)),
   moveWindow: (deltaX, deltaY) => ipcRenderer.invoke('companion-move', Number(deltaX), Number(deltaY)),
+  readLocalMedia: (filePath) => ipcRenderer.invoke('read-local-media', filePath),
 })
+

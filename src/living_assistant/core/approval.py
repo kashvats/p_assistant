@@ -59,18 +59,23 @@ class ApprovalStore:
         self.conn.commit()
         return int(cur.rowcount or 0)
 
-    def consume_preapproval(self, action: str, reason: str, kind: str) -> str | None:
+    def consume_preapproval(self, action: str, reason: str, kind: str, max_approved_age_seconds: float = 900.0) -> str | None:
+        """Section 77 Approval Expiry: Consume preapproval only if within the active validity window."""
         h = self.action_hash(action, reason, kind)
-        now = dt.datetime.now().isoformat(timespec="seconds")
-        # Atomic one-shot consumption: concurrent workers cannot consume the same approval.
+        now_dt = dt.datetime.now()
+        now = now_dt.isoformat(timespec="seconds")
+        min_resolved = (now_dt - dt.timedelta(seconds=max_approved_age_seconds)).isoformat(timespec="seconds")
+        # Atomic one-shot consumption: concurrent workers cannot consume the same approval,
+        # and approvals older than max_approved_age_seconds are expired and rejected.
         row = self.conn.execute(
             """UPDATE approvals SET consumed_at=?
                WHERE id=(SELECT id FROM approvals
                          WHERE action_hash=? AND status='approved' AND consumed_at IS NULL
+                         AND (resolved_at >= ? OR (resolved_at IS NULL AND created_at >= ?))
                          ORDER BY created_at DESC LIMIT 1)
                  AND consumed_at IS NULL
                RETURNING id""",
-            (now, h),
+            (now, h, min_resolved, min_resolved),
         ).fetchone()
         self.conn.commit()
         return str(row["id"]) if row else None
@@ -131,10 +136,36 @@ class ApprovalManager:
         if self.store is None:
             self.store = ApprovalStore()
 
-    def request(self, action: str, reason: str, kind: str = "execute") -> dict:
+    @staticmethod
+    def get_target_fingerprint(path: str | Path) -> str | None:
+        """Section 78: Compute target fingerprint (mtime + size) to detect mutation between approval and execution."""
+        p = Path(path)
+        if not p.exists():
+            return "NON_EXISTENT"
+        try:
+            st = p.stat()
+            return f"{st.st_mtime_ns}:{st.st_size}"
+        except Exception:
+            return None
+
+    @classmethod
+    def revalidate_target(cls, path: str | Path, expected_fingerprint: str | None) -> tuple[bool, str]:
+        """Section 78: Revalidate target immediately before destructive action to prevent race conditions."""
+        if expected_fingerprint is None:
+            return True, "ok"
+        current = cls.get_target_fingerprint(path)
+        if current != expected_fingerprint:
+            return (
+                False,
+                f"Target changed between approval and execution! Expected '{expected_fingerprint}', found '{current}'. Action aborted.",
+            )
+        return True, "ok"
+
+    def request(self, action: str, reason: str, kind: str = "execute", target_path: str | Path | None = None) -> dict:
         consumed = self.store.consume_preapproval(action, reason, kind)
         if consumed:
-            return {"allowed": True, "approval_id": consumed, "preapproved": True}
+            fingerprint = self.get_target_fingerprint(target_path) if target_path else None
+            return {"allowed": True, "approval_id": consumed, "preapproved": True, "target_fingerprint": fingerprint}
 
         if self.interactive:
             if self.notifier is not None:

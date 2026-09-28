@@ -48,7 +48,34 @@ class Workspace:
         return p.read_text(encoding="utf-8", errors="replace")[:max_chars]
 
     def write_text(self, path: str, content: str, base=None) -> str:
+        import os
+        import time
+        import tempfile
+
         p = self.resolve(path, base)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
+        
+        # Atomic file write (Edge Case 38.2): write to .tmp and rename with retry loop for Windows locks
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=p.parent, prefix=f".{p.name}.", suffix=".tmp")
+        try:
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                f.write(content)
+            last_err = None
+            for attempt in range(4):
+                try:
+                    os.replace(tmp_path, p)
+                    last_err = None
+                    break
+                except OSError as exc:
+                    last_err = exc
+                    time.sleep(0.05 * (attempt + 1))
+            if last_err is not None:
+                raise last_err
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
         return str(p)
+

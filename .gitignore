@@ -45,3 +45,6 @@ verify_build.py
 dry-run.log
 pytest_results.txt
 scratch/
+
+# Security reference corpus lives only in its container volume (host antivirus flags it).
+external-components/Anthropic-Cybersecurity-Skills/

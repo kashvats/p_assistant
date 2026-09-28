@@ -5,7 +5,7 @@ import datetime as dt
 import threading
 import time
 import uuid
-# from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from living_assistant.core.event_bus import EventBus

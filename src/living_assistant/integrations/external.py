@@ -7,6 +7,8 @@ from pathlib import Path
 import shutil
 from typing import Any
 
+from living_assistant.integrations.cybersecurity_skills import cybersecurity_mode
+
 
 @dataclass(frozen=True)
 class IntegrationSpec:
@@ -133,21 +135,22 @@ class ExternalIntegrationRegistry:
                     default_checkout = Path("external-components/diagram-design")
                     if default_checkout.is_dir():
                         configured_path = str(default_checkout)
-                elif not configured_path and spec.name == "cybersecurity_skills":
-                    default_checkout = Path("external-components/Anthropic-Cybersecurity-Skills")
-                    if default_checkout.is_dir():
-                        configured_path = str(default_checkout)
-                path_info = _path_status(configured_path)
-                info.update(path_info)
-                info["available"] = bool(path_info["available"])
-                info["activation"] = "skill-directory"
+                if spec.name == "cybersecurity_skills" and cybersecurity_mode(item) == "sandbox":
+                    info["available"] = None  # resolved lazily by the adapter; probing Docker here would block status calls
+                    info["activation"] = "container-volume"
+                    info["volume"] = str(item.get("volume") or "living-assistant-cybersecurity-skills")
+                else:
+                    path_info = _path_status(configured_path)
+                    info.update(path_info)
+                    info["available"] = bool(path_info["available"])
+                    info["activation"] = "skill-directory"
             if spec.reference_only:
                 info["available"] = False
                 info["activation"] = "reference-only"
             if not info["enabled"] and not spec.reference_only:
                 info["available"] = False
                 info["activation"] = "disabled"
-            if info["enabled"] and not info["available"] and not spec.reference_only:
+            if info["enabled"] and info["available"] is False and not spec.reference_only:
                 info["activation"] = "unavailable"
             result[spec.name] = info
         return result

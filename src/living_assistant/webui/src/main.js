@@ -25,6 +25,15 @@ function hashPage() {
   const raw = location.hash.replace(/^#\/?/, '').split('/')[0].trim().toLowerCase();
   return NAV.some(([id]) => id === raw) ? raw : 'overview';
 }
+function initialToken() {
+  const stored = sessionStorage.getItem('assistant_token');
+  if (stored) return stored;
+  const meta = document.querySelector('meta[name="assistant-token"]');
+  return meta ? meta.getAttribute('content') || '' : '';
+}
+function readFlag(key) {
+  try { return localStorage.getItem(key) === '1'; } catch (_) { return false; }
+}
 function makeSessionId() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
@@ -104,13 +113,127 @@ function Markdown({text}) {
   return h('div', {className: 'markdown-body'}, nodes);
 }
 
+class AgentFace extends React.Component {
+  constructor(props) {
+    super(props);
+    this.root = null;
+    this.pupils = [];
+    this.onMove = (e) => this.look(e.clientX, e.clientY);
+  }
+  componentDidMount() { if (this.props.track) document.addEventListener('pointermove', this.onMove, {passive: true}); }
+  componentWillUnmount() { document.removeEventListener('pointermove', this.onMove); }
+  look(x, y) {
+    if (!this.root) return;
+    const r = this.root.getBoundingClientRect();
+    const dx = x - (r.left + r.width / 2);
+    const dy = y - (r.top + r.height / 2);
+    const dist = Math.hypot(dx, dy) || 1;
+    const reach = Math.min(1, dist / 240);
+    const tx = (dx / dist) * 38 * reach;
+    const ty = (dy / dist) * 30 * reach;
+    this.pupils.forEach((p) => { if (p) p.style.transform = `translate(${tx}%, ${ty}%)`; });
+  }
+  render() {
+    const {size = 'md', mood = 'idle', title} = this.props;
+    const eye = (k) => h('span', {key: k, className: 'eye'}, h('span', {className: 'pupil', ref: (el) => { this.pupils[k] = el; }}));
+    return h('div', {
+      ref: (el) => { this.root = el; },
+      className: cx('agent-face', size, `mood-${mood}`),
+      role: 'img',
+      'aria-label': title || `Assistant is ${mood}`,
+      title,
+    }, h('span', {className: 'ring'}), eye(0), eye(1));
+  }
+}
+
+class FloatingAgent extends React.Component {
+  constructor(props) {
+    super(props);
+    let pos = null;
+    try { pos = JSON.parse(localStorage.getItem('assistant_agent_pos') || 'null'); } catch (_) {}
+    this.state = {pos, dragging: false, hover: false};
+    this.drag = null;
+    this.el = null;
+    this.onResize = () => this.setState(({pos: p}) => ({pos: p ? this.clamp(p.x, p.y) : p}));
+    // React 16.0 has no synthetic pointer events, so native listeners drive dragging.
+    this.down = (e) => this.onPointerDown(e);
+    this.move = (e) => this.onPointerMove(e);
+    this.up = (e) => this.onPointerUp(e);
+  }
+  componentDidMount() {
+    window.addEventListener('resize', this.onResize);
+    if (this.el) this.el.addEventListener('pointerdown', this.down);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.onResize);
+    if (this.el) this.el.removeEventListener('pointerdown', this.down);
+    window.removeEventListener('pointermove', this.move);
+    window.removeEventListener('pointerup', this.up);
+  }
+  clamp(x, y) {
+    const size = 64, pad = 8;
+    return {
+      x: Math.min(Math.max(pad, x), window.innerWidth - size - pad),
+      y: Math.min(Math.max(pad, y), window.innerHeight - size - pad),
+    };
+  }
+  current() { return this.state.pos || {x: window.innerWidth - 96, y: window.innerHeight - 110}; }
+  onPointerDown(e) {
+    if (e.button !== 0) return;
+    const p = this.current();
+    this.drag = {sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false};
+    window.addEventListener('pointermove', this.move);
+    window.addEventListener('pointerup', this.up);
+  }
+  onPointerMove(e) {
+    if (!this.drag) return;
+    const dx = e.clientX - this.drag.sx, dy = e.clientY - this.drag.sy;
+    if (!this.drag.moved && Math.hypot(dx, dy) < 5) return;
+    this.drag.moved = true;
+    this.setState({dragging: true, pos: this.clamp(this.drag.ox + dx, this.drag.oy + dy)});
+  }
+  onPointerUp() {
+    const drag = this.drag;
+    this.drag = null;
+    window.removeEventListener('pointermove', this.move);
+    window.removeEventListener('pointerup', this.up);
+    if (!drag) return;
+    if (drag.moved) {
+      this.setState({dragging: false});
+      try { localStorage.setItem('assistant_agent_pos', JSON.stringify(this.current())); } catch (_) {}
+    } else if (this.props.onActivate) {
+      this.props.onActivate();
+    }
+  }
+  onKeyDown(e) {
+    if ((e.key === 'Enter' || e.key === ' ') && this.props.onActivate) { e.preventDefault(); this.props.onActivate(); }
+  }
+  render() {
+    const {mood, label} = this.props;
+    const p = this.current();
+    const showBubble = label && (mood !== 'idle' || this.state.hover) && !this.state.dragging;
+    return h('div', {
+      className: cx('floating-agent', this.state.dragging && 'dragging', p.x < window.innerWidth / 2 && 'left'),
+      ref: (el) => { this.el = el; if (el) { el.style.left = `${p.x}px`; el.style.top = `${p.y}px`; } },
+      role: 'button',
+      tabIndex: 0,
+      'aria-label': label || 'Assistant',
+      onMouseEnter: () => this.setState({hover: true}),
+      onMouseLeave: () => this.setState({hover: false}),
+      onKeyDown: (e) => this.onKeyDown(e),
+    },
+      h(AgentFace, {size: 'md', mood, track: true, title: label}),
+      showBubble ? h('div', {className: 'agent-bubble'}, label) : null);
+  }
+}
+
 class App extends React.Component {
   constructor(props) {
     super(props);
     const sessionId = localStorage.getItem('assistant_session') || makeSessionId();
     localStorage.setItem('assistant_session', sessionId);
     this.state = {
-      page: hashPage(), token: sessionStorage.getItem('assistant_token') || '', tokenInput: sessionStorage.getItem('assistant_token') || '',
+      page: hashPage(), token: initialToken(), tokenInput: '',
       sessionId, status: null, desktop: null, usage: null, models: null, approvals: [], todos: [], calendar: [],
       security: {summary: null, findings: [], sensors: null}, activity: [], lastEvent: 0,
       messages: [], chatInput: '', streaming: false, chatTools: [], resourceHistory: [],
@@ -118,7 +241,7 @@ class App extends React.Component {
       skills: [], selectedSkill: null, skillDraftPrompt: '', skillSearch: '', skillBusy: false, skillTrace: null, skillDryRun: true, skillCollections: null,
       agents: [], selectedAgent: null, agentDraftPrompt: '', agentSearch: '', agentBusy: false, agentTrace: null, agentDryRun: true,
       toast: '', error: '',
-      voiceRecording: false, attachedFile: null,
+      voiceRecording: false, attachedFile: null, speakReplies: readFlag('assistant_speak_replies'),
       toolsStatus: null, browserSessions: [],
       expandedTools: {},
     };
@@ -126,12 +249,41 @@ class App extends React.Component {
   }
   componentDidMount() {
     this.onHash = () => this.setState({page: hashPage()}); window.addEventListener('hashchange', this.onHash);
-    this.refreshAll(); this.startActivityStream();
+    this.refreshAll(); this.startActivityStream(); this.loadChatHistory();
     this.pollers.push(setInterval(() => this.loadStatus(), 2500));
     this.pollers.push(setInterval(() => this.loadApprovals(), 5000));
     this.pollers.push(setInterval(() => this.loadUsage(), 10000));
   }
-  componentWillUnmount() { window.removeEventListener('hashchange', this.onHash); this.pollers.forEach(clearInterval); if (this.activityController) this.activityController.abort(); }
+  componentWillUnmount() { window.removeEventListener('hashchange', this.onHash); this.pollers.forEach(clearInterval); if (this.activityController) this.activityController.abort(); this.cancelChat(); }
+  componentWillUpdate() {
+    const el = this.chatScroll;
+    this.stickToBottom = !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }
+  componentDidUpdate(prevProps, prevState) {
+    const el = this.chatScroll;
+    if (el && prevState.messages !== this.state.messages && (this.stickToBottom || prevState.messages.length !== this.state.messages.length)) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+  agentMood() {
+    const {voiceRecording, streaming, messages, approvals} = this.state;
+    const last = messages[messages.length - 1];
+    if (voiceRecording) return ['listening', 'Listening…'];
+    if (streaming) {
+      const running = last && (last.steps || []).find(s => s.status === 'running');
+      return running ? ['working', `Running ${running.tool}…`] : ['thinking', (last && last.phase) || 'Thinking…'];
+    }
+    if (approvals.length) return ['alert', `${approvals.length} approval${approvals.length === 1 ? '' : 's'} waiting`];
+    if (last && last.error) return ['error', 'Something went wrong'];
+    if (!this.state.status) return ['error', 'Assistant offline'];
+    return ['idle', 'Click to talk · drag to move'];
+  }
+  activateAgent() {
+    if (this.state.streaming) { this.navigate('chat'); return; }
+    if (this.state.approvals.length && this.state.page !== 'chat') { this.navigate('approvals'); return; }
+    this.navigate('chat');
+    this.voiceAsk();
+  }
   authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer ${this.state.token}`} : {}); }
   async api(url, opt = {}) {
     let response;
@@ -321,16 +473,49 @@ class App extends React.Component {
     if (this.state.voiceRecording || this.state.streaming) return;
     this.setState({voiceRecording: true});
     try {
-      const res = await this.api('/voice/ask', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({max_seconds: 10, language: 'en', speak: false})});
-      const transcript = res.transcript || res.text || '';
-      if (transcript) {
-        this.setState({chatInput: transcript});
-        this.notify('Voice captured — press Send or Enter');
-      } else {
-        this.notify('No speech detected', true);
+      const res = await this.api('/voice/transcribe', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({max_seconds: 15})});
+      if (!res.ok) throw new Error(res.error || `Voice ${res.stage || 'capture'} failed`);
+      this.setState({voiceRecording: false});
+      await this.sendChat(res.transcript, {viaVoice: true});
+    } catch (e) {
+      this.notify(`Voice: ${e.message}`, true);
+    } finally {
+      if (this.state.voiceRecording) this.setState({voiceRecording: false});
+    }
+  }
+  async speakReply(text) {
+    const plain = safeText(text).replace(/```[\s\S]*?```/g, ' code block omitted. ').replace(/[*_`#>]/g, '').trim();
+    if (!plain) return;
+    try { await this.api('/voice/speak', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: plain.slice(0, 4000)})}); }
+    catch (e) { this.notify(`Speech failed: ${e.message}`, true); }
+  }
+  toggleSpeakReplies() {
+    const speakReplies = !this.state.speakReplies;
+    try { localStorage.setItem('assistant_speak_replies', speakReplies ? '1' : '0'); } catch (_) {}
+    this.setState({speakReplies});
+  }
+  async loadChatHistory() {
+    try {
+      const res = await this.api(`/sessions/${encodeURIComponent(this.state.sessionId)}`);
+      const rows = Array.isArray(res?.messages) ? res.messages : [];
+      if (!this.state.messages.length && rows.length) {
+        this.setState({messages: rows.filter(r => r.role === 'user' || r.role === 'assistant').map(r => ({role: r.role, text: safeText(r.content), steps: []}))});
       }
-    } catch (e) { this.notify(`Voice unavailable: ${e.message}`, true); }
-    finally { this.setState({voiceRecording: false}); }
+    } catch (_) {}
+  }
+  newChat() {
+    if (this.state.streaming) this.cancelChat();
+    const sessionId = makeSessionId();
+    localStorage.setItem('assistant_session', sessionId);
+    this.setState({sessionId, messages: [], chatTools: [], chatInput: ''});
+  }
+  async decideInline(approvalId, approved, retryText) {
+    try {
+      await this.api(`/approvals/${encodeURIComponent(approvalId)}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved})});
+      this.setState(prev => ({messages: prev.messages.map(m => ({...m, steps: (m.steps || []).map(s => s.approval_id === approvalId ? {...s, decided: approved ? 'approved' : 'denied'} : s)}))}));
+      this.loadApprovals();
+      if (approved && retryText) await this.sendChat(retryText);
+    } catch (e) { this.notify(`Approval failed: ${e.message}`, true); }
   }
   async loadToolsStatus() {
     try {
@@ -377,7 +562,7 @@ class App extends React.Component {
   useToken() {
     const token = this.state.tokenInput.trim();
     if (token) sessionStorage.setItem('assistant_token', token); else sessionStorage.removeItem('assistant_token');
-    this.setState({token}, () => { this.refreshAll(); this.startActivityStream(); });
+    this.setState({token: token || initialToken(), tokenInput: ''}, () => { this.refreshAll(); this.startActivityStream(); });
   }
   navigate(page) { location.hash = `/${page}`; }
   async decideApproval(id, approved) { try { await this.api(`/approvals/${encodeURIComponent(id)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({approved})}); await this.loadApprovals(); } catch(e){ this.notify(e.message, true); } }
@@ -386,28 +571,114 @@ class App extends React.Component {
   async addCalendar() { const title=this.state.calTitle.trim(), start=this.state.calStart; if(!title||!start)return; try { await this.api('/calendar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,start_at:start})}); this.setState({calTitle:'',calStart:''}); await this.loadCalendar(); } catch(e){this.notify(e.message,true);} }
   async deleteCalendar(id) { try { await this.api(`/calendar/${encodeURIComponent(id)}`,{method:'DELETE'}); await this.loadCalendar(); } catch(e){this.notify(e.message,true);} }
   async pullModel() { const model=this.state.modelPullName.trim(); if(!model||this.state.modelBusy)return; this.setState({modelBusy:true}); try { const r=await this.api('/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})}); if(r?.ok===false)throw new Error(r.error||'Model pull failed'); this.setState({modelPullName:''}); this.notify(`Pulled ${model}`); await this.loadModels(); } catch(e){this.notify(e.message,true);} finally{this.setState({modelBusy:false});} }
-  async deleteModel(model) { if(!globalThis.confirm(`Delete local Ollama model "${model}"?`))return; try{const r=await this.api('/models/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,confirm:true})});if(r?.ok===false)throw new Error(r.error||'Delete failed');this.notify(`Deleted ${model}`);await this.loadModels();}catch(e){this.notify(e.message,true);} }
+  async deleteModel(model) { if(!globalThis.confirm(`Delete local model "${model}"?`))return; try{const r=await this.api('/models/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,confirm:true})});if(r?.ok===false)throw new Error(r.error||'Delete failed');this.notify(`Deleted ${model}`);await this.loadModels();}catch(e){this.notify(e.message,true);} }
   cancelChat() {
     if (this.chatController) {
       this.chatController.abort();
       this.chatController = null;
     }
-    this.setState({streaming: false});
-    this.notify('Chat cancelled');
   }
-  async sendChat() {
-    const text=this.state.chatInput.trim(); if(!text||this.state.streaming)return;
-    const user={role:'user',text}, assistant={role:'assistant',text:''};
-    this.setState(prev=>({chatInput:'',streaming:true,messages:[...prev.messages,user,assistant]}));
-    let assistantText='';
-    this.chatController = new AbortController();
+  updateLastAssistant(fn) {
+    this.setState(prev => {
+      const messages = prev.messages.slice();
+      const idx = messages.length - 1;
+      if (idx < 0 || messages[idx].role !== 'assistant') return null;
+      messages[idx] = fn({...messages[idx], steps: (messages[idx].steps || []).slice()});
+      return {messages};
+    });
+  }
+  handleChatEvent(event, run) {
+    if (event.type === 'status') {
+      if (event.status === 'generating' && run.stepText.trim()) {
+        const note = run.stepText.trim();
+        this.updateLastAssistant(m => ({...m, steps: [...m.steps, {kind: 'note', text: note}], text: ''}));
+      }
+      if (event.status === 'generating') run.stepText = '';
+      this.updateLastAssistant(m => ({...m, phase: event.status === 'generating' ? `Thinking (step ${event.step || 1})` : 'Starting'}));
+    } else if (event.type === 'token') {
+      run.stepText += event.text || '';
+      const text = run.stepText;
+      this.updateLastAssistant(m => ({...m, text, phase: 'Writing'}));
+    } else if (event.type === 'tool') {
+      if (event.status === 'started') {
+        run.stepText = '';
+        this.updateLastAssistant(m => ({...m, text: '', phase: `Running ${event.tool}`, steps: [...m.steps, {kind: 'tool', tool: event.tool, args: event.args || '', status: 'running'}]}));
+        this.setState(prev => ({chatTools: [{tool: event.tool, status: 'started', at: Date.now()}, ...prev.chatTools].slice(0, 40)}));
+      } else {
+        this.updateLastAssistant(m => {
+          const steps = m.steps;
+          for (let i = steps.length - 1; i >= 0; i -= 1) {
+            if (steps[i].kind === 'tool' && steps[i].tool === event.tool && steps[i].status === 'running') {
+              steps[i] = {...steps[i], status: event.ok ? 'ok' : (event.approval_id ? 'approval' : 'failed'), error: event.error || '', approval_id: event.approval_id || null};
+              return {...m, steps};
+            }
+          }
+          return {...m, steps: [...steps, {kind: 'tool', tool: event.tool, status: event.ok ? 'ok' : 'failed', error: event.error || '', approval_id: event.approval_id || null}]};
+        });
+        const status = event.ok ? 'ok' : (event.approval_id ? 'approval' : 'failed');
+        this.setState(prev => {
+          const idx = prev.chatTools.findIndex(t => t.tool === event.tool && t.status === 'started');
+          if (idx < 0) return {chatTools: [{tool: event.tool, status, at: Date.now()}, ...prev.chatTools].slice(0, 40)};
+          const chatTools = prev.chatTools.slice();
+          chatTools[idx] = {...chatTools[idx], status};
+          return {chatTools};
+        });
+      }
+    } else if (event.type === 'final') {
+      run.finalText = event.text || run.stepText;
+      const text = run.finalText;
+      this.updateLastAssistant(m => ({...m, text, phase: null}));
+    } else if (event.type === 'error') {
+      throw new Error(event.error || 'Chat stream failed');
+    }
+  }
+  async sendChat(textOverride, opts = {}) {
+    const text = safeText(textOverride ?? this.state.chatInput).trim();
+    if (!text || this.state.streaming) return;
+    const user = {role: 'user', text, viaVoice: !!opts.viaVoice};
+    const assistant = {role: 'assistant', text: '', steps: [], phase: 'Starting', retryText: text};
+    this.setState(prev => ({chatInput: textOverride == null ? '' : prev.chatInput, streaming: true, messages: [...prev.messages, user, assistant]}));
+    const controller = new AbortController();
+    this.chatController = controller;
+    const run = {stepText: '', finalText: ''};
     try {
-      const response=await fetch('/chat/stream',{method:'POST',signal:this.chatController.signal,headers:this.authHeaders({'Content-Type':'application/json','Accept':'text/event-stream'}),body:JSON.stringify({message:text,session_id:this.state.sessionId})});
-      if(!response.ok||!response.body)throw new Error((await response.text()).slice(0,2000)||`HTTP ${response.status}`);
-      const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
-      while(true){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const blocks=buffer.split('\n\n');buffer=blocks.pop()||'';for(const block of blocks){const row=block.split('\n').find(line=>line.startsWith('data:'));if(!row)continue;let event;try{event=JSON.parse(row.slice(5).trim());}catch(_){continue;}if(event.type==='token'){assistantText+=event.text||'';this.setState(prev=>({messages:prev.messages.map((m,idx)=>idx===prev.messages.length-1?{...m,text:assistantText}:m)}));}else if(event.type==='final'&&!assistantText){assistantText=event.text||'';this.setState(prev=>({messages:prev.messages.map((m,idx)=>idx===prev.messages.length-1?{...m,text:assistantText}:m)}));}else if(event.type==='tool'){this.setState(prev=>({chatTools:[{tool:event.tool||'tool',status:event.status||''},...prev.chatTools].slice(0,30)}));}else if(event.type==='error')throw new Error(event.error||'Chat stream failed');}}
-    } catch(e) { assistantText=`**Error:** ${e.message}`; this.setState(prev=>({messages:prev.messages.map((m,idx)=>idx===prev.messages.length-1?{...m,text:assistantText}:m)})); this.notify(`Chat failed: ${e.message}`,true); }
-    finally { this.setState({streaming:false}); Promise.allSettled([this.loadActivity(),this.loadStatus()]); }
+      const response = await fetch('/chat/stream', {
+        method: 'POST', signal: controller.signal,
+        headers: this.authHeaders({'Content-Type': 'application/json', 'Accept': 'text/event-stream'}),
+        body: JSON.stringify({message: text, session_id: this.state.sessionId}),
+      });
+      if (!response.ok || !response.body) throw new Error((await response.text()).slice(0, 2000) || `HTTP ${response.status}`);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          const row = block.split('\n').find(line => line.startsWith('data:'));
+          if (!row) continue;
+          let event;
+          try { event = JSON.parse(row.slice(5).trim()); } catch (_) { continue; }
+          this.handleChatEvent(event, run);
+        }
+      }
+      if (!run.finalText && !run.stepText) this.updateLastAssistant(m => ({...m, text: '_No response was returned._', phase: null}));
+      if (this.state.speakReplies && run.finalText) this.speakReply(run.finalText);
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        this.updateLastAssistant(m => ({...m, phase: null, stopped: true, steps: m.steps.map(s => s.status === 'running' ? {...s, status: 'stopped'} : s)}));
+      } else {
+        this.updateLastAssistant(m => ({...m, phase: null, error: e.message}));
+        this.notify(`Chat failed: ${e.message}`, true);
+      }
+    } finally {
+      if (this.chatController === controller) this.chatController = null;
+      this.setState({streaming: false});
+      Promise.allSettled([this.loadActivity(), this.loadStatus(), this.loadApprovals()]);
+    }
   }
   renderShell(content) {
     const pageLabel = NAV.find(([id])=>id===this.state.page)?.[1] || 'Overview';
@@ -415,16 +686,21 @@ class App extends React.Component {
     return h('div',{className:'min-h-screen lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]'},
       h('aside',{className:'bg-slate-900/90 border-slate-800 border-b lg:border-b-0 lg:border-r sticky top-0 z-20 lg:h-screen p-4 backdrop-blur-xl flex lg:block gap-3 overflow-x-auto items-center'},
         h('div',{className:'shrink-0 whitespace-nowrap text-lg font-extrabold'},'Living ',h('span',{className:'text-brand-400'},'Assistant')),
-        h('nav',{className:'flex lg:block gap-2 lg:mt-6'},NAV.map(([id,label])=>h('button',{key:id,onClick:()=>this.navigate(id),className:cx('shrink-0 w-full text-left px-3 py-2 rounded-xl text-sm transition',this.state.page===id?'bg-slate-800 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white')},label)))),
+        h('nav',{className:'flex lg:block gap-2 lg:mt-6'},
+          NAV.map(([id,label])=>h('button',{key:id,onClick:()=>this.navigate(id),className:cx('shrink-0 lg:w-full text-left px-3 py-2 rounded-xl text-sm transition',this.state.page===id?'bg-slate-800 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white')},label)),
+          h('a',{href:'/aura',className:'shrink-0 block lg:w-full text-left px-3 py-2 rounded-xl text-sm transition font-medium text-cyan-400 hover:bg-cyan-950/40 lg:mt-3 border border-cyan-800/50'},'🌌 Aura OS HUD'),
+        )),
       h('main',{className:'px-4 py-5 md:px-6 lg:px-8 min-w-0 max-w-[1600px] mx-auto w-full'},
         h('header',{className:'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5'},
           h('div',null,h('h1',{className:'text-2xl font-bold'},pageLabel),h('p',{className:'text-sm text-slate-400'},'Local-first control center')),
           h('div',{className:'flex flex-wrap gap-2 items-center'},
+            h('a',{href:'/aura',className:'px-3 py-2 rounded-xl border border-cyan-500/40 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 text-sm font-semibold flex items-center gap-1.5 transition'},'🌌 Launch Aura OS'),
             h('span',{className:'inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-400'},h('span',{className:cx('h-2 w-2 rounded-full',online?'bg-emerald-400':'bg-rose-400')}),online?`online · ${this.state.status.profile}`:'offline'),
             h('input',{type:'password',value:this.state.tokenInput,onChange:e=>this.setState({tokenInput:e.target.value}),placeholder:'API token',className:'w-48 sm:w-64 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-brand-400'}),
             h('button',{className:'px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700',onClick:()=>this.useToken()},'Use token'))),
         content),
-      this.state.toast ? h('div',{className:'fixed right-4 bottom-4 z-50 max-w-sm rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 shadow-xl text-sm'},this.state.toast):null);
+      h(FloatingAgent,{mood:this.agentMood()[0],label:this.agentMood()[1],onActivate:()=>this.activateAgent()}),
+      this.state.toast ? h('div',{role:'status',className:cx('fixed left-1/2 -translate-x-1/2 bottom-4 z-50 max-w-md rounded-xl border px-4 py-3 shadow-xl text-sm',this.state.error?'border-rose-800 bg-rose-950 text-rose-100':'border-slate-700 bg-slate-900')},this.state.toast):null);
   }
   render() {
     const pages={overview:this.renderOverview(),models:this.renderModels(),chat:this.renderChat(),skills:this.renderSkills(),agents:this.renderAgents(),approvals:this.renderApprovals(),organize:this.renderOrganize(),security:this.renderSecurity(),activity:this.renderActivity()};
@@ -720,97 +996,137 @@ class App extends React.Component {
       h('div',{className:'grid md:grid-cols-12 gap-3'},this.card('Pending approvals',h(ApprovalList,{rows:this.state.approvals.slice(0,4),decide:(id,v)=>this.decideApproval(id,v)}),'md:col-span-6'),this.card('Recent activity',h(ActivityList,{rows:this.state.activity.slice(-8)}),'md:col-span-6')));
   }
   renderModels(){ const data=this.state.models||{}; return this.card('Local model manager',h('div',{className:'space-y-3'},h('div',{className:'flex flex-wrap gap-2 text-sm text-slate-400'},h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`GPU ${data.gpu?.name||'not detected'}`),h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`Free VRAM ${data.gpu?.free_vram_gb??'--'} GB`),h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`Disk ${fmtBytes(data.total_disk_bytes)}`)),h('div',{className:'grid grid-cols-[minmax(0,1fr)_auto] gap-2'},h('input',{value:this.state.modelPullName,onChange:e=>this.setState({modelPullName:e.target.value}),onKeyDown:e=>{if(e.key==='Enter')this.pullModel();},placeholder:'e.g. qwen2.5:7b',className:'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('button',{disabled:this.state.modelBusy,onClick:()=>this.pullModel(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50'},this.state.modelBusy?'Pulling…':'Pull model')),h(ModelTable,{models:data.models||[],onDelete:m=>this.deleteModel(m)}))); }
+  renderStep(step, i, retryText) {
+    if (step.kind === 'note') {
+      return h('div', {key: i, className: 'text-xs text-slate-400 italic border-l-2 border-slate-700 pl-3 py-1'}, step.text);
+    }
+    const tone = {
+      running: 'border-sky-800 bg-sky-950/60 text-sky-200',
+      ok: 'border-emerald-900 bg-emerald-950/50 text-emerald-200',
+      failed: 'border-rose-900 bg-rose-950/50 text-rose-200',
+      approval: 'border-amber-800 bg-amber-950/60 text-amber-200',
+      stopped: 'border-slate-700 bg-slate-900 text-slate-400',
+    }[step.status] || 'border-slate-700 bg-slate-900 text-slate-300';
+    const icon = {running: '◌', ok: '✓', failed: '✕', approval: '⚠', stopped: '■'}[step.status] || '•';
+    return h('div', {key: i, className: cx('rounded-xl border px-3 py-2 text-xs', tone)},
+      h('div', {className: 'flex items-center gap-2 min-w-0'},
+        h('span', {className: cx('shrink-0 font-bold', step.status === 'running' && 'animate-spin inline-block')}, icon),
+        h('span', {className: 'font-mono font-semibold shrink-0'}, step.tool),
+        step.args && step.args !== '{}' ? h('span', {className: 'font-mono text-slate-400 truncate'}, step.args) : null),
+      step.error && step.status !== 'approval' ? h('div', {className: 'mt-1 text-rose-300 break-words'}, step.error) : null,
+      step.status === 'approval' ? h('div', {className: 'mt-2 flex flex-wrap items-center gap-2'},
+        h('span', {className: 'text-amber-200'}, step.decided ? `Request ${step.decided}.` : 'This action needs your approval.'),
+        step.decided ? null : h('button', {onClick: () => this.decideInline(step.approval_id, true, retryText), className: 'px-2.5 py-1 rounded-lg border border-emerald-700 bg-emerald-900 text-emerald-100 hover:bg-emerald-800'}, 'Approve & retry'),
+        step.decided ? null : h('button', {onClick: () => this.decideInline(step.approval_id, false), className: 'px-2.5 py-1 rounded-lg border border-rose-800 bg-rose-950 text-rose-200 hover:bg-rose-900'}, 'Deny'),
+      ) : null);
+  }
+  renderMessage(m, i) {
+    if (m.role === 'user') {
+      return h('div', {key: i, className: 'flex justify-end'},
+        h('div', {className: 'max-w-[85%] rounded-2xl rounded-br-md bg-brand-600 px-4 py-2.5 text-white whitespace-pre-wrap break-words'},
+          m.viaVoice ? h('span', {className: 'mr-2 text-xs opacity-75', title: 'Spoken'}, '🎙') : null, m.text));
+    }
+    const steps = m.steps || [];
+    return h('div', {key: i, className: 'flex gap-3 items-start'},
+      h(AgentFace, {size: 'sm', mood: m.error ? 'error' : m.phase ? 'thinking' : 'idle'}),
+      h('div', {className: 'min-w-0 flex-1 max-w-[85%] space-y-2'},
+        steps.length ? h('div', {className: 'space-y-1.5'}, steps.map((s, idx) => this.renderStep(s, idx, m.retryText))) : null,
+        m.text ? h('div', {className: 'rounded-2xl rounded-tl-md border border-slate-700 bg-slate-800/80 px-4 py-3'}, h(Markdown, {text: m.text})) : null,
+        m.phase ? h('div', {className: 'flex items-center gap-2 text-xs text-slate-400'},
+          h('span', {className: 'typing-dots'}, h('i'), h('i'), h('i')), m.phase) : null,
+        m.stopped ? h('div', {className: 'text-xs text-slate-500'}, 'Stopped.') : null,
+        m.error ? h('div', {className: 'rounded-xl border border-rose-900 bg-rose-950/50 px-3 py-2 text-sm text-rose-200 flex flex-wrap items-center gap-2'},
+          h('span', {className: 'break-words'}, m.error),
+          m.retryText && !this.state.streaming ? h('button', {onClick: () => this.sendChat(m.retryText), className: 'px-2.5 py-1 rounded-lg border border-rose-700 hover:bg-rose-900 text-xs'}, 'Retry') : null) : null));
+  }
   renderChat() {
-    const messages = this.state.messages.length
-      ? this.state.messages.map((m, i) => h(
-          'div',
-          {
-            key: i,
-            className: cx(
-              'max-w-3xl rounded-2xl px-4 py-3',
-              m.role === 'user' ? 'ml-auto bg-brand-600' : 'bg-slate-800 border border-slate-700',
-            ),
-          },
-          m.role === 'assistant' ? h(Markdown, {text: m.text}) : m.text,
-        ))
-      : h('div', {className: 'text-slate-500 py-4'}, 'Start a conversation.');
+    const {messages, streaming, voiceRecording, chatInput, speakReplies} = this.state;
+    const suggestions = [
+      ['🔎', 'Search the web', 'Search the web for the latest news about '],
+      ['🖼', 'Find & download an image', 'Find and download a picture of '],
+      ['🎬', 'Download a video', 'Download this video: '],
+      ['🖥', 'Scan my screen', 'Look at my screen and tell me what is wrong'],
+      ['📜', 'Check logs for errors', 'Check the log files for errors and summarize them'],
+      ['🧪', 'Audit a project', 'Analyze this project for bugs and code-quality problems: '],
+    ];
+    const empty = h('div', {className: 'h-full flex flex-col items-center justify-center text-center gap-5 py-8'},
+      h(AgentFace, {size: 'lg', mood: voiceRecording ? 'listening' : 'idle', track: true}),
+      h('div', null,
+        h('div', {className: 'text-lg font-semibold'}, 'What should we do?'),
+        h('div', {className: 'text-sm text-slate-400'}, 'Type, or press the mic and just say it.')),
+      h('div', {className: 'grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl'}, suggestions.map(([icon, label, prompt]) => h('button', {
+        key: label,
+        onClick: () => { this.setState({chatInput: prompt}); if (this.chatBox) this.chatBox.focus(); },
+        className: 'flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 hover:border-brand-500 hover:bg-slate-800 px-3 py-2.5 text-left text-sm transition',
+      }, h('span', {className: 'text-lg'}, icon), label))));
 
-    const chatPanel = h(
-      'div',
-      null,
-      h('div', {className: 'h-64 md:h-[58vh] overflow-y-auto space-y-3'}, messages),
-      h(
-        'div',
-        {className: 'mt-3 space-y-2'},
-        h('textarea', {
-          rows: 2,
-          value: this.state.chatInput,
-          onChange: e => this.setState({chatInput: e.target.value}),
-          onKeyDown: e => {
-            if (e.key === 'Enter' && !e.shiftKey && !this.state.streaming) {
-              e.preventDefault();
-              this.sendChat();
-            }
-          },
-          placeholder: 'Ask your assistant… (or press the voice button)',
-          className: 'w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2',
-        }),
-        h(
-          'div',
-          {className: 'flex gap-2 items-center'},
-          h(
-            'button',
-            {
-              disabled: this.state.voiceRecording || !this.state.token,
-              onClick: () => this.voiceAsk(),
-              title: 'Record voice input (10s max)',
-              className: cx(
-                'px-3 py-2 rounded-xl border transition flex items-center gap-2',
-                this.state.voiceRecording
-                  ? 'border-rose-500 bg-rose-950 text-rose-300'
-                  : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50'
-              ),
-            },
-            this.state.voiceRecording ? '🔴 Recording…' : '🎤 Voice',
-          ),
-          h(
-            'button',
-            {
-              disabled: !this.state.chatInput.trim() && !this.state.streaming,
-              onClick: () => this.sendChat(),
-              className: 'flex-1 px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 transition',
-            },
-            this.state.streaming
-              ? h('span', {className: 'flex items-center justify-center gap-2'}, 'Generating', h('span', {className: 'h-3 w-1.5 rounded-full bg-brand-400 animate-pulse'}))
-              : 'Send',
-          ),
-          this.state.streaming ? h(
-            'button',
-            {
-              onClick: () => this.cancelChat(),
-              title: 'Stop generation',
-              className: 'px-3 py-2 rounded-xl border border-rose-700 bg-rose-950 text-rose-300 hover:bg-rose-900 transition',
-            },
-            '⏹ Stop',
-          ) : null,
-        ),
-      ),
-    );
+    const thread = h('div', {
+      ref: el => { this.chatScroll = el; },
+      className: 'flex-1 min-h-0 overflow-y-auto space-y-4 pr-1',
+      'aria-live': 'polite',
+    }, messages.length ? messages.map((m, i) => this.renderMessage(m, i)) : empty);
 
-    const toolRows = this.state.chatTools.length
-      ? this.state.chatTools.map((x, i) => h(
-          'div',
-          {key: i, className: 'border-l-2 border-slate-700 pl-3 py-2 text-xs text-slate-300'},
-          `${x.status === 'started' ? '⚙️ Running' : '✓ Finished'} ${x.tool}`,
-        ))
-      : h('div', {className: 'text-slate-500'}, 'No tool activity yet.');
+    const composer = h('div', {className: 'mt-3 rounded-2xl border border-slate-700 bg-slate-950 focus-within:border-brand-500 transition'},
+      h('textarea', {
+        ref: el => { this.chatBox = el; },
+        rows: 2,
+        value: chatInput,
+        disabled: voiceRecording,
+        onChange: e => this.setState({chatInput: e.target.value}),
+        onKeyDown: e => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendChat(); }
+          else if (e.key === 'Escape' && streaming) { e.preventDefault(); this.cancelChat(); }
+        },
+        placeholder: voiceRecording ? 'Listening… speak now' : 'Message your assistant  (Enter to send, Shift+Enter for a new line)',
+        className: 'block w-full resize-none bg-transparent px-4 pt-3 pb-1 outline-none placeholder:text-slate-500',
+      }),
+      h('div', {className: 'flex items-center gap-2 px-2 pb-2'},
+        h('button', {
+          onClick: () => this.voiceAsk(),
+          disabled: voiceRecording || streaming,
+          title: 'Speak your request',
+          'aria-label': 'Speak your request',
+          className: cx('h-9 w-9 rounded-full border flex items-center justify-center transition disabled:opacity-50',
+            voiceRecording ? 'border-rose-500 bg-rose-600 text-white animate-pulse' : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200'),
+        }, '🎙'),
+        h('button', {
+          onClick: () => this.toggleSpeakReplies(),
+          title: speakReplies ? 'Spoken replies on' : 'Spoken replies off',
+          'aria-pressed': !!speakReplies,
+          className: cx('h-9 px-3 rounded-full border text-xs transition', speakReplies ? 'border-brand-500 bg-brand-600/30 text-brand-200' : 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800'),
+        }, speakReplies ? '🔊 Speak replies' : '🔈 Speak replies'),
+        h('div', {className: 'flex-1'}),
+        streaming
+          ? h('button', {onClick: () => this.cancelChat(), title: 'Stop (Esc)', className: 'h-9 px-4 rounded-full border border-rose-700 bg-rose-950 text-rose-200 hover:bg-rose-900 transition'}, '■ Stop')
+          : h('button', {onClick: () => this.sendChat(), disabled: !chatInput.trim(), className: 'h-9 px-4 rounded-full border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 transition font-medium'}, 'Send ➤')));
 
-    return h(
-      'div',
-      {className: 'grid md:grid-cols-12 gap-3'},
-      this.card(null, chatPanel, 'md:col-span-8'),
-      this.card('Live execution', h('div', {className: 'space-y-2'}, toolRows), 'md:col-span-4'),
-    );
+    const chatPanel = h('div', {className: 'flex flex-col h-[calc(100vh-11rem)] min-h-[26rem]'},
+      h('div', {className: 'flex items-center justify-between mb-3'},
+        h('div', {className: 'text-xs text-slate-500 font-mono'}, `session ${this.state.sessionId}`),
+        h('button', {onClick: () => this.newChat(), className: 'px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, '+ New chat')),
+      thread, composer);
+
+    const pending = this.state.approvals || [];
+    const activity = this.state.chatTools.length
+      ? this.state.chatTools.slice(0, 20).map((x, i) => h('div', {key: i, className: 'flex items-center gap-2 text-xs py-1.5 border-b border-slate-800'},
+          h('span', {className: cx('h-2 w-2 rounded-full shrink-0', x.status === 'started' ? 'bg-sky-400 animate-pulse' : x.status === 'ok' ? 'bg-emerald-400' : x.status === 'approval' ? 'bg-amber-400' : 'bg-rose-400')}),
+          h('span', {className: 'font-mono truncate'}, x.tool),
+          h('span', {className: 'ml-auto text-slate-500 shrink-0'}, x.status === 'started' ? 'running' : x.status)))
+      : h('div', {className: 'text-slate-500 text-sm'}, 'Tool calls will appear here as they run.');
+
+    const side = h('div', {className: 'space-y-3'},
+      pending.length ? this.card(`Waiting for you (${pending.length})`, h(ApprovalList, {rows: pending.slice(0, 3), decide: (id, v) => this.decideApproval(id, v)})) : null,
+      this.card('Live tool activity', h('div', null, activity)),
+      this.card('What I can do', h('ul', {className: 'text-sm text-slate-400 space-y-1.5'},
+        h('li', null, '🔎 Web search, article reading, image search & download'),
+        h('li', null, '🎬 Video/audio download from YouTube and 1000+ sites'),
+        h('li', null, '🖥 Screen reading (vision model or on-device OCR)'),
+        h('li', null, '📜 Log analysis & live monitoring, project audits'),
+        h('li', null, '🗂 Files, shell, git, calendar, reminders, memory'))));
+
+    return h('div', {className: 'grid lg:grid-cols-12 gap-3'},
+      this.card(null, chatPanel, 'lg:col-span-8'),
+      h('div', {className: 'lg:col-span-4'}, side));
   }
   renderApprovals(){return this.card('Pending approvals',h(ApprovalList,{rows:this.state.approvals,decide:(id,v)=>this.decideApproval(id,v)}));}
   renderOrganize(){return h('div',{className:'grid md:grid-cols-12 gap-3'},this.card('Todos',h('div',{className:'space-y-3'},h('div',{className:'grid grid-cols-1 sm:grid-cols-2 gap-2'},h('input',{value:this.state.todoTitle,onChange:e=>this.setState({todoTitle:e.target.value}),placeholder:'Add a todo',className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('input',{type:'datetime-local',value:this.state.todoDue,onChange:e=>this.setState({todoDue:e.target.value}),className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'})),h('button',{onClick:()=>this.addTodo(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600'},'Add'),h(ItemList,{rows:this.state.todos,kind:'todo',onAction:id=>this.completeTodo(id)})),'md:col-span-6'),this.card('Calendar',h('div',{className:'space-y-3'},h('div',{className:'grid grid-cols-1 sm:grid-cols-2 gap-2'},h('input',{value:this.state.calTitle,onChange:e=>this.setState({calTitle:e.target.value}),placeholder:'Event title',className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('input',{type:'datetime-local',value:this.state.calStart,onChange:e=>this.setState({calStart:e.target.value}),className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'})),h('button',{onClick:()=>this.addCalendar(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600'},'Add'),h(ItemList,{rows:this.state.calendar,kind:'calendar',onAction:id=>this.deleteCalendar(id)})),'md:col-span-6'));}

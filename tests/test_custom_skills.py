@@ -417,12 +417,15 @@ def test_downloads_organizer_execution(mock_env):
 # -------------------------------------------------------------------------
 # 9. External Collections Discovery & Selective Import
 # -------------------------------------------------------------------------
-def test_external_collections_discovery(mock_env):
-    finder = ExternalSkillCollections(skill_store=mock_env["store"])
+def test_external_collections_discovery(mock_env, tmp_path):
+    skill = tmp_path / "external-components" / "scientific-agent-skills" / "skills" / "plotting"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: plotting\n---\nPlot data.\n", encoding="utf-8")
+    finder = ExternalSkillCollections(project_root=tmp_path, skill_store=mock_env["store"])
     collections = finder.scan_collections()
-    # Verify collections were discovered
-    assert "cybersecurity" in collections
-    assert len(collections["cybersecurity"]) > 0
+    assert len(collections["scientific"]) > 0
+    # Security reference material stays in the container sandbox, never importable onto the host.
+    assert "cybersecurity" not in collections
 
 
 # -------------------------------------------------------------------------
@@ -512,4 +515,5 @@ def test_skills_rest_api_lifecycle(mock_env, monkeypatch):
     # 9. GET /skills/collections/browse
     r_col = client.get("/skills/collections/browse")
     assert r_col.status_code == 200
-    assert "cybersecurity" in r_col.json()
+    assert "scientific" in r_col.json()
+    assert "cybersecurity" not in r_col.json()  # sandbox-only corpus is never browsable on the host

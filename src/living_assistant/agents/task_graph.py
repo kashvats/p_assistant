@@ -5,6 +5,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 
+from living_assistant.core.sqlite_utils import ThreadLocalSQLite
+
 @dataclass
 class TaskNode:
     id: str
@@ -18,22 +20,22 @@ class TaskNode:
 class TaskGraphManager:
     def __init__(self, db_path: Path):
         self.db_path = db_path
+        self.conn = ThreadLocalSQLite(self.db_path, timeout=30.0)
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute('''
-                CREATE TABLE IF NOT EXISTS task_nodes (
-                    id TEXT PRIMARY KEY,
-                    description TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    dependencies TEXT NOT NULL,
-                    result TEXT,
-                    created_at REAL NOT NULL,
-                    updated_at REAL NOT NULL
-                )
-            ''')
-            conn.commit()
+        self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS task_nodes (
+                id TEXT PRIMARY KEY,
+                description TEXT NOT NULL,
+                status TEXT NOT NULL,
+                dependencies TEXT NOT NULL,
+                result TEXT,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )
+        ''')
+        self.conn.commit()
 
     def add_task(self, task_id: str, description: str, dependencies: List[str] = None) -> TaskNode:
         deps = dependencies or []
@@ -46,41 +48,37 @@ class TaskGraphManager:
             created_at=now,
             updated_at=now
         )
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO task_nodes (id, description, status, dependencies, result, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (node.id, node.description, node.status, json.dumps(node.dependencies), node.result, node.created_at, node.updated_at)
-            )
-            conn.commit()
+        self.conn.execute(
+            "INSERT OR REPLACE INTO task_nodes (id, description, status, dependencies, result, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (node.id, node.description, node.status, json.dumps(node.dependencies), node.result, node.created_at, node.updated_at)
+        )
+        self.conn.commit()
         return node
 
     def get_task(self, task_id: str) -> Optional[TaskNode]:
-        with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute("SELECT * FROM task_nodes WHERE id = ?", (task_id,)).fetchone()
-            if row:
-                return TaskNode(
-                    id=row[0],
-                    description=row[1],
-                    status=row[2],
-                    dependencies=json.loads(row[3]),
-                    result=row[4],
-                    created_at=row[5],
-                    updated_at=row[6]
-                )
+        row = self.conn.execute("SELECT * FROM task_nodes WHERE id = ?", (task_id,)).fetchone()
+        if row:
+            return TaskNode(
+                id=row[0],
+                description=row[1],
+                status=row[2],
+                dependencies=json.loads(row[3]),
+                result=row[4],
+                created_at=row[5],
+                updated_at=row[6]
+            )
         return None
 
     def update_task_status(self, task_id: str, status: str, result: str = None):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "UPDATE task_nodes SET status = ?, result = ?, updated_at = ? WHERE id = ?",
-                (status, result, time.time(), task_id)
-            )
-            conn.commit()
+        self.conn.execute(
+            "UPDATE task_nodes SET status = ?, result = ?, updated_at = ? WHERE id = ?",
+            (status, result, time.time(), task_id)
+        )
+        self.conn.commit()
 
     def get_ready_tasks(self) -> List[TaskNode]:
         """Returns pending tasks whose dependencies are all completed."""
-        with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute("SELECT * FROM task_nodes").fetchall()
+        rows = self.conn.execute("SELECT * FROM task_nodes").fetchall()
             
         all_nodes = {}
         for r in rows:
@@ -95,6 +93,5 @@ class TaskGraphManager:
         return ready
 
     def clear_graph(self):
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM task_nodes")
-            conn.commit()
+        self.conn.execute("DELETE FROM task_nodes")
+        self.conn.commit()

@@ -6,7 +6,7 @@ cd /d "%PROJECT_ROOT%"
 
 set "HOST=127.0.0.1"
 set "PORT=8787"
-set "URL=http://%HOST%:%PORT%/dashboard"
+set "URL=http://%HOST%:%PORT%/aura"
 set "VENV_DIR=%PROJECT_ROOT%.venv"
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 set "TEMP_DIR=%TEMP%\LivingAssistant"
@@ -161,7 +161,7 @@ if not errorlevel 1 (
 echo ========================================================
 echo Server:    http://%HOST%:%PORT%
 echo Dashboard: %URL%
-echo Local Ollama: no provider API key required
+echo Local llama.cpp: no provider API key required
 echo ========================================================
 echo.
 echo Starting Living Assistant...

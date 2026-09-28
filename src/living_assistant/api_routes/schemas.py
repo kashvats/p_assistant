@@ -152,6 +152,10 @@ class EnabledRequest(BaseModel):
     enabled: bool
 
 
+class VoiceSpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+
+
 class VoiceAskRequest(BaseModel):
     max_seconds: float = Field(default=15.0, ge=1.0, le=60.0)
     language: str | None = Field(default=None, max_length=32)

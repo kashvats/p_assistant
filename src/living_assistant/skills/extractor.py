@@ -102,7 +102,7 @@ class DocumentExtractor:
             raw = file_path.read_text(encoding="utf-8", errors="replace")
             try:
                 import trafilatura
-                clean_text = trafilatura.extract(raw)
+                clean_text = trafilatura.extract(raw, favor_precision=True) or trafilatura.extract(raw)
                 if clean_text and clean_text.strip():
                     return clean_text
             except Exception:

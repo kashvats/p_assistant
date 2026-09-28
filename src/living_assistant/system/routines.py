@@ -54,24 +54,33 @@ class RoutineRegistry:
 
     @staticmethod
     def _clock_due(trigger: dict, now: float, last_run: float | None) -> bool:
-        current=dt.datetime.fromtimestamp(now)
-        h,m=_parse_hhmm(str(trigger.get('time')))
-        if (current.hour,current.minute)<(h,m): return False
-        if trigger.get('type')=='weekly':
-            allowed={WEEKDAYS[x] for x in trigger.get('days',[])}
+        current = dt.datetime.fromtimestamp(now)
+        h, m = _parse_hhmm(str(trigger.get('time')))
+        if (current.hour, current.minute) < (h, m): return False
+        if trigger.get('type') == 'weekly':
+            allowed = {WEEKDAYS[x] for x in trigger.get('days', [])}
             if current.weekday() not in allowed: return False
+        policy = str(trigger.get("missed_job_policy", "run")).lower()
+        if policy == "skip":
+            scheduled_mins = h * 60 + m
+            current_mins = current.hour * 60 + current.minute
+            if (current_mins - scheduled_mins) > 60:
+                return False
         if last_run is None: return True
-        previous=dt.datetime.fromtimestamp(float(last_run))
-        return previous.date()!=current.date()
+        previous = dt.datetime.fromtimestamp(float(last_run))
+        return previous.date() != current.date()
 
-    def process(self,events: list[dict],memory,notifier,orchestrator=None,allow_model_wake: bool=False,model_manager=None,now: float | None=None) -> list[dict]:
-        now=float(now if now is not None else time.time()); emitted=[]
-        for name,item in list(self._load().items()):
-            if not item.get('enabled',True): continue
-            trig=item.get('trigger',{}); ttype=trig.get('type'); last=item.get('last_run')
-            if ttype=='event': due=any(e.get('kind')==trig.get('kind') for e in events)
-            elif ttype=='interval': due=last is None or now-float(last)>=max(30,int(trig.get('seconds',60)))
-            else: due=self._clock_due(trig,now,last)
+    def process(self, events: list[dict], memory, notifier, orchestrator=None, allow_model_wake: bool = False, model_manager=None, now: float | None = None) -> list[dict]:
+        now = float(now if now is not None else time.time()); emitted = []
+        for name, item in list(self._load().items()):
+            # Handle job deleted while executing
+            if name not in self._load():
+                continue
+            if not item.get('enabled', True): continue
+            trig = item.get('trigger', {}); ttype = trig.get('type'); last = item.get('last_run')
+            if ttype == 'event': due = any(e.get('kind') == trig.get('kind') for e in events)
+            elif ttype == 'interval': due = last is None or now - float(last) >= max(30, int(trig.get('seconds', 60)))
+            else: due = self._clock_due(trig, now, last)
             if not due: continue
             action=item.get('action',{}); atype=action.get('type'); result={'kind':'routine_ran','routine':name,'action':atype}
             if atype=='notify':

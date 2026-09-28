@@ -139,6 +139,18 @@ class ProcessRegistry:
         meta["stopped_at"] = time.time(); self._save(data)
         return {"ok": True, "pid": pid}
 
+    def stop_all(self) -> list[dict]:
+        """Terminate all active managed processes and their process groups."""
+        results = []
+        for item in self.list():
+            if item.get("running"):
+                try:
+                    res = self.stop(item["id"])
+                    results.append({"id": item["id"], "result": res})
+                except Exception as exc:
+                    results.append({"id": item["id"], "error": str(exc)})
+        return results
+
     def restart(self, key: str, automatic: bool = False) -> dict:
         data = self._load(); meta = data.get(key)
         if not meta: return {"ok": False, "error": "Unknown process id"}
@@ -246,14 +258,43 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
         with tempfile.TemporaryFile(mode='w+b') as stdout_file, tempfile.TemporaryFile(mode='w+b') as stderr_file:
             timed_out = False
             returncode = None
+            spawn_kwargs = dict(
+                cwd=str(cwdp),
+                shell=True,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                env=os.environ.copy(),
+            )
+            if platform.system() == "Windows":
+                spawn_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                spawn_kwargs["start_new_session"] = True
+
+            proc = subprocess.Popen(command, **spawn_kwargs)
             try:
-                p = subprocess.run(
-                    command, cwd=str(cwdp), shell=True, stdout=stdout_file, stderr=stderr_file,
-                    timeout=min(timeout_seconds or timeout, 600), env=os.environ.copy()
-                )
-                returncode = p.returncode
+                returncode = proc.wait(timeout=min(timeout_seconds or timeout, 600))
             except subprocess.TimeoutExpired:
                 timed_out = True
+                try:
+                    p = psutil.Process(proc.pid)
+                    children = p.children(recursive=True)
+                    for child in children:
+                        try:
+                            child.terminate()
+                        except Exception:
+                            pass
+                    proc.terminate()
+                    _, alive = psutil.wait_procs([proc, *children], timeout=3)
+                    for remaining in alive:
+                        try:
+                            remaining.kill()
+                        except Exception:
+                            pass
+                except Exception:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
 
             def read_tail(handle, limit: int) -> tuple[str, bool]:
                 handle.flush()

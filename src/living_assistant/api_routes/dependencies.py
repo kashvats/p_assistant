@@ -11,8 +11,15 @@ def runtime() -> Runtime:
     return api_module._rt()
 
 
-def authorize(authorization: str | None) -> None:
+def authorize(authorization: str | None = None, token: str | None = None) -> None:
     # Same compatibility rationale as runtime().
     from living_assistant import api as api_module
 
-    api_module._auth(authorization)
+    auth_fn = getattr(api_module, "_auth")
+    if token:
+        try:
+            auth_fn(authorization, token_param=token)
+            return
+        except TypeError:
+            pass
+    auth_fn(authorization)

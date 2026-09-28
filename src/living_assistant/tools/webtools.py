@@ -280,8 +280,21 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
                 temp.unlink(missing_ok=True)
                 return {'ok':False,'blocked':True,'error':f'Pre-change workspace snapshot failed: {exc}'}
         dest.parent.mkdir(parents=True, exist_ok=True)
+        # Prevent silent overwriting of user files (Section 16: Duplicate Downloads)
+        if dest.exists() and not bool(dcfg.get('allow_overwrite', False)):
+            stem = dest.stem
+            suffix = dest.suffix
+            parent = dest.parent
+            counter = 2
+            candidate = parent / f"{stem}_{counter}{suffix}"
+            while candidate.exists():
+                counter += 1
+                candidate = parent / f"{stem}_{counter}{suffix}"
+            dest = candidate
+
         temp.replace(dest)
         return {'ok':True,'path':str(dest),'bytes':total,'content_type':ctype,'quarantined':False,'snapshot_id':snapshot_id}
+
 
     def download_image(url: str, destination: str):
         return download_url(url, destination, _image_only=True)
@@ -644,8 +657,8 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         Tool('download_image','Download a raster image URL into the workspace with content-type/extension validation. Missing extensions are inferred; SVG is quarantined as active content.',{'type':'object','properties':{'url':{'type':'string'},'destination':{'type':'string'}},'required':['url','destination']},download_image),
         Tool('quarantine_list','List downloaded files currently tracked by the quarantine vault.',{'type':'object','properties':{}},quarantine_list),
         Tool('quarantine_release','Release a quarantined file into the approved workspace. Requires explicit approval.',{'type':'object','properties':{'item_id':{'type':'string'},'destination':{'type':'string'}},'required':['item_id','destination']},quarantine_release),
-        Tool('image_search','Search the web for image URLs using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},image_search),
-        Tool('search_and_download_image','Search the web for an image and automatically download the best result into the workspace in one step. Ideal for quick image acquisition.',{'type':'object','properties':{'query':{'type':'string'},'destination':{'type':'string','default':'image.jpg'}},'required':['query']},search_and_download_image),
-        Tool('web_search','Search the web using configured search provider.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},web_search),
+        Tool('image_search','Search the web for images, pictures, photos or wallpapers and return their URLs.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},image_search),
+        Tool('search_and_download_image','Find an image/picture/photo on the web and download the best match into the workspace in one step.',{'type':'object','properties':{'query':{'type':'string'},'destination':{'type':'string','default':'image.jpg'}},'required':['query']},search_and_download_image),
+        Tool('web_search','Search the internet/web for current information, news, documentation or answers; returns titles, links and snippets.',{'type':'object','properties':{'query':{'type':'string'},'num':{'type':'integer','default':5}},'required':['query']},web_search),
         Tool('web_extract_article','Fetch and extract clean article/documentation text, headline, author, and metadata from a web page using Trafilatura, stripping boilerplate, ads, and navigation bars.',{'type':'object','properties':{'url':{'type':'string'},'output_format':{'type':'string','enum':['txt','markdown','xml','csv'],'default':'txt'},'include_comments':{'type':'boolean','default':False}},'required':['url']},web_extract_article),
     ]

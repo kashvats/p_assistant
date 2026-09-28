@@ -74,14 +74,46 @@ except Exception as e:
 """
         return run_isolated_tool(script, timeout=self._timeout)
 
+    def download_video(
+        self,
+        url: str,
+        output_dir: str,
+        fmt: str = "video",
+        max_resolution: str = "720p",
+        max_duration_seconds: int = 1800,
+        timeout: float = 900.0,
+    ) -> dict[str, Any]:
+        """Run OpenMontage's yt-dlp based VideoDownloader without loading the whole registry."""
+        inputs = {
+            "url": url,
+            "output_dir": output_dir,
+            "format": fmt,
+            "max_resolution": max_resolution,
+            "max_duration_seconds": int(max_duration_seconds),
+        }
+        script = f"""
+import sys, json
+sys.path.insert(0, {self._path!r})
+try:
+    from tools.analysis.video_downloader import VideoDownloader
+    result = VideoDownloader().execute(json.loads({json.dumps(inputs)!r}))
+    print(json.dumps({{"ok": bool(result.success), "error": result.error, "data": result.data,
+                      "duration_seconds": result.duration_seconds}}, default=str))
+except Exception as e:
+    print(json.dumps({{"ok": False, "error": f"{{type(e).__name__}}: {{e}}"}}))
+"""
+        return run_isolated_tool(script, timeout=timeout)
+
     def execute_tool(self, tool_name: str, inputs: dict[str, Any]) -> dict[str, Any]:
+        # Inputs travel as a JSON string literal; embedding json.dumps output directly
+        # as Python source breaks on true/false/null.
         script = self._build_preamble() + f"""
 try:
     tool = tool_registry.registry.get({repr(tool_name)})
     if not tool:
         print(json.dumps({{"ok": False, "error": f"Tool {repr(tool_name)} not found"}}))
     else:
-        result = tool.execute({json.dumps(inputs)})
+        result = tool.execute(json.loads({json.dumps(inputs)!r}))
         if hasattr(result, "to_dict"):
             res_dict = result.to_dict()
         elif hasattr(result, "__dict__"):

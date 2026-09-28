@@ -32,6 +32,10 @@ desktop = [
   "Pillow>=10,<12",
   "pystray>=0.19,<1",
   "customtkinter>=5.2,<6",
+  "rapidocr>=3,<4",
+]
+media = [
+  "yt-dlp>=2025.1",
 ]
 browser = [
   "playwright>=1.45,<2",

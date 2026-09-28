@@ -86,8 +86,17 @@ class SessionStore:
         self.ensure(session_id)
         if self.redact_secrets: content=self._redact(content)
         now=dt.datetime.now().isoformat(timespec='seconds')
-        cur=self.conn.execute('INSERT INTO session_messages(session_id,role,content,created_at) VALUES(?,?,?,?)',(session_id,role,content,now))
-        self.conn.execute('UPDATE sessions SET updated_at=? WHERE id=?',(now,session_id)); self.conn.commit(); return int(cur.lastrowid)
+        try:
+            cur=self.conn.execute('INSERT INTO session_messages(session_id,role,content,created_at) VALUES(?,?,?,?)',(session_id,role,content,now))
+            self.conn.execute('UPDATE sessions SET updated_at=? WHERE id=?',(now,session_id))
+            self.conn.commit()
+            return int(cur.lastrowid)
+        except Exception:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+            raise
 
     def recent_messages(self,session_id: str,limit: int=12) -> list[dict]:
         rows=self.conn.execute('SELECT * FROM session_messages WHERE session_id=? ORDER BY id DESC LIMIT ?',(session_id,max(1,min(int(limit),100)))).fetchall()

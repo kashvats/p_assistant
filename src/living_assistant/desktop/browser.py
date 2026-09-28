@@ -526,3 +526,14 @@ class BrowserController:
             if req.get('allowed'):
                 shutil.rmtree(profile,ignore_errors=True);deleted=True
         return {'ok':True,'name':key,'profile_deleted':deleted}
+
+    def close_all_sessions(self, delete_profiles: bool = False) -> list[dict]:
+        """Close all open browser sessions and release playwright processes."""
+        results = []
+        for name in list(self._sessions.keys()):
+            try:
+                res = self.close_session(name, delete_profile=delete_profiles)
+                results.append(res)
+            except Exception as exc:
+                results.append({"ok": False, "name": name, "error": str(exc)})
+        return results

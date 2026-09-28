@@ -12,7 +12,8 @@ def _app() -> str:
 
 def test_ui02_chat_renders_assistant_markdown_without_html_injection():
     app = _app()
-    assert "m.role === 'assistant' ? h(Markdown, {text: m.text}) : m.text" in app
+    assert "h(Markdown, {text: m.text})" in app
+    assert "whitespace-pre-wrap break-words'}," in app  # user text rendered as plain text
     assert 'function Markdown({text})' in app
     assert 'dangerouslySetInnerHTML' not in app
     assert '.innerHTML' not in app
@@ -31,10 +32,10 @@ def test_ui03_chat_uses_local_prism_syntax_highlighting():
 
 def test_ui04_chat_has_live_streaming_token_indicator():
     app = _app()
-    assert "if(event.type==='token')" in app
-    assert "this.setState({streaming:false})" in app
-    assert "this.state.streaming" in app
-    assert "'Generating'" in app
+    assert "event.type === 'token'" in app
+    assert "this.setState({streaming: false})" in app
+    assert "this.cancelChat()" in app
+    assert "typing-dots" in app
     assert 'animate-pulse' in app
 
 
@@ -56,4 +57,5 @@ def test_ui08_dashboard_uses_mobile_first_responsive_layout():
     assert "overflow-x-auto" in app
     assert "flex-col sm:flex-row" in app
     assert "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4" in app
-    assert "h-64 md:h-[58vh]" in app
+    assert "h-[calc(100vh-11rem)] min-h-[26rem]" in app
+    assert "shrink-0 lg:w-full" in app  # nav items do not stretch in the mobile strip

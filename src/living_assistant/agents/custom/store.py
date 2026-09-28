@@ -239,13 +239,43 @@ class AgentStore:
             cursor.execute("SELECT * FROM agent_lifecycle ORDER BY name ASC")
         return [dict(r) for r in cursor.fetchall()]
 
-    def get_versions(self, agent_id: str) -> list[dict[str, Any]]:
+    def get_by_name(self, name: str) -> dict[str, Any] | None:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM agent_lifecycle WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def rollback_version(self, agent_id: str, target_version: str) -> tuple[AgentManifest, str]:
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT * FROM agent_versions WHERE agent_id = ? ORDER BY created_at DESC",
-            (agent_id,),
+            "SELECT manifest_json, agent_md FROM agent_versions WHERE agent_id = ? AND version = ?",
+            (agent_id, target_version),
         )
-        return [dict(r) for r in cursor.fetchall()]
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Version '{target_version}' for agent '{agent_id}' not found.")
+
+        manifest_data = json.loads(row["manifest_json"])
+        manifest = AgentManifest.from_json(manifest_data)
+        agent_md = row["agent_md"]
+
+        now = dt.datetime.now().isoformat(timespec="seconds")
+        with self.conn:
+            self.conn.execute(
+                """
+                UPDATE agent_lifecycle
+                SET current_version = ?,
+                    state = 'DRAFT',
+                    approval_id = NULL,
+                    approved_version = NULL,
+                    approved_hash = NULL,
+                    approved_package_hash = NULL,
+                    updated_at = ?
+                WHERE agent_id = ?
+                """,
+                (target_version, now, agent_id),
+            )
+        return manifest, agent_md
 
     # -------------------------------------------------------------------------
     # Execution History

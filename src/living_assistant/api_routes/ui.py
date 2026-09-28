@@ -7,6 +7,8 @@ from pathlib import PurePosixPath
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, Response
 
+from living_assistant.security.api_auth import get_api_token
+
 router = APIRouter(tags=["ui"])
 
 _WEBUI_ROOT = resources.files("living_assistant").joinpath("webui")
@@ -29,6 +31,31 @@ def dashboard():
     # Python service exposes the same local assets under a namespaced route.
     for prefix in ("src", "vendor", "dist"):
         page = page.replace(f'="/{prefix}/', f'="/dashboard-assets/{prefix}/')
+    # Same model as /aura: the page is only reachable through the host/origin-checked
+    # local API, so it can carry the local token instead of asking the user to paste it.
+    page = page.replace("<head>", f'<head>\n  <meta name="assistant-token" content="{get_api_token()}">', 1)
+    headers = _security_headers()
+    headers.update(
+        {
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": (
+                "default-src 'self'; img-src 'self' data:; "
+                "connect-src 'self'; style-src 'self'; "
+                "script-src 'self'; frame-ancestors 'none'; "
+                "base-uri 'none'; object-src 'none'"
+            ),
+        }
+    )
+    return HTMLResponse(page, headers=headers)
+
+
+@router.get("/aura", response_class=HTMLResponse)
+def aura():
+    page = _WEBUI_ROOT.joinpath("aura.html").read_text(encoding="utf-8")
+    for prefix in ("src", "vendor", "dist"):
+        page = page.replace(f'="/{prefix}/', f'="/dashboard-assets/{prefix}/')
+    token = get_api_token()
+    page = page.replace("<head>", f'<head>\n  <meta name="assistant-token" content="{token}">')
     headers = _security_headers()
     headers.update(
         {

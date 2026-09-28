@@ -1,4 +1,4 @@
-﻿import subprocess
+import subprocess
 import json
 import tempfile
 import sys
@@ -22,7 +22,8 @@ def run_isolated_tool(script_code: str, timeout: float = 120.0) -> dict[str, Any
             capture_output=True,
             text=True,
             timeout=timeout,
-            encoding='utf-8'
+            encoding='utf-8',
+            errors='replace',
         )
         if result.returncode == 0:
             try:

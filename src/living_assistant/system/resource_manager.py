@@ -1,7 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass, asdict
+from pathlib import Path
 import shutil
 import subprocess
+import time
 import psutil
 from living_assistant.system.hardware import HardwareInfo, detect_hardware
 
@@ -93,6 +95,11 @@ class ResourceManager:
         self.hardware = hardware or detect_hardware()
         self.gpu_backend = self._init_gpu_backend()
         self._interactive_modes: set[str] = set()
+        self._is_throttled: bool = False
+        self._throttle_state_changed_at: float = 0.0
+        self._throttle_hysteresis_seconds: float = float(
+            (config.get("resource_limits", {}) or {}).get("throttle_hysteresis_seconds", 5.0)
+        )
         self.model_policy = self._select_model_policy()
 
     def _init_gpu_backend(self) -> GPUVendorInterface:
@@ -173,6 +180,8 @@ class ResourceManager:
             self._interactive_modes.add(source)
         else:
             self._interactive_modes.discard(source)
+            if not self._interactive_modes:
+                self._is_throttled = False
 
     def is_interactive_active(self) -> bool:
         """True if user is actively engaged in voice, chat, or interactive sessions."""
@@ -184,7 +193,7 @@ class ResourceManager:
         max_cpu_percent: float = 85.0,
         min_available_ram_gb: float = 1.0,
     ) -> tuple[bool, str]:
-        """Evaluate whether heavy background indexing or tasks must pause."""
+        """Evaluate whether heavy background indexing or tasks must pause with hysteresis."""
         is_interactive = (
             self.is_interactive_active() if active_interactive is None else active_interactive
         )
@@ -193,18 +202,59 @@ class ResourceManager:
 
         s = self.snapshot()
         cpu = s.get("cpu_percent", 0.0)
-        if cpu >= max_cpu_percent:
-            return True, f"high system CPU usage ({cpu}% >= {max_cpu_percent}%)"
-
         avail_ram = s.get("available_ram_gb", 0.0)
-        if avail_ram < min_available_ram_gb:
-            return True, f"low available RAM ({avail_ram} GB < {min_available_ram_gb} GB)"
+        hot, heat_reason = self.thermal_pressure()
+        now = time.monotonic()
 
-        hot, reason = self.thermal_pressure()
-        if hot:
-            return True, f"thermal throttle active ({reason})"
+        high_load = (cpu >= max_cpu_percent) or (avail_ram < min_available_ram_gb) or hot
 
-        return False, "ok"
+        if not self._is_throttled:
+            if high_load:
+                self._is_throttled = True
+                self._throttle_state_changed_at = now
+                if cpu >= max_cpu_percent:
+                    return True, f"high system CPU usage ({cpu}% >= {max_cpu_percent}%)"
+                if avail_ram < min_available_ram_gb:
+                    return True, f"low available RAM ({avail_ram} GB < {min_available_ram_gb} GB)"
+                return True, f"thermal throttle active ({heat_reason})"
+            return False, "ok"
+        else:
+            # We are currently in a throttled state.
+            # Require minimum duration before unthrottling to prevent flapping/churn (hysteresis window)
+            time_in_throttle = now - self._throttle_state_changed_at
+            if time_in_throttle < self._throttle_hysteresis_seconds:
+                return True, f"throttle active (hysteresis hold: {time_in_throttle:.1f}s / {self._throttle_hysteresis_seconds:.1f}s)"
+
+            # To exit throttle state, metrics must be well below thresholds (hysteresis band)
+            unthrottle_cpu_threshold = max_cpu_percent - 15.0  # e.g. 70% if max is 85%
+            unthrottle_ram_threshold = min_available_ram_gb + 0.5  # e.g. 1.5GB if min is 1.0GB
+
+            if cpu <= unthrottle_cpu_threshold and avail_ram >= unthrottle_ram_threshold and not hot:
+                self._is_throttled = False
+                self._throttle_state_changed_at = now
+                return False, "ok"
+
+            return True, f"throttle sustained (cooling down: cpu={cpu}%, ram={avail_ram}GB)"
+
+    def disk_pressure(
+        self,
+        path: str | Path | None = None,
+        min_free_gb: float = 0.5,
+    ) -> tuple[bool, str, float]:
+        """Check for disk exhaustion on the workspace or system drive."""
+        try:
+            target = Path(path).resolve() if path else Path.cwd().resolve()
+            usage = shutil.disk_usage(target)
+            free_gb = round(usage.free / GIB, 2)
+            if free_gb < min_free_gb:
+                return (
+                    True,
+                    f"Critical disk pressure: only {free_gb} GB free on {target.anchor} (< {min_free_gb} GB minimum)",
+                    free_gb,
+                )
+            return False, "ok", free_gb
+        except Exception as exc:
+            return False, f"Disk check bypassed: {exc}", 999.0
 
     def snapshot(self) -> dict:
         vm = psutil.virtual_memory()
@@ -213,7 +263,10 @@ class ResourceManager:
             "ram_percent": vm.percent,
             "available_ram_gb": round(vm.available / GIB, 2),
             "interactive_active": self.is_interactive_active(),
+            "throttled": self._is_throttled,
         }
+        _disk_pressure, _msg, free_gb = self.disk_pressure()
+        result["disk_free_gb"] = free_gb
         gpu_free, gpu_temp = self._nvidia_runtime()
         if gpu_free is not None:
             result["gpu_free_vram_gb"] = gpu_free
@@ -335,7 +388,11 @@ class ResourceManager:
 
     def can_start_model(self, size_bytes: int | None = None) -> tuple[bool, str]:
         s = self.snapshot()
-        minimum = {"lite": 0.7, "balanced": 1.5, "power": 3.0}.get(self.profile, 1.0)
+        if size_bytes == 0:
+            if s["available_ram_gb"] < 0.25:
+                return False, f"Only {s['available_ram_gb']} GB RAM is available; free memory before generation."
+            return True, "ok"
+        minimum = {"lite": 0.5, "balanced": 1.5, "power": 3.0}.get(self.profile, 1.0)
         minimum = max(minimum, self.model_policy.reserve_ram_gb)
         if s["available_ram_gb"] < minimum:
             return False, f"Only {s['available_ram_gb']} GB RAM is available; free memory before loading another model."

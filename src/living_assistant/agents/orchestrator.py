@@ -6,16 +6,17 @@ import logging
 import math
 import re
 import time
-from collections import Counter
+from collections import Counter, deque
 from contextlib import nullcontext
 from dataclasses import dataclass
+from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable
 
 from living_assistant.agents.agents import SpecialistRouter
 from living_assistant.agents.prompts import ORCHESTRATOR
-from living_assistant.core.model_provider import ModelManager
+from living_assistant.core.model_provider import ModelError, ModelManager
 from living_assistant.core.skills import SkillRegistry
 from living_assistant.security.security_utils import redact_secrets
 from living_assistant.system.resource_manager import ResourceManager
@@ -496,6 +497,43 @@ class Orchestrator:
         # Refresh once more so the router sees the final catalog signature. The
         # discovery tool itself is intentionally excluded from searchable docs.
         self.tool_router.refresh(force=True)
+        self._tool_telemetry: deque[dict] = deque(maxlen=1000)
+
+    def get_tool_telemetry(self, limit: int = 50) -> list[dict]:
+        """Section 61 Observability: Retrieve recent internal tool execution telemetry for diagnostics."""
+        items = list(self._tool_telemetry)
+        return items[-max(1, min(limit, 1000)):]
+
+    @staticmethod
+    def _order_and_validate_tool_batch(tool_calls: list) -> list:
+        """Section 73: Multi-tool ordering and dependency validation."""
+        if not tool_calls or len(tool_calls) <= 1:
+            return tool_calls
+
+        producer_tools = {
+            "web_search", "web_fetch", "search_web", "find_files", "read_file",
+            "list_directory", "inspect", "get", "query", "article_extract", "browse_url"
+        }
+        consumer_tools = {
+            "download_image", "download_url", "write_file", "edit_file",
+            "delete_file", "run_command", "start_process"
+        }
+
+        producers = []
+        consumers = []
+        others = []
+
+        for call in tool_calls:
+            fn = call.get("function", {}) if isinstance(call, dict) else {}
+            name = fn.get("name", "")
+            if name in producer_tools:
+                producers.append(call)
+            elif name in consumer_tools:
+                consumers.append(call)
+            else:
+                others.append(call)
+
+        return producers + others + consumers
 
     @staticmethod
     def _duplicate_tool_names(tools: list[Tool]) -> set[str]:
@@ -586,61 +624,28 @@ class Orchestrator:
         context: str,
         prior: str,
     ) -> list[str]:
-        route_query = "\n".join(
-            part
-            for part in (
-                user_text,
-                (context or "")[-2000:],
-                (prior or "")[-3000:],
-            )
-            if part
-        )
-
-        # 1. Use Jev System One primitive to instantly score tool relevance
-        scored_tools = []
-        for name, tool in self.tools.items():
-            if name == TOOL_DISCOVERY_NAME:
-                continue
-
-            tool_ctx = f"Request: {route_query}\nTool: {name} - {getattr(tool, 'description', '')}"
-            level, conf = self.jev.score(
-                context=tool_ctx,
-                levels=["Irrelevant", "Maybe", "Highly Relevant"],
-                question="How relevant is this tool to fulfilling the request?"
-            )
-
-            score_val = 0
-            if level == "Highly Relevant": score_val = 2
-            elif level == "Maybe": score_val = 1
-            # Irrelevant yields score_val = 0
-
-            final_score = score_val + conf
-            scored_tools.append((final_score, name))
-            logger.debug("[Tool routing] %s: level=%s conf=%.2f score=%.2f", name, level, conf, final_score)
-
-        # Sort by Jev score descending
-        scored_tools.sort(reverse=True)
-        # Only take tools that Jev genuinely thought were Maybe or Highly Relevant
-        # (score_val >= 1 means final_score > 1.0)
-        jev_names = [name for score, name in scored_tools if score >= 1.0]
-
-        # 2. Mix in BM25 results to fill out the remaining slots
-        bm25_matches = self.tool_router.search(
-            route_query,
+        # The current request dominates ranking; recent context only fills the
+        # remaining slots so follow-ups ("do it again") still find their tools.
+        primary = self.tool_router.search(
+            user_text,
             limit=INITIAL_TOOL_LIMIT,
             exclude={TOOL_DISCOVERY_NAME},
         )
-        bm25_names = [item["name"] for item in bm25_matches]
-
-        names = self._merge_tool_names(jev_names, bm25_names, self.tools, max_tools=INITIAL_TOOL_LIMIT)
-
-        # 3. Catalog search is the only always-visible tool.
-        names = self._merge_tool_names(
-            names,
-            [TOOL_DISCOVERY_NAME],
-            self.tools,
-        )
-        logger.debug("[Tool routing] Final active tools (with discovery): %s", names)
+        top = float(primary[0].get("score") or 0.0) if primary else 0.0
+        names = [item["name"] for item in primary if float(item.get("score") or 0.0) >= top * 0.25]
+        background = "\n".join(p for p in ((context or "")[-2000:], (prior or "")[-1500:]) if p)
+        if background and len(names) < INITIAL_TOOL_LIMIT + 2:
+            extra = self.tool_router.search(
+                user_text + "\n" + background,
+                limit=4,
+                exclude={TOOL_DISCOVERY_NAME, *names},
+            )
+            names = self._merge_tool_names(
+                names, [item["name"] for item in extra], self.tools,
+                max_tools=INITIAL_TOOL_LIMIT + 2,
+            )
+        names = self._merge_tool_names(names, [TOOL_DISCOVERY_NAME], self.tools)
+        logger.info("[Tool routing] active tools: %s", names)
         return names
 
     def _followup_tool_names(
@@ -900,6 +905,40 @@ class Orchestrator:
         except Exception:
             return ""
 
+    @staticmethod
+    def compact_context(messages: list[dict], max_tokens: int = 4096, char_per_token: float = 3.5) -> list[dict]:
+        """Compact message history when approaching context limits.
+
+        Preserves:
+        1. System prompt (index 0) - essential instructions.
+        2. Initial user instruction (index 1).
+        3. Unresolved tasks / latest messages and recent tool calls.
+        Older intermediate exchanges are compacted into a single summary message.
+        """
+        total_chars = sum(len(str(m.get("content") or "")) for m in messages)
+        estimated_tokens = int(total_chars / char_per_token)
+        if estimated_tokens <= max_tokens or len(messages) <= 6:
+            return messages
+
+        head = messages[:2] if len(messages) >= 2 else messages[:1]
+        tail = messages[-4:]
+        middle = messages[len(head):-4]
+        summary_snippets = []
+        for m in middle:
+            role = m.get("role", "unknown")
+            content = str(m.get("content") or "").strip()
+            if content:
+                snippet = content[:150] + ("..." if len(content) > 150 else "")
+                summary_snippets.append(f"[{role}]: {snippet}")
+            tool_calls = m.get("tool_calls")
+            if tool_calls:
+                tool_names = [tc.get("function", {}).get("name", "tool") for tc in tool_calls if isinstance(tc, dict)]
+                summary_snippets.append(f"[tools called]: {', '.join(tool_names)}")
+
+        summary_content = "Context compacted: " + " | ".join(summary_snippets)
+        summary_msg = {"role": "system", "content": summary_content}
+        return head + [summary_msg] + tail
+
     def _finish(self, answer: str, session_id: str | None) -> str:
         if self.sessions and session_id:
             self.sessions.add_message(session_id, "assistant", answer)
@@ -922,8 +961,10 @@ class Orchestrator:
         experience_ctx = self._experience_context(user_text, context)
         active_tool_names = self._initial_tool_names(user_text, context, prior)
 
+        now = datetime.now().astimezone()
         system = (
             ORCHESTRATOR
+            + f"\n\n[CURRENT LOCAL TIME]\n{now.strftime('%A %Y-%m-%d %H:%M %Z (UTC%z)')}"
             + skill_ctx
             + experience_ctx
             + self._routing_context(active_tool_names)
@@ -946,6 +987,20 @@ class Orchestrator:
     # Tool execution
     # ---------------------------------------------------------------------
 
+    def _jev_block_reason(self, name: str, args: Any) -> str | None:
+        # The offline Jev mock is a keyword heuristic that blocks benign calls
+        # (e.g. searching "reset password"); tools enforce their own approval
+        # policy, so only a live Jev decision may veto a call here.
+        if not getattr(self.jev, "_live", False):
+            return None
+        prob = self.jev.noul(
+            context={"tool": name, "args": args},
+            statement="This tool call and its arguments are completely safe and do not violate security policies.",
+        )
+        if prob < 0.5:
+            return f"Blocked by Jev safety check (safety probability {prob:.2f})."
+        return None
+
     def _execute_tool(
         self,
         name: str | None,
@@ -961,33 +1016,77 @@ class Orchestrator:
         if not isinstance(args, dict):
             args = {}
 
+        start_time = time.time()
         tool = self.tools.get(name)
         if not tool:
-            return args, {"ok": False, "error": f"Unknown tool {name}"}
+            res = {"ok": False, "error": f"Unknown tool {name}"}
+            self._record_telemetry(name, start_time, res, "UnknownTool", run_id or session_id)
+            return args, res
 
         try:
             if name == "delegate_agent":
-                return args, tool.handler(
+                res = tool.handler(
                     **args,
                     _session_id=session_id,
                     _run_id=run_id,
                 )
-            return args, tool.handler(**args)
+            else:
+                res = tool.handler(**args)
+            self._record_telemetry(name, start_time, res, None, run_id or session_id)
+            return args, res
         except TypeError as exc:
-            return args, {
+            res = {
                 "ok": False,
                 "error": redact_secrets(
                     f"Tool arguments invalid: {exc}",
                     2000,
                 ),
             }
+            self._record_telemetry(name, start_time, res, "TypeError", run_id or session_id)
+            return args, res
         except Exception as exc:
             from living_assistant.core.robust_parsers import get_robust_traceback
             tb_str = get_robust_traceback(exc, max_chars=3000)
-            return args, {
+            res = {
                 "ok": False,
                 "error": redact_secrets(f"{exc}\nRobust Traceback:\n{tb_str}", 4000),
             }
+            err_cat = type(exc).__name__
+            self._record_telemetry(name, start_time, res, err_cat, run_id or session_id)
+            return args, res
+
+    def _record_telemetry(
+        self,
+        name: str | None,
+        start_time: float,
+        result: Any,
+        error_category: str | None = None,
+        request_id: str | None = None,
+    ) -> None:
+        end_time = time.time()
+        duration = round(end_time - start_time, 4)
+        is_success = isinstance(result, dict) and bool(result.get("ok", True)) and not result.get("error") and not result.get("blocked")
+        if not is_success and error_category is None:
+            if isinstance(result, dict) and result.get("blocked"):
+                error_category = "SecurityBlocked"
+            elif isinstance(result, dict) and result.get("approval_required"):
+                error_category = "ApprovalRequired"
+            else:
+                error_category = "ToolError"
+
+        telemetry = {
+            "tool": str(name),
+            "provider": "local",
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration": duration,
+            "status": "success" if is_success else "error",
+            "error_category": error_category,
+            "retry_count": 0,
+            "request_id": str(request_id or "default"),
+        }
+        self._tool_telemetry.append(telemetry)
+        self._publish("tool.telemetry", **telemetry)
 
     @staticmethod
     def _serialized_tool_result(result: Any) -> str:
@@ -1028,331 +1127,15 @@ class Orchestrator:
         context: str = "",
         session_id: str | None = None,
     ) -> str:
-        run_id, history_project = self._history_start(
-            user_text,
-            context,
-            session_id,
-        )
-        self._publish(
-            "chat.started",
-            session_id=session_id,
-            model=self.model,
-            run_id=run_id,
-        )
-
-        if self.resources:
-            ok, reason = self.resources.can_start_model()
-            if not ok:
-                self.mm.sleep()
-                answer = (
-                    "I did not load the local model because the machine is under "
-                    f"memory pressure. {reason}"
-                )
-                self._history_finish(
-                    run_id,
-                    history_project,
-                    session_id,
-                    "resource_blocked",
-                    reason,
-                )
-                self._publish(
-                    "chat.completed",
-                    session_id=session_id,
-                    model=self.model,
-                    run_id=run_id,
-                )
-                return self._finish(answer, session_id)
-
-        messages, active_tool_names, project_hint = self._prepare(
-            user_text,
-            context,
-            session_id,
-        )
-        history_project = project_hint or history_project
-        trace: list[dict[str, Any]] = []
-        task_state = TaskState()
-
-        self._publish(
-            "tools.routed",
-            session_id=session_id,
-            run_id=run_id,
-            tools=list(active_tool_names),
-        )
-
-        try:
-            for step in range(self.max_steps):
-                schemas = self._schemas_for(active_tool_names)
-
-                with self._model_lease() as keep_alive:
-                    usage_started = time.perf_counter()
-                    data = self.mm.provider.chat(
-                        self.model,
-                        messages,
-                        tools=schemas,
-                        keep_alive=keep_alive,
-                        options={"num_ctx": self.context_tokens},
-                    )
-                    usage_elapsed = time.perf_counter() - usage_started
-
-                self._record_model_usage(
-                    data,
-                    usage_elapsed,
-                    session_id,
-                    run_id,
-                )
-
-                msg = data.get("message", {})
-                if not isinstance(msg, dict):
-                    msg = {"role": "assistant", "content": str(msg or "")}
-                messages.append(msg)
-
-                tool_calls = msg.get("tool_calls") or []
-                if not tool_calls:
-                    if self.experiences and trace:
-                        try:
-                            self.experiences.learn_from_trace(
-                                user_text,
-                                trace,
-                                project=project_hint,
-                                session_id=session_id,
-                            )
-                        except Exception:
-                            pass
-
-                    answer = str(msg.get("content") or "")
-                    self._history_finish(
-                        run_id,
-                        history_project,
-                        session_id,
-                        "completed",
-                        "Assistant completed the run.",
-                    )
-                    self._publish(
-                        "chat.completed",
-                        session_id=session_id,
-                        model=self.model,
-                        run_id=run_id,
-                    )
-                    return self._finish(answer, session_id)
-
-                for call in tool_calls:
-                    fn = call.get("function", {}) if isinstance(call, dict) else {}
-                    name = fn.get("name")
-                    args = fn.get("arguments") or {}
-
-                    # --- CROSS-STEP LOOP DETECTION ---
-                    # Reject calls that have exceeded the repeat limit before spending
-                    # a Jev inference call or invoking the actual handler.
-                    if name and task_state.is_stuck(name, args if isinstance(args, dict) else {}):
-                        result = {
-                            "ok": False,
-                            "error": (
-                                f"Loop detected: '{name}' with these arguments has been called "
-                                f"{LOOP_REPEAT_LIMIT} times already in this run. "
-                                "Stop repeating this call. Try a different approach or report "
-                                "the blocker in your final response."
-                            ),
-                        }
-                        logger.warning(
-                            "[Loop detection] Blocked repeated call to '%s' (count=%d)",
-                            name,
-                            LOOP_REPEAT_LIMIT,
-                        )
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "tool_name": name,
-                                "content": self._serialized_tool_result(result),
-                            }
-                        )
-                        self._publish(
-                            "tool.loop_blocked",
-                            session_id=session_id,
-                            tool=name,
-                            run_id=run_id,
-                            step=step + 1,
-                        )
-                        continue
-
-                    self._publish(
-                        "tool.started",
-                        session_id=session_id,
-                        tool=name,
-                        run_id=run_id,
-                        step=step + 1,
-                    )
-
-                    # --- JEV SECURITY GATE ---
-                    # Only call Jev for tools that are actually registered to avoid
-                    # wasting inferences on hallucinated tool names.
-                    if name and name in self.tools:
-                        is_safe_prob = self.jev.noul(
-                            context={"tool": name, "args": args},
-                            statement="This tool call and its arguments are completely safe and do not violate security policies."
-                        )
-                        if is_safe_prob < 0.5:
-                            result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
-                            self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
-                        else:
-                            args, result = self._execute_tool(
-                                name,
-                                args,
-                                session_id=session_id,
-                                run_id=run_id,
-                            )
-                    else:
-                        result = {"ok": False, "error": f"Unknown tool '{name}'. Use tool_catalog_search to find available capabilities."}
-                        logger.warning("[Tool execution] Model requested unknown tool: %s", name)
-
-                    self._history_tool(
-                        run_id,
-                        history_project,
-                        session_id,
-                        name,
-                        args,
-                        result,
-                    )
-
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_name": name,
-                            "content": self._serialized_tool_result(result),
-                        }
-                    )
-
-                    ok_result = False
-                    ok_status = "error"
-                    if isinstance(result, dict):
-                        if "ok" in result:
-                            ok_result = bool(result["ok"])
-                            ok_status = "confirmed_true" if ok_result else "confirmed_false"
-                        else:
-                            ok_result = True
-                            ok_status = "assumed_true"
-                    else:
-                        ok_result = True
-                        ok_status = "assumed_true"
-
-                    self._publish(
-                        "tool.completed",
-                        session_id=session_id,
-                        tool=name,
-                        ok=ok_result,
-                        ok_status=ok_status,
-                        run_id=run_id,
-                        step=step + 1,
-                    )
-
-                    # Record call in TaskState for cross-step loop detection.
-                    result_summary = ""
-                    if isinstance(result, dict):
-                        result_summary = result.get("error") or str(result.get("ok", ""))
-                    elif isinstance(result, str):
-                        result_summary = result[:300]
-                    task_state.record_call(step, name or "", args if isinstance(args, dict) else {}, ok_result, result_summary)
-
-                    before = list(active_tool_names)
-                    active_tool_names = self._update_active_tools_after_result(
-                        active_tool_names,
-                        user_text,
-                        name,
-                        result,
-                    )
-                    if active_tool_names != before:
-                        self._publish(
-                            "tools.expanded",
-                            session_id=session_id,
-                            run_id=run_id,
-                            tools=list(active_tool_names),
-                            source_tool=name,
-                        )
-
-                    if self.experiences:
-                        try:
-                            episode = self.experiences.record_episode(
-                                user_text,
-                                name,
-                                args,
-                                result,
-                                project=project_hint,
-                                session_id=session_id,
-                            )
-                            trace.append({"tool_name": name, **episode})
-                        except Exception:
-                            pass
-
-                # --- JEV LOOP BREAKER (FIXED) ---
-                # Only fire when the model has produced a non-trivial final answer.
-                # The previous bug: loop-breaker could fire after tool calls when
-                # msg["content"] was still empty, yielding an empty final response.
-                # Guard: require LOOP_BREAK_MIN_CONTENT_CHARS of synthesized content.
-                current_content = str(msg.get("content") or "")
-                if trace and len(current_content) >= LOOP_BREAK_MIN_CONTENT_CHARS:
-                    try:
-                        achieved, goal_prob = self.jev.goal_achieved(
-                            user_text, task_state.audit_summary()
-                        )
-                        if achieved:
-                            self._history_finish(
-                                run_id, history_project, session_id,
-                                "completed", "Jev loop-breaker: goal achieved."
-                            )
-                            self._publish(
-                                "chat.completed",
-                                session_id=session_id, model=self.model, run_id=run_id,
-                            )
-                            return self._finish(current_content, session_id)
-                    except Exception:
-                        pass
-
-        except Exception as exc:
-            self._history_finish(
-                run_id,
-                history_project,
-                session_id,
-                "error",
-                redact_secrets(exc, 1000),
-            )
-            self._publish(
-                "chat.error",
-                session_id=session_id,
-                model=self.model,
-                error=redact_secrets(exc, 500),
-                run_id=run_id,
-            )
-            raise
-
-        if self.experiences and trace:
-            try:
-                self.experiences.learn_from_trace(
-                    user_text,
-                    trace,
-                    project=project_hint,
-                    session_id=session_id,
-                )
-            except Exception:
-                pass
-
-        answer = (
-            "I reached the configured tool-step limit before completing the task. "
-            "Review the latest tool results and retry with a narrower goal."
-        )
-        self._history_finish(
-            run_id,
-            history_project,
-            session_id,
-            "limited",
-            "Configured tool-step limit reached.",
-        )
-        self._publish(
-            "chat.completed",
-            session_id=session_id,
-            model=self.model,
-            limited=True,
-            run_id=run_id,
-        )
-        return self._finish(answer, session_id)
+        """Blocking variant of run_stream(); both share one execution engine."""
+        final = ""
+        for event in self.run_stream(user_text, context, session_id=session_id):
+            kind = event.get("type")
+            if kind == "final":
+                final = str(event.get("text") or "")
+            elif kind == "error":
+                raise ModelError(str(event.get("error") or "Assistant run failed."))
+        return final
 
     # ---------------------------------------------------------------------
     # Streaming execution
@@ -1385,7 +1168,15 @@ class Orchestrator:
         }
 
         if self.resources:
-            ok, reason = self.resources.can_start_model()
+            model_size = None
+            try:
+                model_size = self.mm.provider.model_size_bytes(self.model)
+            except Exception:
+                pass
+            try:
+                ok, reason = self.resources.can_start_model(model_size)
+            except TypeError:
+                ok, reason = self.resources.can_start_model()
             if not ok:
                 self.mm.sleep()
                 answer = (
@@ -1436,6 +1227,7 @@ class Orchestrator:
 
         try:
             for step in range(self.max_steps):
+                messages = self.compact_context(messages, max_tokens=self.context_tokens)
                 schemas = self._schemas_for(active_tool_names)
 
                 self._publish(
@@ -1459,13 +1251,15 @@ class Orchestrator:
 
                 with self._model_lease() as keep_alive:
                     usage_started = time.perf_counter()
-                    for chunk in self.mm.provider.chat_stream(
-                        self.model,
-                        messages,
-                        tools=schemas,
-                        keep_alive=keep_alive,
-                        options={"num_ctx": self.context_tokens},
-                    ):
+                    provider = self.mm.provider
+                    request = dict(tools=schemas, keep_alive=keep_alive, options={"num_ctx": self.context_tokens})
+                    stream = getattr(provider, "chat_stream", None)
+                    chunks = (
+                        stream(self.model, messages, **request)
+                        if callable(stream)
+                        else [provider.chat(self.model, messages, **request)]
+                    )
+                    for chunk in chunks:
                         if not isinstance(chunk, dict):
                             continue
 
@@ -1583,9 +1377,11 @@ class Orchestrator:
                     }
                     return
 
-                for call in tool_calls:
+                for call in self._order_and_validate_tool_batch(tool_calls):
                     fn = call.get("function", {}) if isinstance(call, dict) else {}
                     name = fn.get("name")
+                    if not name:
+                        continue
                     args = fn.get("arguments") or {}
 
                     logger.debug("[Tool execution] Model requested tool: %s with args: %s", name, args)
@@ -1610,6 +1406,7 @@ class Orchestrator:
                             {
                                 "role": "tool",
                                 "tool_name": name,
+                                "tool_call_id": call.get("id"),
                                 "content": self._serialized_tool_result(result),
                             }
                         )
@@ -1643,31 +1440,24 @@ class Orchestrator:
                         "type": "tool",
                         "tool": name,
                         "status": "started",
+                        "args": redact_secrets(args if isinstance(args, str) else json.dumps(args, default=str), 300),
                     }
 
-                    # --- JEV SECURITY GATE ---
-                    # Only call Jev if tool is active/registered
-                    if name and name in self.tools:
-                        # Use Noul primitive to block potentially harmful tool calls
-                        is_safe_prob = self.jev.noul(
-                            context={"tool": name, "args": args},
-                            statement="This tool call and its arguments are completely safe and do not violate security policies (like dropping databases, leaking keys, or writing to system files)."
-                        )
-                        if is_safe_prob < 0.5:
-                            result = f"Security Error: Jev System One router blocked this action (Safety Probability: {is_safe_prob:.2f}). Action deemed unsafe."
-                            logger.warning("[Tool execution] Jev security gate blocked %s (safety_prob=%.2f)", name, is_safe_prob)
-                            self._publish("tool.blocked", session_id=session_id, tool=name, args=args, prob=is_safe_prob)
+                    if name in self.tools:
+                        blocked = self._jev_block_reason(name, args)
+                        if blocked:
+                            result = {"ok": False, "blocked": True, "error": blocked}
+                            self._publish("tool.blocked", session_id=session_id, tool=name, reason=blocked)
                         else:
-                            logger.debug("[Tool execution] Security gate passed for %s (safety_prob=%.2f)", name, is_safe_prob)
                             args, result = self._execute_tool(
                                 name,
                                 args,
                                 session_id=session_id,
                                 run_id=run_id,
                             )
-                            logger.debug("[Tool execution] Tool %s returned: %s", name, result)
+                            logger.debug("[Tool execution] %s returned: %s", name, str(result)[:500])
                     else:
-                        result = {"ok": False, "error": f"Unknown tool '{name}'. Use tool_catalog_search to find available capabilities."}
+                        result = {"ok": False, "error": f"Unknown tool '{name}'. Use {TOOL_DISCOVERY_NAME} to find available capabilities."}
                         logger.warning("[Tool execution] Model requested unknown tool: %s", name)
 
                     self._history_tool(
@@ -1682,6 +1472,7 @@ class Orchestrator:
                         {
                             "role": "tool",
                             "tool_name": name,
+                            "tool_call_id": call.get("id"),
                             "content": self._serialized_tool_result(result),
                         }
                     )
@@ -1708,13 +1499,20 @@ class Orchestrator:
                         run_id=run_id,
                         step=step + 1,
                     )
-                    yield {
+                    tool_event: dict[str, Any] = {
                         "type": "tool",
                         "tool": name,
                         "status": "completed",
                         "ok": ok_result,
                         "ok_status": ok_status,
                     }
+                    if isinstance(result, dict):
+                        if result.get("error"):
+                            tool_event["error"] = redact_secrets(str(result["error"]), 400)
+                        if result.get("approval_id") and (result.get("approval_required") or result.get("pending")):
+                            tool_event["approval_id"] = result["approval_id"]
+                            tool_event["approval_message"] = redact_secrets(str(result.get("message") or ""), 300)
+                    yield tool_event
 
                     # Record call in TaskState for cross-step loop detection
                     result_summary = ""
@@ -1760,7 +1558,7 @@ class Orchestrator:
 
                 # --- JEV LOOP BREAKER (streaming, FIXED) ---
                 current_content = str(msg.get("content") or "")
-                if trace and len(current_content) >= LOOP_BREAK_MIN_CONTENT_CHARS:
+                if getattr(self.jev, "_live", False) and trace and len(current_content) >= LOOP_BREAK_MIN_CONTENT_CHARS:
                     try:
                         achieved, goal_prob = self.jev.goal_achieved(
                             user_text, task_state.audit_summary()

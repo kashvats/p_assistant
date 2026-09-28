@@ -1,0 +1,33 @@
+{
+  "folder": "C:\\Users\\human-bot\\Downloads\\MediaDownloader",
+  "codec": "Recommended",
+  "container": "Auto",
+  "playlist": true,
+  "compress": false,
+  "compression_level": "Balanced",
+  "delete_original": true,
+  "embed_subtitles": true,
+  "include_auto_subs": true,
+  "split_chapters": false,
+  "skip_shorts": false,
+  "skip_live": true,
+  "speed": "Unlimited",
+  "cookies": "None",
+  "filename": "Playlist number + title",
+  "advanced_visible": false,
+  "clipboard_watch": true,
+  "notify": true,
+  "queue_finish_action": "Do nothing",
+  "theme": "System",
+  "preferred_audio": "",
+  "fallback_audio": "",
+  "remember_site": true,
+  "target_size_mb": "",
+  "auto_open": false,
+  "site_preferences": {
+    "c8809d18aa.mjedge.net": {
+      "quality": "Best available",
+      "audio": "Original / Default"
+    }
+  }
+}

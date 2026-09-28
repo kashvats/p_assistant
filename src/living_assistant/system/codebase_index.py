@@ -268,6 +268,20 @@ class CodebaseIndex:
                 )
         return safe_chunks
 
+    def _chunks_for_file_with_version_check(self, path: Path, root: Path, max_retries: int = 2) -> list[CodeChunk]:
+        """Version-checked chunk extraction preventing stale AST/index on concurrent modification."""
+        for attempt in range(max_retries):
+            try:
+                st1 = path.stat().st_mtime_ns
+                chunks = self._chunks_for_file(path, root)
+                st2 = path.stat().st_mtime_ns
+                if st1 == st2:
+                    return chunks
+                time.sleep(0.01)
+            except (OSError, UnicodeError):
+                continue
+        return self._chunks_for_file(path, root)
+
     def _features(self, text: str) -> dict[int, float]:
         cache_key = f"feat:{self.dimensions}:{blake2b(text.encode('utf-8', errors='ignore'), digest_size=12).hexdigest()}"
         disk_cache = None
@@ -344,7 +358,7 @@ class CodebaseIndex:
                 truncated = True
                 break
             try:
-                chunks = self._chunks_for_file(source, root)
+                chunks = self._chunks_for_file_with_version_check(source, root)
             except (OSError, UnicodeError):
                 continue
             file_count += 1

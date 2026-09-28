@@ -4,7 +4,7 @@ import hmac
 import os
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 from living_assistant.api_routes.agents import router as agents_router
@@ -66,7 +66,13 @@ def _allowed_hostnames() -> set[str]:
 
 def _host_only(value: str) -> str:
     try:
-        return (urlparse("//" + value).hostname or "").lower()
+        cleaned = value.strip()
+        if cleaned.startswith("[") and "]" in cleaned:
+            return cleaned[1:cleaned.index("]")].lower()
+        if cleaned.count(":") > 1:
+            # Unbracketed IPv6 literal
+            return cleaned.split("%")[0].lower()
+        return (urlparse("//" + cleaned).hostname or "").lower()
     except Exception:
         return ""
 
@@ -100,22 +106,39 @@ async def local_api_boundary(request: Request, call_next):
             },
             status_code=403,
         )
-    return await call_next(request)
+
+    if request.method == "OPTIONS":
+        resp = Response(status_code=204)
+        if origin and _origin_is_local_or_same(origin, host):
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+            resp.headers["Access-Control-Max-Age"] = "86400"
+        return resp
+
+    response = await call_next(request)
+    if origin and _origin_is_local_or_same(origin, host):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
 
 
 def _rt() -> Runtime:
     return runtime if runtime is not None else get_runtime()
 
 
-def _auth(authorization: str | None) -> None:
+def _auth(authorization: str | None = None, token_param: str | None = None) -> None:
     token = get_api_token()
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing or invalid token")
-    supplied = authorization.strip()
-    if supplied.lower().startswith("bearer "):
-        supplied = supplied[7:].strip()
-    # Byte comparison preserves constant-time behavior and safely handles
-    # non-ASCII header values.
+    supplied = None
+    if authorization:
+        s = authorization.strip()
+        if s.lower().startswith("bearer "):
+            s = s[7:].strip()
+        supplied = s
+    elif token_param:
+        supplied = token_param.strip()
+
     if not supplied or not hmac.compare_digest(
         supplied.encode("utf-8"),
         token.encode("utf-8"),
@@ -123,9 +146,40 @@ def _auth(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+API_VERSION = "1.0.0"
+CAPABILITY_VERSION = "2.0.0"
+MIN_CLIENT_VERSION = "0.15.0"
+
+
+def check_version_compatibility(client_api_version: str | None = None) -> dict:
+    """Section 71: Verify frontend/backend version compatibility."""
+    if not client_api_version:
+        return {"compatible": True, "api_version": API_VERSION, "warning": "Unspecified client version"}
+    try:
+        c_major = int(client_api_version.split(".")[0])
+        s_major = int(API_VERSION.split(".")[0])
+        if c_major != s_major:
+            return {
+                "compatible": False,
+                "api_version": API_VERSION,
+                "client_api_version": client_api_version,
+                "error": f"Client API version {client_api_version} is incompatible with server version {API_VERSION}. Please upgrade client.",
+            }
+        return {"compatible": True, "api_version": API_VERSION}
+    except Exception:
+        return {"compatible": True, "api_version": API_VERSION}
+
+
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "living-assistant", "version": "0.17.0"}
+    return {
+        "ok": True,
+        "service": "living-assistant",
+        "version": "0.17.0",
+        "api_version": API_VERSION,
+        "capability_version": CAPABILITY_VERSION,
+        "min_client_version": MIN_CLIENT_VERSION,
+    }
 
 
 @app.get("/status")

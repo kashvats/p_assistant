@@ -339,25 +339,23 @@ class JevClient:
         ctx = json.dumps(context, default=str).lower() if not isinstance(context, str) else context.lower()
         q = question.lower()
 
-        # Relevance scoring
-        if "relevant" in q or "applies" in q or "match" in q:
-            ctx_words = set(re.split(r"[\W_]+", ctx))
-            if "request" in ctx:
-                req = ""
-                try:
-                    data = json.loads(ctx) if isinstance(ctx, str) else ctx
-                    req = str(data.get("request", "")).lower()
-                except Exception:
-                    req = ctx
-                req_words = set(re.split(r"[\W_]+", req))
-                intersection = req_words & ctx_words
-                union = req_words | ctx_words
-                overlap = len(intersection) / max(1, len(union))
-                if overlap > 0.4:
-                    return levels[-1], min(0.95, 0.5 + overlap)
-                if overlap > 0.1:
-                    return levels[len(levels) // 2], 0.65
-                return levels[0], 0.80
+        # Relevance scoring: compare the request against everything else in the context.
+        if ("relevant" in q or "applies" in q or "match" in q) and isinstance(context, dict) and "request" in context:
+            stop = {"the", "a", "an", "is", "are", "to", "of", "and", "or", "in", "for", "on", "with", "my", "me", "it", "this", "that"}
+
+            def words(text: str) -> set[str]:
+                return {w for w in re.split(r"[\W_]+", text.lower()) if len(w) > 2 and w not in stop}
+
+            req_words = words(str(context.get("request", "")))
+            other_words = words(" ".join(str(v) for k, v in context.items() if k != "request"))
+            if not req_words or not other_words:
+                return levels[0], 0.60
+            overlap = len(req_words & other_words) / max(1, len(req_words))
+            if overlap >= 0.5:
+                return levels[-1], min(0.95, 0.5 + overlap / 2)
+            if overlap >= 0.2:
+                return levels[len(levels) // 2], 0.65
+            return levels[0], 0.80
 
         # Knowledge value / GC scoring
         if "knowledge" in q or "value" in q or "obsolete" in q or "stale" in q:
@@ -375,41 +373,6 @@ class JevClient:
             if days > 60 or conf < 0.5:
                 return levels[len(levels) // 2], 0.70
             return levels[-1], 0.75
-
-        # Tool relevance scoring (used by orchestrator routing)
-        if "tool" in q or "relevant" in q.lower():
-            try:
-                # Extract request and tool description from context
-                lines = ctx.split('\n')
-                request_line = next((l for l in lines if l.startswith('Request:')), "")
-                tool_line = next((l for l in lines if l.startswith('Tool:')), "")
-
-                request_text = request_line.replace('Request:', '').lower()
-                tool_desc = tool_line.replace('Tool:', '').lower()
-
-                # Split into words, filter stopwords
-                stopwords = {'the', 'a', 'an', 'is', 'are', 'was', 'be', 'by', 'or', 'and', 'of', 'to', 'in', 'for', 'with', 'on'}
-                req_words = set(w for w in re.split(r'[\W_]+', request_text) if w and len(w) > 2 and w not in stopwords)
-                tool_words = set(w for w in re.split(r'[\W_]+', tool_desc) if w and len(w) > 2 and w not in stopwords)
-
-                if not req_words or not tool_words:
-                    return levels[0], 0.60
-
-                # Jaccard similarity between request words and tool words
-                intersection = req_words & tool_words
-                union = req_words | tool_words
-                overlap = len(intersection) / max(1, len(union))
-
-                # Map overlap score to levels
-                if overlap > 0.35:
-                    return levels[-1], min(0.95, 0.65 + overlap)
-                if overlap > 0.15:
-                    return levels[len(levels)//2], 0.70
-                if overlap > 0.05:
-                    return levels[len(levels)//2], 0.60
-                return levels[0], 0.55
-            except Exception:
-                return levels[len(levels)//2], 0.60
 
         return levels[len(levels) // 2], 0.60
 
