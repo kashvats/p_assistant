@@ -32,9 +32,7 @@ INITIAL_TOOL_LIMIT = 8
 MAX_ACTIVE_TOOLS = 16
 DISCOVERY_DEFAULT_LIMIT = 6
 DISCOVERY_MAX_LIMIT = 12
-FOLLOWUP_TOOL_LIMIT = 4
 MAX_TOOL_RESULT_CHARS = 60_000
-ROUTING_RESULT_CHARS = 8_000
 
 # Internal tool name reserved by the orchestrator. It lets the model query the
 # complete registered tool catalog if the initial retrieval missed a capability.
@@ -648,35 +646,6 @@ class Orchestrator:
         logger.info("[Tool routing] active tools: %s", names)
         return names
 
-    def _followup_tool_names(
-        self,
-        user_text: str,
-        tool_name: str | None,
-        result: Any,
-        active: list[str],
-    ) -> list[str]:
-        try:
-            rendered_result = json.dumps(result, default=str)
-        except Exception:
-            rendered_result = str(result)
-
-        query = "\n".join(
-            part
-            for part in (
-                user_text,
-                tool_name or "",
-                rendered_result[:ROUTING_RESULT_CHARS],
-            )
-            if part
-        )
-
-        matches = self.tool_router.search(
-            query,
-            limit=FOLLOWUP_TOOL_LIMIT,
-            exclude=set(active) | {TOOL_DISCOVERY_NAME},
-        )
-        return [item["name"] for item in matches]
-
     def _expand_from_discovery_result(
         self,
         active: list[str],
@@ -704,18 +673,16 @@ class Orchestrator:
             schemas.append(tool.ollama_schema())
         return schemas
 
-    @staticmethod
-    def _routing_context(active_tool_names: list[str]) -> str:
-        names = ", ".join(active_tool_names) if active_tool_names else "none"
-        return (
-            "\n\n[DYNAMIC TOOL ROUTING]\n"
-            "The application exposes only a small retrieved subset of tools at a time.\n"
-            f"Currently exposed tools: {names}.\n"
-            f"If the required capability is not present, call {TOOL_DISCOVERY_NAME} with a concise description "
-            "of the missing capability before concluding that it is unavailable.\n"
-            "Tool results are authoritative for whether an action actually succeeded.\n"
-            "Continue using tools until the user's requested outcome is complete or a real blocker is returned."
-        )
+    # Identical on every request so the model server can keep the whole system
+    # prompt in its prompt cache; per-request context goes in the user message.
+    ROUTING_RULES = (
+        "\n\n[DYNAMIC TOOL ROUTING]\n"
+        "The application exposes only a small retrieved subset of tools at a time.\n"
+        f"If the required capability is not present, call {TOOL_DISCOVERY_NAME} with a concise description "
+        "of the missing capability before concluding that it is unavailable.\n"
+        "Tool results are authoritative for whether an action actually succeeded.\n"
+        "Continue using tools until the user's requested outcome is complete or a real blocker is returned."
+    )
 
     # ---------------------------------------------------------------------
     # Model and telemetry helpers
@@ -949,6 +916,8 @@ class Orchestrator:
         user_text: str,
         context: str,
         session_id: str | None,
+        pinned_tools: Iterable[str] = (),
+        excluded_tools: Iterable[str] = (),
     ):
         if self.sessions and session_id:
             self.sessions.ensure(session_id)
@@ -960,17 +929,23 @@ class Orchestrator:
         skill_ctx = self._skill_context(user_text)
         experience_ctx = self._experience_context(user_text, context)
         active_tool_names = self._initial_tool_names(user_text, context, prior)
+        if pinned_tools:
+            # Callers such as long-running goals need their core tools regardless of ranking.
+            active_tool_names = self._merge_tool_names(
+                [n for n in pinned_tools if n in self.tools], active_tool_names, self.tools,
+                max_tools=MAX_ACTIVE_TOOLS,
+            )
+        if excluded_tools:
+            blocked = set(excluded_tools)
+            active_tool_names = [n for n in active_tool_names if n not in blocked]
+
+        system = ORCHESTRATOR + self.ROUTING_RULES
 
         now = datetime.now().astimezone()
-        system = (
-            ORCHESTRATOR
-            + f"\n\n[CURRENT LOCAL TIME]\n{now.strftime('%A %Y-%m-%d %H:%M %Z (UTC%z)')}"
-            + skill_ctx
-            + experience_ctx
-            + self._routing_context(active_tool_names)
-        )
-
-        user_payload = ""
+        user_payload = f"[CURRENT LOCAL TIME]\n{now.strftime('%A %Y-%m-%d %H:%M %Z (UTC%z)')}"
+        if skill_ctx or experience_ctx:
+            user_payload += skill_ctx + experience_ctx
+        user_payload += "\n\n"
         if prior:
             user_payload += prior + "\n\n"
         if context:
@@ -1104,18 +1079,12 @@ class Orchestrator:
         tool_name: str | None,
         result: Any,
     ) -> list[str]:
-        updated = list(active_tool_names)
-
+        # Tool schemas sit at the top of the rendered prompt, so changing them after
+        # every result forces the model server to reprocess the whole conversation.
+        # Only an explicit catalog search (the model asking for more) expands the set.
         if tool_name == TOOL_DISCOVERY_NAME:
-            updated = self._expand_from_discovery_result(updated, result)
-
-        followups = self._followup_tool_names(
-            user_text,
-            tool_name,
-            result,
-            updated,
-        )
-        return self._merge_tool_names(updated, followups, self.tools)
+            return self._expand_from_discovery_result(list(active_tool_names), result)
+        return list(active_tool_names)
 
     # ---------------------------------------------------------------------
     # Non-streaming execution
@@ -1126,10 +1095,12 @@ class Orchestrator:
         user_text: str,
         context: str = "",
         session_id: str | None = None,
+        pinned_tools: Iterable[str] = (),
+        excluded_tools: Iterable[str] = (),
     ) -> str:
         """Blocking variant of run_stream(); both share one execution engine."""
         final = ""
-        for event in self.run_stream(user_text, context, session_id=session_id):
+        for event in self.run_stream(user_text, context, session_id=session_id, pinned_tools=pinned_tools, excluded_tools=excluded_tools):
             kind = event.get("type")
             if kind == "final":
                 final = str(event.get("text") or "")
@@ -1146,6 +1117,8 @@ class Orchestrator:
         user_text: str,
         context: str = "",
         session_id: str | None = None,
+        pinned_tools: Iterable[str] = (),
+        excluded_tools: Iterable[str] = (),
     ):
         """Yield structured streaming events without bypassing the tool loop."""
 
@@ -1209,6 +1182,8 @@ class Orchestrator:
             user_text,
             context,
             session_id,
+            pinned_tools=pinned_tools,
+            excluded_tools=excluded_tools,
         )
         history_project = project_hint or history_project
         trace: list[dict[str, Any]] = []
@@ -1611,9 +1586,12 @@ class Orchestrator:
             except Exception:
                 pass
 
+        done = "\n".join(f"- {line}" for line in task_state.audit_summary(8)) or "- (no tool calls completed)"
         answer = (
-            "I reached the configured tool-step limit before completing the task. "
-            "Review the latest tool results and retry with a narrower goal."
+            f"I used all {self.max_steps} steps available for one request before finishing.\n\n"
+            f"Done so far:\n{done}\n\n"
+            "This looks like a bigger job. Say \"continue as a goal\" and I will keep working on it in the "
+            "background, round after round, until it is finished (or start it under Long-running goals)."
         )
         self._finish(answer, session_id)
         self._history_finish(

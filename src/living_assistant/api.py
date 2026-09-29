@@ -40,6 +40,7 @@ from living_assistant.api_routes.schemas import (
 )
 from living_assistant.api_routes.security import router as security_router
 from living_assistant.api_routes.skills import router as skills_router
+from living_assistant.api_routes.system import router as system_router
 from living_assistant.api_routes.ui import router as ui_router
 from living_assistant.api_routes.workspace import router as workspace_router
 from living_assistant.core.runtime import Runtime, get_runtime
@@ -182,63 +183,9 @@ def health():
     }
 
 
-@app.get("/status")
-def status(authorization: str | None = Header(default=None)):
-    _auth(authorization)
-    rt = _rt()
-    model_runtime = rt.model_manager.status(refresh=False)
-    selected_model = rt.model_manager.active_model or rt.orchestrator.model
-    provider_info = getattr(rt.model_manager, "provider_info", None)
-    model_provider = (
-        provider_info(selected_model)
-        if callable(provider_info)
-        else {
-            "id": "unknown",
-            "name": "Provider unavailable",
-            "mode": "unknown",
-            "local": None,
-            "credentials_required": None,
-            "credentials_configured": None,
-            "credential_env": None,
-            "credential_label": None,
-            "model": selected_model,
-            "supported": None,
-        }
-    )
-    return {
-        "profile": rt.profile,
-        "hardware": rt.hardware.to_dict(),
-        "resources": rt.resources.snapshot(),
-        "personal": rt.personal.status(),
-        "active_model": selected_model,
-        "model_runtime": model_runtime,
-        "model_provider": model_provider,
-        "integrations": (
-            rt.integrations.status()
-            if getattr(rt, "integrations", None) is not None
-            else {}
-        ),
-    }
-
-
-@app.get("/platform/status")
-def platform_status_endpoint(
-    authorization: str | None = Header(default=None),
-):
-    _auth(authorization)
-    return platform_status().to_dict()
-
-
-@app.get("/platform/service-status")
-def platform_service_status_endpoint(
-    authorization: str | None = Header(default=None),
-):
-    _auth(authorization)
-    return service_status()
-
-
 # Keep application assembly explicit so api.py owns transport policy while each
 # domain router owns its route handlers.
+app.include_router(system_router)
 app.include_router(models_router)
 app.include_router(peers_router)
 app.include_router(desktop_router)

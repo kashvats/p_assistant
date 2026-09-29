@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" class="agent-shell">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Living Assistant</title>
+  <link rel="stylesheet" href="/dist/app.css">
+</head>
+<body class="agent-shell">
+  <div id="agent-bubble" class="desk-bubble" hidden>
+    <div id="agent-bubble-text" class="desk-bubble-text" aria-live="polite"></div>
+    <div id="agent-bubble-meta" class="desk-bubble-meta"></div>
+    <div id="agent-bubble-actions" class="desk-bubble-actions" hidden>
+      <button type="button" id="agent-allow" class="desk-btn primary">Allow microphone</button>
+      <button type="button" id="agent-deny" class="desk-btn">Not now</button>
+    </div>
+  </div>
+  <div id="agent-dock" class="desk-dock">
+    <canvas id="agent-spectrum" class="desk-spectrum" width="400" height="400" aria-hidden="true"></canvas>
+    <div id="agent-face" class="agent-face md mood-idle" role="button" tabindex="0" aria-label="Living Assistant: click to talk, drag to move, right-click for options">
+      <span class="agent-ring"></span>
+      <span class="eye"><span class="pupil"></span></span>
+      <span class="eye"><span class="pupil"></span></span>
+    </div>
+  </div>
+  <script type="module" src="/src/agent.js"></script>
+</body>
+</html>

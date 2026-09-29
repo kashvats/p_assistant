@@ -1,21 +1,17 @@
 """
-TypeSafe AI Jev — System One model client.
+Client for TypeSafe AI Jev, a hosted structured-decision model (Choice / Score / Noul).
 
-Jev is NOT an LLM. It is a structured decision model that evaluates context
-against strictly typed primitives (Choice, Score, Noul) and returns typed values
-with calibrated probability scores. It cannot generate text.
+Mode matters, so be precise about it:
 
-Architecture contract (enforced throughout p_assistant):
-  - Jev makes ALL binary/categorical decisions (routing, safety gating, task
-    completion, memory filtering, incident linking).
-  - AirLLM (or any heavy generative model) ONLY runs when text or code must
-    be generated (payloads, summaries, patches).
-  - No autonomous merges: Jev may approve, but humans apply.
-
-NOTE: The real Jev REST API (TypeSafe AI) is in limited early access (Sept 2026).
-      This module ships a calibrated local mock that mirrors the same interface.
-      To swap in the real API, set TYPESAFE_API_KEY in your environment and the
-      JevClient will call the live endpoint instead of the local mock.
+* **Live** (``TYPESAFE_API_KEY`` set): calls the Jev REST API. Only then may Jev
+  veto tool calls (orchestrator safety gate), end agent loops early (goal
+  check) or retire stored lessons (daemon GC).
+* **Offline** (default; the API is invite-only as of Sept 2026): the methods fall
+  back to small keyword/rule heuristics with the same signatures. They are NOT a
+  model and their "confidence" numbers are fixed constants, so the rest of the
+  assistant only uses them where a heuristic is acceptable: filtering which
+  past lessons get added to the prompt. Tool routing uses the BM25 tool ranker,
+  and safety is enforced by each tool's approval policy, independent of Jev.
 """
 from __future__ import annotations
 
@@ -86,6 +82,15 @@ class JevClient:
             "TYPESAFE_BASE_URL", "https://api.typesafe.ai/v1"
         )
         self._live = bool(self.api_key and not self.api_key.startswith("sk-mock"))
+
+    @property
+    def live(self) -> bool:
+        return self._live
+
+    def mode(self) -> dict:
+        if self._live:
+            return {"mode": "live", "endpoint": self.base_url}
+        return {"mode": "offline-heuristic", "note": "No TYPESAFE_API_KEY; keyword heuristics only, no model decisions."}
 
     # ------------------------------------------------------------------
     # Core primitives

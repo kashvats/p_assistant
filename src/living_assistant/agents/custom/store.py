@@ -245,6 +245,14 @@ class AgentStore:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_versions(self, agent_id: str) -> list[dict[str, Any]]:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT * FROM agent_versions WHERE agent_id = ? ORDER BY created_at DESC",
+            (agent_id,),
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
     def rollback_version(self, agent_id: str, target_version: str) -> tuple[AgentManifest, str]:
         cursor = self.conn.cursor()
         cursor.execute(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 
 from living_assistant.api_routes.dependencies import authorize, runtime
@@ -129,3 +130,58 @@ def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+class GoalRequest(BaseModel):
+    goal: str = Field(min_length=3, max_length=4000)
+    check_command: str = Field(default="", max_length=1000)
+    cwd: str = Field(default=".", max_length=1000)
+    max_rounds: int = Field(default=12, ge=1, le=50)
+
+
+def _goals():
+    runner = getattr(runtime(), "goals", None)
+    if runner is None:
+        raise HTTPException(status_code=503, detail="Long-running goals are unavailable.")
+    return runner
+
+
+def _goal_result(result: dict) -> dict:
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Goal request failed."))
+    return result
+
+
+@router.get("/goals")
+def goals_list(limit: int = 20, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _goals().store.list(max(1, min(limit, 100)))
+
+
+@router.post("/goals")
+def goals_create(req: GoalRequest, authorization: str | None = Header(default=None)):
+    """Start a goal typed by the user; their check command is authorized by this request."""
+    authorize(authorization)
+    return _goal_result(_goals().start(req.goal, check_command=req.check_command, cwd=req.cwd,
+                                       max_rounds=req.max_rounds, check_approved=True))
+
+
+@router.get("/goals/{goal_id}")
+def goals_get(goal_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    record = _goals().store.get(goal_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Unknown goal.")
+    return record
+
+
+@router.post("/goals/{goal_id}/resume")
+def goals_resume(goal_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _goal_result(_goals().resume(goal_id))
+
+
+@router.post("/goals/{goal_id}/cancel")
+def goals_cancel(goal_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _goal_result(_goals().cancel(goal_id))

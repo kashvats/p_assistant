@@ -115,3 +115,27 @@ def model_usage(
 ):
     authorize(authorization)
     return runtime().model_usage.summary(session_id=session_id, days=days)
+
+
+@router.get("/models/server")
+def model_server_status(authorization: str | None = Header(default=None)):
+    """Local llama.cpp server: whether it runs, who started it, and the GPU/CPU launch plan."""
+    authorize(authorization)
+    rt = runtime()
+    decision_model = rt.orchestrator.jev.mode()
+    manager = getattr(rt, "llama_server", None)
+    if manager is None:
+        return {"managed_by_assistant": False, "decision_model": decision_model,
+                "note": "llamacpp.auto_start is off; the model server is managed externally."}
+    return {"managed_by_assistant": True, "decision_model": decision_model, **manager.status()}
+
+
+@router.post("/models/server/restart")
+def model_server_restart(authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    manager = getattr(runtime(), "llama_server", None)
+    if manager is None:
+        raise HTTPException(status_code=409, detail="llamacpp.auto_start is off; restart your model server manually.")
+    if manager.status().get("external"):
+        raise HTTPException(status_code=409, detail="The running model server was not started by the assistant; it will not be restarted.")
+    return manager.restart()

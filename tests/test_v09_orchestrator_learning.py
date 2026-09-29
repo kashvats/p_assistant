@@ -7,7 +7,7 @@ class FakeProvider:
     def __init__(self):
         self.i=0; self.systems=[]
     def chat(self,model,messages,tools=None,keep_alive=45,options=None):
-        self.systems.append(messages[0]['content'])
+        self.systems.append(' '.join(str(m.get('content') or '') for m in messages[:2]))
         seq=[
             {'message':{'role':'assistant','content':'','tool_calls':[{'function':{'name':'try_command','arguments':{'mode':'bad'}}}]}},
             {'message':{'role':'assistant','content':'','tool_calls':[{'function':{'name':'try_command','arguments':{'mode':'good'}}}]}},
@@ -36,6 +36,6 @@ def test_orchestrator_auto_learns_repeated_recovery_and_retrieves_it(tmp_path):
     assert orch.run('Start my demo app',context='Project path: /tmp/Demo')=='done'
     active=exp.list('active')
     assert len(active)==1 and active[0]['kind']=='recovery_candidate'
-    # Third run should receive the promoted experience in its system prompt before any tool is called.
+    # Third run should receive the promoted experience in its prompt before any tool is called.
     assert orch.run('Start my demo app',context='Project path: /tmp/Demo')=='done'
     assert any('[LOCAL EXPERIENCE MEMORY' in x and 'good' in x for x in mm.provider.systems[-3:])

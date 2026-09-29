@@ -248,3 +248,10 @@ def connector_call(
 ):
     authorize(authorization)
     return runtime().connector_manager.call(name, req.action, req.params)
+
+
+@router.get("/voice/meter")
+def voice_meter(authorization: str | None = Header(default=None)):
+    """Live microphone bands while the assistant is listening (for the spectrum ring)."""
+    authorize(authorization)
+    return runtime().voice.meter()

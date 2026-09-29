@@ -191,3 +191,22 @@ def test_hands_free_start_and_stop_use_local_model(monkeypatch):
     assert started.json()["hands_free_running"] is True
     assert stopped.status_code == 200
     assert stopped.json()["hands_free_running"] is False
+
+
+def test_voice_meter_reports_speech_bands_from_real_audio_math():
+    import numpy as np
+    from living_assistant.desktop.voice import VoiceEngine
+
+    voice = VoiceEngine.__new__(VoiceEngine)
+    voice._meter = {"active": False, "phase": "idle", "level": 0.0, "bands": [], "seq": 0}
+    t = np.arange(1280) / 16000
+    tone = (np.sin(2 * np.pi * 440 * t) * 12000).astype(np.int16)
+    voice._publish_meter(np, tone, 16000, "speech")
+    loud = voice.meter()
+    voice._publish_meter(np, np.zeros(1280, dtype=np.int16), 16000, "waiting")
+    quiet = voice.meter()
+    assert loud["active"] and loud["phase"] == "speech" and len(loud["bands"]) == 16
+    assert loud["level"] > 0.5 > quiet["level"]
+    peak = max(range(16), key=lambda i: loud["bands"][i])
+    assert 3 <= peak <= 8  # 440 Hz lands in the lower-middle bands, not the edges
+    assert max(quiet["bands"]) == 0.0 and quiet["seq"] == loud["seq"] + 1

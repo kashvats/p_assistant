@@ -5,6 +5,7 @@ from typing import Any
 from pathlib import Path
 from dotenv import load_dotenv
 from living_assistant.core.config import (
+    data_dir,
     load_config,
     load_model_preferences,
     project_root,
@@ -51,6 +52,7 @@ from living_assistant.tools.shell import build_shell_tools, ProcessRegistry
 from living_assistant.tools.projects import build_project_tools, ProjectRegistry
 from living_assistant.tools.webtools import build_web_tools
 from living_assistant.tools.mediatools import build_media_tools
+from living_assistant.tools.researchtools import build_research_tools
 from living_assistant.tools.logtools import build_log_tools
 from living_assistant.tools.database import build_database_tools
 from living_assistant.tools.personal import build_personal_tools
@@ -154,10 +156,19 @@ class Runtime:
     skill_manager: Any = None
     agent_manager: Any = None
     scheduler: Any = None
+    llama_server: Any = None
+    goals: Any = None
 
     def shutdown(self) -> dict:
         """Section 63 Shutdown: Gracefully stop schedulers, browsers, voice engine, subprocesses, and models."""
         results = {}
+
+        if self.llama_server is not None:
+            try:
+                self.llama_server.stop()
+                results["llama_server_stopped"] = True
+            except Exception as exc:
+                results["llama_server_error"] = str(exc)
 
         # 1. Stop scheduler
         if self.scheduler is not None and hasattr(self.scheduler, "stop"):
@@ -285,6 +296,16 @@ def build_runtime(interactive: bool = True) -> Runtime:
     llamacpp_cfg = cfg.get('llamacpp', {})
     llamacpp_base = llamacpp_cfg.get('base_url') or os.environ.get('LLAMACPP_BASE_URL', 'http://127.0.0.1:8080')
     llamacpp_provider = LlamaCppProvider(base_url=str(llamacpp_base))
+    llama_server = None
+    if bool(llamacpp_cfg.get('auto_start', False)) and 'PYTEST_CURRENT_TEST' not in os.environ:
+        from living_assistant.system.llama_server import LlamaServerManager
+        llama_server = LlamaServerManager({**llamacpp_cfg, 'base_url': str(llamacpp_base)}, data_dir() / 'logs')
+
+        def _boot_model_server():
+            llama_server.ensure_running()
+            llama_server.start_watchdog()
+
+        threading.Thread(target=_boot_model_server, name='llama-server-boot', daemon=True).start()
 
     ocfg=cfg.get('ollama',{})
     ollama_provider=OllamaProvider(
@@ -505,10 +526,73 @@ def build_runtime(interactive: bool = True) -> Runtime:
     tool_registry.extend(build_project_tools(ws,projects,code_index,snapshots,approval))
     tool_registry.extend(build_group_tools(group_controller))
     tool_registry.extend(build_git_tools(ws,approval))
-    tool_registry.extend(build_web_tools(ws,cfg,approval,quarantine,browser=browser,snapshot_manager=snapshots))
+    web_tools = build_web_tools(ws,cfg,approval,quarantine,browser=browser,snapshot_manager=snapshots)
+    tool_registry.extend(web_tools)
+    _web = {t.name: t.handler for t in web_tools}
+    tool_registry.extend(build_research_tools(_web['web_search'], _web['web_extract_article']))
+
+    def _complete(messages: list[dict], max_tokens: int = 2048) -> str:
+        # One-shot model call for tools that need the model to read a page (scraping).
+        model = str(pcfg['models']['orchestrator'])
+        with mm.lease(model) as keep_alive:
+            data = mm.provider.chat(model, messages, keep_alive=keep_alive,
+                                    options={'temperature': 0, 'num_predict': int(max_tokens)})
+        return str((data.get('message') or {}).get('content') or '')
+
+    try:
+        from living_assistant.tools.scrapetools import build_scrape_tools
+        tool_registry.extend(build_scrape_tools(ws, cfg, approval, complete=_complete, snapshot_manager=snapshots))
+    except ImportError:  # crawl4ai not installed: the lighter web tools still work
+        pass
+    try:
+        from living_assistant.tools.deepresearchtools import build_deep_research_tools
+        from living_assistant.tools.webtools import network_gate
+        _llm_cfg = cfg.get('litellm', {}) or {}
+        _research_cfg = cfg.get('research', {}) or {}
+        _base = str(_llm_cfg.get('base_url') or '') if _llm_cfg.get('enabled') else ''
+        _base = _base or str((cfg.get('llamacpp', {}) or {}).get('base_url', 'http://127.0.0.1:8080')).rstrip('/') + '/v1'
+        tool_registry.extend(build_deep_research_tools(
+            ws, _web['web_search'], _web['web_extract_article'],
+            gate=lambda url, purpose: network_gate(url, purpose, approval),
+            base_url=_base,
+            model=str(_llm_cfg.get('model_alias') or 'openai/local-model').split('/', 1)[-1],
+            api_key=str(_llm_cfg.get('api_key') or 'sk-local'),
+            context_tokens=int((cfg.get('llamacpp', {}) or {}).get('context_tokens', 16384)),
+            embedding_model=str(_research_cfg.get('embedding_model') or 'sentence-transformers/all-MiniLM-L6-v2'),
+        ))
+    except ImportError:  # gpt-researcher not installed
+        pass
     tool_registry.extend(build_browser_tools(browser,enabled=browser_enabled,external=browser_use))
     tool_registry.extend(build_media_tools(ws,cfg))
     tool_registry.extend(build_log_tools(ws,projects))
+    from living_assistant.system.goal_runner import GOAL_ROUND_TOOLS, GoalRunner, GoalStore
+    from living_assistant.tools.goaltools import build_goal_tools
+    _goal_orchestrator: dict = {}
+
+    def _goal_cwd(raw: str) -> Path:
+        # Registered projects (by name or path) are allowed in addition to workspace roots.
+        for name, item in (projects.list() or {}).items():
+            if isinstance(item, dict) and item.get('path') and raw in {name, item['path']}:
+                return Path(item['path']).expanduser().resolve()
+        target = Path(raw).expanduser()
+        for item in (projects.list() or {}).values():
+            if isinstance(item, dict) and item.get('path'):
+                root = Path(item['path']).expanduser().resolve()
+                resolved = target.resolve() if target.is_absolute() else (root / target).resolve()
+                if target.is_absolute() and (resolved == root or root in resolved.parents):
+                    return resolved
+        return ws.resolve(raw or '.')
+
+    goals = GoalRunner(
+        GoalStore(data_dir() / 'goals.sqlite3'),
+        run_round=lambda goal, ctx, sid: _goal_orchestrator['o'].run(
+            f"Continue working on this long-running goal: {goal}", context=ctx, session_id=sid,
+            pinned_tools=GOAL_ROUND_TOOLS, excluded_tools=('goal_start', 'goal_resume', 'goal_cancel')),
+        resolve_cwd=_goal_cwd,
+        approval=approval,
+        publish=lambda event, **data: events_bus.publish(event, **data),
+    )
+    tool_registry.extend(build_goal_tools(lambda: goals))
     tool_registry.extend(build_database_tools(cfg))
     tool_registry.extend(build_personal_tools(memory,notifier))
     tool_registry.extend(build_calendar_tools(calendar))
@@ -522,9 +606,13 @@ def build_runtime(interactive: bool = True) -> Runtime:
     if bool(cfg.get('connectors',{}).get('enabled',True)):
         tool_registry.extend(build_connector_tools(connector_manager))
     tool_registry.extend(build_routine_tools(routines))
-    tool_registry.extend(build_improvement_tools(improvements, evaluations, canaries, repairs))
+    # Specialist tool sets are opt-in: every extra schema makes tool choice slower and less accurate.
+    tool_sets = cfg.get('tool_sets', {}) or {}
+    if bool(tool_sets.get('self_improvement', False)):
+        tool_registry.extend(build_improvement_tools(improvements, evaluations, canaries, repairs))
     tool_registry.extend(build_voice_tools(voice))
-    tool_registry.extend(build_security_tools(ws,approval,guardian,security_sensors))
+    if bool(tool_sets.get('security_suite', False)):
+        tool_registry.extend(build_security_tools(ws,approval,guardian,security_sensors))
     if bool(cfg.get('desktop',{}).get('enabled',True)):
         tool_registry.extend(build_desktop_tools(ws,approval,desktop_controller))
     if openviking_adapter is not None:
@@ -601,9 +689,12 @@ def build_runtime(interactive: bool = True) -> Runtime:
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
                               max_session_messages=int(session_cfg.get('max_context_messages',24)), experiences=experiences, event_bus=events_bus, run_history=run_history, model_usage=model_usage)
     mobile_bridge=MobileBridge(cfg, connector_manager, orchestrator)
+    _goal_orchestrator['o'] = orchestrator
+    if bool(cfg.get('goals', {}).get('auto_resume', True)) and 'PYTEST_CURRENT_TEST' not in os.environ:
+        threading.Thread(target=goals.resume_interrupted, name='goal-resume', daemon=True).start()
     return Runtime(cfg,profile,hw,ws,snapshots,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,repairs,canaries,browser,
                    personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller,integrations,openviking_adapter,agentmemory_adapter,codebase_memory_adapter,
                    diagram=diagram_adapter,cybersecurity=cybersecurity_adapter,graft=graft_adapter,openmontage=openmontage_adapter,edge0=edge0_adapter,agency_agents=agency_agents_adapter,scientific_skills=scientific_skills_adapter,awesome_harness=awesome_harness_adapter,awesome_agent_tools=awesome_agent_tools_adapter,
-                   skill_manager=skill_manager,agent_manager=agent_manager,scheduler=scheduler)
+                   skill_manager=skill_manager,agent_manager=agent_manager,scheduler=scheduler,llama_server=llama_server,goals=goals)
 

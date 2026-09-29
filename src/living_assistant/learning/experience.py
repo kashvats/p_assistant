@@ -298,8 +298,8 @@ class ExperienceEngine:
         ]
         if not candidates:
             return ''
-        # Jev filter: only inject Exact Match lessons into AirLLM context.
-        # This prevents context bloat that degrades accuracy on heavy local models.
+        # Relevance filter: only inject lessons that match the request, to avoid prompt bloat.
+        # Uses the live Jev model when configured, otherwise a keyword-overlap heuristic.
         # Exception: automatic recovery_candidates that have already been promoted to
         # 'active' via repeated observation skip the Jev gate — they have already
         # earned their promotion through evidence and must reach the model.

@@ -40,6 +40,28 @@ class _NetworkGate(Exception):
         self.result = result
 
 
+def network_gate(url: str, purpose: str, approval: ApprovalManager | None) -> dict | None:
+    """Return None when ``url`` may be fetched, else the blocked/approval result.
+
+    Public targets pass; loopback/LAN/private targets need an explicit approval.
+    Shared by every tool that makes the assistant fetch a URL.
+    """
+    scope, reason = url_network_scope(url, resolve=True)
+    if scope == 'invalid':
+        return {'ok': False, 'blocked': True, 'error': reason or 'Invalid URL.'}
+    if scope == 'private':
+        if approval is None:
+            return {'ok': False, 'blocked': True, 'error': 'Private/local network access requires explicit approval.'}
+        req = approval.request(
+            f'{purpose} private/local URL {safe_display_url(url)}',
+            f'{reason or "Target is not public."} Access to loopback/LAN/private services can expose local infrastructure.',
+            'PRIVATE_NETWORK_ACCESS',
+        )
+        if not req.get('allowed'):
+            return {'ok': False, 'approval_required': True, **req}
+    return None
+
+
 def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManager | None = None,
                     quarantine: QuarantineVault | None = None, browser: BrowserController | None = None,
                     snapshot_manager: "WorkspaceSnapshotManager | None" = None) -> list[Tool]:
@@ -123,19 +145,9 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
         return None
 
     def _authorize_target(url: str, purpose: str) -> None:
-        scope, reason = url_network_scope(url, resolve=True)
-        if scope == 'invalid':
-            raise _NetworkGate({'ok': False, 'blocked': True, 'error': reason or 'Invalid URL.'})
-        if scope == 'private':
-            if approval is None:
-                raise _NetworkGate({'ok': False, 'blocked': True, 'error': 'Private/local network access requires explicit approval.'})
-            req = approval.request(
-                f'{purpose} private/local URL {safe_display_url(url)}',
-                f'{reason or "Target is not public."} Access to loopback/LAN/private services can expose local infrastructure.',
-                'PRIVATE_NETWORK_ACCESS',
-            )
-            if not req.get('allowed'):
-                raise _NetworkGate({'ok': False, 'approval_required': True, **req})
+        blocked = network_gate(url, purpose, approval)
+        if blocked:
+            raise _NetworkGate(blocked)
 
     def _open_stream(client: httpx.Client, url: str, purpose: str) -> tuple[httpx.Response, str]:
         current = url

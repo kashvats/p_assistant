@@ -76,7 +76,8 @@ def test_api_auth_fails_closed_and_generated_token_works(tmp_path, monkeypatch):
 
     monkeypatch.delenv('ASSISTANT_API_TOKEN', raising=False)
     monkeypatch.setattr(api_auth, 'data_dir', lambda: tmp_path)
-    monkeypatch.setattr(api, 'platform_status', lambda: SimpleNamespace(to_dict=lambda: {'os': 'Test'}))
+    import living_assistant.api_routes.system as system_routes
+    monkeypatch.setattr(system_routes, 'platform_status', lambda: SimpleNamespace(to_dict=lambda: {'os': 'Test'}))
 
     client = TestClient(api.app)
     denied = client.get('/platform/status')

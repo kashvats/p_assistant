@@ -240,13 +240,13 @@ class NervousSystem:
                     if ex.get('episodes_pruned'): self.memory.add_event('experience_episodes_pruned',ex)
                     if ex.get('lessons_demoted') or ex.get('lessons_expired'):
                         self.memory.add_event('experience_confidence_maintenance',ex)
-                    # Jev semantic GC: score remaining active lessons for knowledge value.
-                    # Replaces brittle timestamp-only logic for stale knowledge retirement.
+                    # Semantic retirement of stale lessons needs the live Jev model; offline,
+                    # experiences.maintenance() above already demotes/expires by confidence and age.
                     try:
                         from living_assistant.core.typesafe import JevClient
                         jev = JevClient()
                         jev_retired = []
-                        for lesson in self.experiences.list(status='active', limit=200):
+                        for lesson in (self.experiences.list(status='active', limit=200) if jev.live else []):
                             level, conf = jev.score_knowledge_value(lesson)
                             if level == 'Obsolete/Wrong' and conf >= 0.75 and not lesson.get('user_confirmed'):
                                 self.experiences.reject(lesson['id'], reason='Jev GC: scored Obsolete/Wrong')

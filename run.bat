@@ -6,7 +6,7 @@ cd /d "%PROJECT_ROOT%"
 
 set "HOST=127.0.0.1"
 set "PORT=8787"
-set "URL=http://%HOST%:%PORT%/aura"
+set "URL=http://%HOST%:%PORT%/dashboard"
 set "VENV_DIR=%PROJECT_ROOT%.venv"
 set "VENV_PY=%VENV_DIR%\Scripts\python.exe"
 set "TEMP_DIR=%TEMP%\LivingAssistant"
@@ -131,6 +131,13 @@ if errorlevel 1 (
 )
 
 del /q "%REQ_FILE%" >nul 2>&1
+
+rem crawl4ai goes in without its dependencies: it requires a litellm fork that would replace
+rem the project's litellm. Its real requirements are listed in pyproject.toml.
+"%VENV_PY%" -m pip install --disable-pip-version-check --quiet --no-deps "crawl4ai==0.9.4"
+if errorlevel 1 echo [WARN] crawl4ai could not be installed; the scraping tools will be unavailable.
+"%VENV_PY%" -m playwright install chromium >nul 2>&1
+if errorlevel 1 echo [WARN] Could not install the Chromium browser used for scraping.
 
 set "PYTHONPATH=%PROJECT_ROOT%src"
 set "PYTHONUNBUFFERED=1"

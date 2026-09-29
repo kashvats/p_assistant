@@ -36,6 +36,29 @@ class VoiceEngine:
     _hands_free_stop: threading.Event | None = field(default=None, init=False, repr=False)
     _hands_free_thread: threading.Thread | None = field(default=None, init=False, repr=False)
     _is_speaking: bool = field(default=False, init=False, repr=False)
+    _meter: dict = field(default_factory=lambda: {"active": False, "phase": "idle", "level": 0.0, "bands": [], "seq": 0}, init=False, repr=False)
+
+    def meter(self) -> dict:
+        """Live microphone levels while recording, for listening visualizations."""
+        return dict(self._meter)
+
+    def _publish_meter(self, np, samples, sample_rate: int, phase: str) -> None:
+        # 16 log-spaced bands across the speech range, scaled to 0..1 from dBFS.
+        if samples.size:
+            window = samples.astype(np.float32) * np.hanning(samples.size)
+            spectrum = np.abs(np.fft.rfft(window)) / max(1, samples.size)
+            freqs = np.fft.rfftfreq(samples.size, 1.0 / sample_rate)
+            edges = np.geomspace(80, min(6000, sample_rate / 2 - 1), 17)
+            bands = []
+            for lo, hi in zip(edges[:-1], edges[1:]):
+                sel = spectrum[(freqs >= lo) & (freqs < hi)]
+                mag = float(sel.max()) if sel.size else 0.0
+                bands.append(round(min(1.0, max(0.0, (20 * math.log10(mag + 1e-6) + 10) / 60)), 3))
+            rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2)))
+            level = round(min(1.0, max(0.0, (20 * math.log10(rms / 32768 + 1e-9) + 60) / 60)), 3)
+        else:
+            bands, level = [0.0] * 16, 0.0
+        self._meter = {"active": True, "phase": phase, "level": level, "bands": bands, "seq": self._meter["seq"] + 1}
 
     def is_speaking(self) -> bool:
         return bool(self._is_speaking)
@@ -243,6 +266,17 @@ class VoiceEngine:
         min_speech_blocks = max(1, math.ceil(min_seconds * 1000 / block_ms))
         max_blocks = max(1, math.ceil(max_seconds * 1000 / block_ms))
 
+        self._meter = {**self._meter, "active": True, "phase": "calibrating"}
+        try:
+            return self._record_blocks(
+                sd, np, target, sample_rate, block_frames, max_blocks, calibration_blocks, pre_roll_blocks,
+                silence_blocks_needed, min_speech_blocks, min_rms, noise_multiplier,
+            )
+        finally:
+            self._meter = {"active": False, "phase": "idle", "level": 0.0, "bands": [], "seq": self._meter["seq"] + 1}
+
+    def _record_blocks(self, sd, np, target, sample_rate, block_frames, max_blocks, calibration_blocks,
+                       pre_roll_blocks, silence_blocks_needed, min_speech_blocks, min_rms, noise_multiplier) -> dict:
         noise_levels: list[float] = []
         pre_roll: list[object] = []
         captured: list[object] = []
@@ -259,6 +293,8 @@ class VoiceEngine:
                     pass
                 samples = np.frombuffer(raw, dtype=np.int16).copy()
                 rms = float(np.sqrt(np.mean(samples.astype(np.float32) ** 2))) if samples.size else 0.0
+                phase = "calibrating" if i < calibration_blocks else ("speech" if speech_started else "waiting")
+                self._publish_meter(np, samples, sample_rate, phase)
 
                 if i < calibration_blocks:
                     noise_levels.append(rms)

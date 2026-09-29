@@ -142,7 +142,32 @@ class AgentFace extends React.Component {
       role: 'img',
       'aria-label': title || `Assistant is ${mood}`,
       title,
-    }, h('span', {className: 'ring'}), eye(0), eye(1));
+    }, h('span', {className: 'agent-ring'}), eye(0), eye(1));
+  }
+}
+
+// Live microphone spectrum shown while the assistant is listening (polls /voice/meter).
+class MicSpectrum extends React.Component {
+  constructor(props) {
+    super(props);
+    this.bars = [];
+    this.alive = false;
+  }
+  componentDidMount() { this.alive = true; this.poll(); }
+  componentWillUnmount() { this.alive = false; }
+  async poll() {
+    while (this.alive) {
+      try {
+        const m = await this.props.api('/voice/meter');
+        const bands = m && m.active && Array.isArray(m.bands) ? m.bands : [];
+        this.bars.forEach((el, i) => { if (el) el.style.height = `${Math.round(12 + (bands[i] || 0) * 88)}%`; });
+      } catch (_) {}
+      await new Promise((r) => setTimeout(r, 70));
+    }
+  }
+  render() {
+    return h('div', {className: 'mic-spectrum', 'aria-hidden': 'true'},
+      Array.from({length: 16}, (_, i) => h('i', {key: i, ref: (el) => { this.bars[i] = el; }})));
   }
 }
 
@@ -244,6 +269,7 @@ class App extends React.Component {
       voiceRecording: false, attachedFile: null, speakReplies: readFlag('assistant_speak_replies'),
       toolsStatus: null, browserSessions: [],
       expandedTools: {},
+      goals: [], goalText: '', goalCheck: '', goalCwd: '.', goalBusy: false,
     };
     this.pollers = []; this.activityController = null; this.approvalSeen = new Set(); this.chatController = null;
   }
@@ -253,6 +279,8 @@ class App extends React.Component {
     this.pollers.push(setInterval(() => this.loadStatus(), 2500));
     this.pollers.push(setInterval(() => this.loadApprovals(), 5000));
     this.pollers.push(setInterval(() => this.loadUsage(), 10000));
+    this.pollers.push(setInterval(() => { if (this.state.page === 'chat') this.loadGoals(); }, 5000));
+    this.loadGoals();
   }
   componentWillUnmount() { window.removeEventListener('hashchange', this.onHash); this.pollers.forEach(clearInterval); if (this.activityController) this.activityController.abort(); this.cancelChat(); }
   componentWillUpdate() {
@@ -473,8 +501,16 @@ class App extends React.Component {
     if (this.state.voiceRecording || this.state.streaming) return;
     this.setState({voiceRecording: true});
     try {
-      const res = await this.api('/voice/transcribe', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({max_seconds: 15})});
-      if (!res.ok) throw new Error(res.error || `Voice ${res.stage || 'capture'} failed`);
+      const transcribe = () => this.api('/voice/transcribe', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({max_seconds: 15})});
+      let res = await transcribe();
+      if (res.approval_required && res.approval_id) {
+        // Microphone use needs the user's consent for each listen.
+        const approved = window.confirm('Allow the assistant to listen to your microphone for this request?');
+        await this.api(`/approvals/${encodeURIComponent(res.approval_id)}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({approved})});
+        if (!approved) return;
+        res = await transcribe();
+      }
+      if (!res.ok) throw new Error(res.error || res.message || `Voice ${res.stage || 'capture'} failed`);
       this.setState({voiceRecording: false});
       await this.sendChat(res.transcript, {viaVoice: true});
     } catch (e) {
@@ -516,6 +552,59 @@ class App extends React.Component {
       this.loadApprovals();
       if (approved && retryText) await this.sendChat(retryText);
     } catch (e) { this.notify(`Approval failed: ${e.message}`, true); }
+  }
+  async loadGoals() {
+    try { this.setState({goals: await this.api('/goals?limit=10')}); } catch (_) {}
+  }
+  async startGoal() {
+    const goal = this.state.goalText.trim();
+    if (goal.length < 3 || this.state.goalBusy) return;
+    this.setState({goalBusy: true});
+    try {
+      await this.api('/goals', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({goal, check_command: this.state.goalCheck.trim(), cwd: this.state.goalCwd.trim() || '.'})});
+      this.setState({goalText: '', goalCheck: ''});
+      this.notify('Goal started — it keeps working in the background');
+      await this.loadGoals();
+    } catch (e) { this.notify(`Goal failed to start: ${e.message}`, true); }
+    finally { this.setState({goalBusy: false}); }
+  }
+  async goalAction(id, action) {
+    try { await this.api(`/goals/${encodeURIComponent(id)}/${action}`, {method: 'POST'}); await this.loadGoals(); }
+    catch (e) { this.notify(`Goal ${action} failed: ${e.message}`, true); }
+  }
+  renderGoals() {
+    const badge = {
+      queued: 'border-sky-800 bg-sky-950 text-sky-300', running: 'border-sky-700 bg-sky-950 text-sky-200',
+      completed: 'border-emerald-800 bg-emerald-950 text-emerald-300', blocked: 'border-amber-800 bg-amber-950 text-amber-300',
+      paused: 'border-slate-600 bg-slate-800 text-slate-300', cancelled: 'border-slate-700 bg-slate-900 text-slate-500',
+      cancelling: 'border-slate-700 bg-slate-900 text-slate-400',
+    };
+    const list = this.state.goals.length ? this.state.goals.map(g => {
+      const last = (g.notes || [])[g.notes.length - 1];
+      const check = g.last_check;
+      const canResume = ['paused', 'blocked', 'cancelled'].includes(g.status);
+      const canCancel = ['queued', 'running'].includes(g.status);
+      return h('div', {key: g.id, className: 'rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-1.5'},
+        h('div', {className: 'flex items-start gap-2'},
+          h('div', {className: 'text-sm flex-1 min-w-0 break-words'}, g.goal),
+          h('span', {className: cx('shrink-0 text-xs px-2 py-0.5 rounded-full border', badge[g.status] || badge.paused, g.status === 'running' && 'animate-pulse')}, g.status)),
+        h('div', {className: 'text-xs text-slate-500 flex flex-wrap gap-x-3'},
+          h('span', null, `round ${g.rounds}/${g.max_rounds}`),
+          g.check_command ? h('span', {className: 'font-mono truncate'}, g.check_command) : null,
+          check ? h('span', {className: check.passed ? 'text-emerald-400' : 'text-rose-400'}, check.passed ? 'check passed' : 'check failing') : null),
+        last ? h('div', {className: 'text-xs text-slate-400'}, `Latest: ${last.summary}`) : null,
+        g.last_error && !['completed', 'running', 'queued'].includes(g.status) ? h('div', {className: 'text-xs text-amber-300 break-words'}, g.last_error) : null,
+        (canResume || canCancel) ? h('div', {className: 'flex gap-2 pt-1'},
+          canResume ? h('button', {onClick: () => this.goalAction(g.id, 'resume'), className: 'px-2.5 py-1 rounded-lg border border-brand-500 bg-brand-600 hover:bg-brand-500 text-xs'}, 'Resume') : null,
+          canCancel ? h('button', {onClick: () => this.goalAction(g.id, 'cancel'), className: 'px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, 'Cancel') : null) : null);
+    }) : h('div', {className: 'text-sm text-slate-500'}, 'No goals yet.');
+    const form = h('div', {className: 'space-y-2 mb-3'},
+      h('textarea', {rows: 2, value: this.state.goalText, onChange: e => this.setState({goalText: e.target.value}), placeholder: 'e.g. Fix the failing tests in my project', className: 'w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm'}),
+      h('div', {className: 'grid grid-cols-2 gap-2'},
+        h('input', {value: this.state.goalCheck, onChange: e => this.setState({goalCheck: e.target.value}), placeholder: 'Done when… (e.g. pytest -q)', className: 'rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-mono'}),
+        h('input', {value: this.state.goalCwd, onChange: e => this.setState({goalCwd: e.target.value}), placeholder: 'Folder or project name', className: 'rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-mono'})),
+      h('button', {onClick: () => this.startGoal(), disabled: this.state.goalBusy || this.state.goalText.trim().length < 3, className: 'w-full px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-sm'}, this.state.goalBusy ? 'Starting…' : 'Start long-running goal'));
+    return this.card('Long-running goals', h('div', null, form, h('div', {className: 'space-y-2 max-h-[28rem] overflow-y-auto'}, list)));
   }
   async loadToolsStatus() {
     try {
@@ -688,13 +777,11 @@ class App extends React.Component {
         h('div',{className:'shrink-0 whitespace-nowrap text-lg font-extrabold'},'Living ',h('span',{className:'text-brand-400'},'Assistant')),
         h('nav',{className:'flex lg:block gap-2 lg:mt-6'},
           NAV.map(([id,label])=>h('button',{key:id,onClick:()=>this.navigate(id),className:cx('shrink-0 lg:w-full text-left px-3 py-2 rounded-xl text-sm transition',this.state.page===id?'bg-slate-800 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white')},label)),
-          h('a',{href:'/aura',className:'shrink-0 block lg:w-full text-left px-3 py-2 rounded-xl text-sm transition font-medium text-cyan-400 hover:bg-cyan-950/40 lg:mt-3 border border-cyan-800/50'},'🌌 Aura OS HUD'),
         )),
       h('main',{className:'px-4 py-5 md:px-6 lg:px-8 min-w-0 max-w-[1600px] mx-auto w-full'},
         h('header',{className:'flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5'},
           h('div',null,h('h1',{className:'text-2xl font-bold'},pageLabel),h('p',{className:'text-sm text-slate-400'},'Local-first control center')),
           h('div',{className:'flex flex-wrap gap-2 items-center'},
-            h('a',{href:'/aura',className:'px-3 py-2 rounded-xl border border-cyan-500/40 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 text-sm font-semibold flex items-center gap-1.5 transition'},'🌌 Launch Aura OS'),
             h('span',{className:'inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-400'},h('span',{className:cx('h-2 w-2 rounded-full',online?'bg-emerald-400':'bg-rose-400')}),online?`online · ${this.state.status.profile}`:'offline'),
             h('input',{type:'password',value:this.state.tokenInput,onChange:e=>this.setState({tokenInput:e.target.value}),placeholder:'API token',className:'w-48 sm:w-64 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-brand-400'}),
             h('button',{className:'px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700',onClick:()=>this.useToken()},'Use token'))),
@@ -1089,6 +1176,7 @@ class App extends React.Component {
           className: cx('h-9 w-9 rounded-full border flex items-center justify-center transition disabled:opacity-50',
             voiceRecording ? 'border-rose-500 bg-rose-600 text-white animate-pulse' : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200'),
         }, '🎙'),
+        voiceRecording ? h(MicSpectrum, {api: (path) => this.api(path)}) : null,
         h('button', {
           onClick: () => this.toggleSpeakReplies(),
           title: speakReplies ? 'Spoken replies on' : 'Spoken replies off',
@@ -1117,6 +1205,7 @@ class App extends React.Component {
     const side = h('div', {className: 'space-y-3'},
       pending.length ? this.card(`Waiting for you (${pending.length})`, h(ApprovalList, {rows: pending.slice(0, 3), decide: (id, v) => this.decideApproval(id, v)})) : null,
       this.card('Live tool activity', h('div', null, activity)),
+      this.renderGoals(),
       this.card('What I can do', h('ul', {className: 'text-sm text-slate-400 space-y-1.5'},
         h('li', null, '🔎 Web search, article reading, image search & download'),
         h('li', null, '🎬 Video/audio download from YouTube and 1000+ sites'),

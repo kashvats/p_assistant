@@ -69,6 +69,33 @@ def test_dashboard_route_serves_hardened_local_ui(monkeypatch):
     assert client.get("/dashboard-assets/src/../../default_config.yaml").status_code == 404
 
 
+def test_app_assets_revalidate_so_updates_never_pair_new_html_with_old_code(monkeypatch):
+    import living_assistant.api as api
+
+    monkeypatch.delenv("ASSISTANT_API_TOKEN", raising=False)
+    client = TestClient(api.app)
+    assert client.get("/dashboard-assets/src/agent.js").headers["cache-control"] == "no-cache"
+    assert client.get("/dashboard-assets/dist/app.css").headers["cache-control"] == "no-cache"
+
+
+def test_floating_agent_page_asks_for_microphone_consent(monkeypatch):
+    import living_assistant.api as api
+
+    monkeypatch.delenv("ASSISTANT_API_TOKEN", raising=False)
+    client = TestClient(api.app)
+    page = client.get("/agent")
+    assert page.status_code == 200
+    assert "/dashboard-assets/src/agent.js" in page.text
+    assert 'id="agent-allow"' in page.text and 'id="agent-deny"' in page.text
+    assert "'unsafe-inline'" not in page.headers["content-security-policy"]
+
+    agent = client.get("/dashboard-assets/src/agent.js").text
+    assert "res.approval_required" in agent
+    assert "e.isTrusted" in agent  # consent only from a real click
+    assert "if (!drag) return;" in agent  # a stray pointer release never starts listening
+    assert "/voice/meter" in agent
+
+
 def test_webui_is_declared_as_package_data():
     config = Path("pyproject.toml").read_text(encoding="utf-8")
     assert '"webui/*.html"' in config

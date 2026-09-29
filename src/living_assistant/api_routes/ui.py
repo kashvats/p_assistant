@@ -24,15 +24,14 @@ def _security_headers() -> dict[str, str]:
     }
 
 
-@router.get("/dashboard", response_class=HTMLResponse)
-def dashboard():
-    page = _WEBUI_ROOT.joinpath("index.html").read_text(encoding="utf-8")
-    # The source index stays Vite-native (/src, /vendor, /dist). The packaged
+def _page(filename: str) -> HTMLResponse:
+    page = _WEBUI_ROOT.joinpath(filename).read_text(encoding="utf-8")
+    # The source pages stay Vite-native (/src, /vendor, /dist). The packaged
     # Python service exposes the same local assets under a namespaced route.
     for prefix in ("src", "vendor", "dist"):
         page = page.replace(f'="/{prefix}/', f'="/dashboard-assets/{prefix}/')
-    # Same model as /aura: the page is only reachable through the host/origin-checked
-    # local API, so it can carry the local token instead of asking the user to paste it.
+    # Pages are only reachable through the host/origin-checked local API, so they
+    # carry the local token instead of asking the user to paste it.
     page = page.replace("<head>", f'<head>\n  <meta name="assistant-token" content="{get_api_token()}">', 1)
     headers = _security_headers()
     headers.update(
@@ -49,26 +48,15 @@ def dashboard():
     return HTMLResponse(page, headers=headers)
 
 
-@router.get("/aura", response_class=HTMLResponse)
-def aura():
-    page = _WEBUI_ROOT.joinpath("aura.html").read_text(encoding="utf-8")
-    for prefix in ("src", "vendor", "dist"):
-        page = page.replace(f'="/{prefix}/', f'="/dashboard-assets/{prefix}/')
-    token = get_api_token()
-    page = page.replace("<head>", f'<head>\n  <meta name="assistant-token" content="{token}">')
-    headers = _security_headers()
-    headers.update(
-        {
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'self'; img-src 'self' data:; "
-                "connect-src 'self'; style-src 'self'; "
-                "script-src 'self'; frame-ancestors 'none'; "
-                "base-uri 'none'; object-src 'none'"
-            ),
-        }
-    )
-    return HTMLResponse(page, headers=headers)
+@router.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return _page("index.html")
+
+
+@router.get("/agent", response_class=HTMLResponse)
+def floating_agent():
+    """Compact always-on-top companion page loaded by the desktop shell."""
+    return _page("agent.html")
 
 
 @router.get("/dashboard-assets/{asset_path:path}")
@@ -91,9 +79,11 @@ def dashboard_asset(asset_path: str):
 
     media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     headers = _security_headers()
+    # App code changes with every update and pages are no-store, so a cached copy
+    # could pair new HTML with old JS/CSS; local reads are cheap, always revalidate.
     headers["Cache-Control"] = (
         "public, max-age=31536000, immutable"
         if path.parts[0] == "vendor"
-        else "public, max-age=300"
+        else "no-cache"
     )
     return Response(target.read_bytes(), media_type=media_type, headers=headers)

@@ -57,6 +57,5 @@ def test_tool_step_limit_returns_explicit_user_message():
         Specialists(), max_steps=3,
     )
     answer = orch.run('do an unbounded task')
-    assert 'configured tool-step limit' in answer
-    assert 'retry with a narrower goal' in answer
+    assert 'steps available for one request' in answer and 'continue as a goal' in answer
     assert provider.calls == 3

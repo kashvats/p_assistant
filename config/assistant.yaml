@@ -18,6 +18,15 @@ model_usage:
 llamacpp:
   base_url: ${LLAMACPP_BASE_URL:http://127.0.0.1:8080}
   timeout_seconds: 180
+  # The assistant starts and supervises llama-server when nothing is serving base_url.
+  # A server you start yourself on that port is used as-is and never touched.
+  auto_start: true
+  model_path: ${LLAMACPP_MODEL:~/.cache/huggingface/hub/models--bartowski--Qwen_Qwen3-30B-A3B-Instruct-2507-GGUF/snapshots/6c6e8692f43e4ca663f7ece8229a1361090d3a4c/Qwen_Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf}
+  gpu: auto               # auto = discrete GPU if present, else CPU; "cpu" to force CPU; or a device id like Vulkan1
+  context_tokens: 16384
+  batch_size: 2048
+  ubatch_size: 2048
+  binary: ""              # empty = find llama-server on PATH or the winget install
 
 ollama:
   enabled: false
@@ -398,3 +407,21 @@ workspace_snapshots:
   max_files: 50000
   max_total_bytes: 2000000000
   retention_per_root: 30
+
+# Specialist tool sets exposed to the chat model. Off by default: fewer tools means faster,
+# more accurate tool choice. The Security page and background guardian work either way.
+tool_sets:
+  security_suite: false     # 29 tools: antivirus/YARA scans, process & network containment, integrity checks
+  self_improvement: false   # 11 tools: propose/evaluate/canary/apply changes to the assistant itself
+
+# scrape_page / crawl_site / scrape_to_table (Crawl4AI headless browser).
+scraping:
+  respect_robots_txt: true
+  max_pages: 20            # pagination pages per start URL
+  max_rows: 5000
+  max_detail_pages: 50     # item pages opened to fill columns missing from a listing
+  max_crawl_pages: 100
+
+# deep_research (GPT Researcher on the local model; sources come from web_search).
+research:
+  embedding_model: sentence-transformers/all-MiniLM-L6-v2

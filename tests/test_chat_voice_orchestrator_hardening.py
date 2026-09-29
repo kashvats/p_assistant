@@ -79,3 +79,10 @@ def test_log_analysis_groups_repeated_errors_and_tracebacks():
     assert report["warning_count"] == 1
     assert report["top_errors"][0]["count"] == 2
     assert report["tracebacks"] and "ValueError" in report["tracebacks"][0]
+
+
+def test_jev_reports_offline_heuristic_mode_and_live_mode(monkeypatch):
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    offline = JevClient()
+    assert offline.live is False and offline.mode()["mode"] == "offline-heuristic"
+    assert JevClient(api_key="real-key").mode()["mode"] == "live"

@@ -57,11 +57,11 @@ def test_run_command_publishes_preview_before_subprocess_execution(tmp_path, mon
     )
     registry = ProcessRegistry(tmp_path / "processes.json")
 
-    def fake_run(*args, **kwargs):
+    def fake_popen(*args, **kwargs):
         order.append("execute")
-        return SimpleNamespace(returncode=0)
+        return SimpleNamespace(pid=0, wait=lambda timeout=None: 0)
 
-    monkeypatch.setattr(shell.subprocess, "run", fake_run)
+    monkeypatch.setattr(shell.subprocess, "Popen", fake_popen)
     tools = _handlers(
         build_shell_tools(
             Workspace([root]),

@@ -147,7 +147,8 @@ def test_api_exposes_platform_status(monkeypatch):
     class Fake:
         def to_dict(self):
             return {'os':'TestOS','symlink_supported':False}
-    monkeypatch.setattr(api,'platform_status',lambda:Fake())
+    import living_assistant.api_routes.system as system_routes
+    monkeypatch.setattr(system_routes,'platform_status',lambda:Fake())
     monkeypatch.setenv('ASSISTANT_API_TOKEN','test-token')
     client=TestClient(api.app,headers={'Authorization':'Bearer test-token'})
     r=client.get('/platform/status')
