@@ -111,16 +111,19 @@ def events_from_log(lines: Iterable[str], stream: str = "log") -> list[dict]:
     config = TemplateMinerConfig()
     config.profiling_enabled = False
     miner = TemplateMiner(config=config)
-    out = []
+    parsed = []
     for line in lines:
         line = str(line).rstrip()
         if not line.strip():
             continue
         m = _LOG_TIME.match(line)
-        ts = m.group(1).replace(",", ".") if m else None
-        message = line[m.end():] if m else line
-        result = miner.add_log_message(message)
-        template = result["template_mined"]
+        parsed.append((line, m.group(1).replace(",", ".") if m else None, line[m.end():] if m else line))
+        miner.add_log_message(parsed[-1][2])
+    out = []
+    # Second pass: Drain generalizes templates as it sees more lines, so assign each line its final template.
+    for line, ts, message in parsed:
+        cluster = miner.match(message)
+        template = cluster.get_template() if cluster else message
         params = miner.extract_parameters(template, message, exact_matching=False) or []
         numeric = {f"p{i}": float(p.value) for i, p in enumerate(params) if _is_number(p.value)}
         out.append({"event_type": "log:" + normalize_type(template)[:100], "timestamp": ts, "stream": stream,

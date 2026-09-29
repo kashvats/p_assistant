@@ -115,6 +115,7 @@ class SequenceDetector(Detector):
             if total < self.min_support * 2:
                 continue
             freq = Counter(kinds)
+            deviations: dict[int, FindingCandidate] = {}  # one per deviating event, with the longest context
             for n in range(2, self.max_n + 1):
                 grams: dict[tuple, list[int]] = defaultdict(list)
                 for i in range(total - n + 1):
@@ -146,11 +147,14 @@ class SequenceDetector(Detector):
                         if actual == g[-1] or count >= self.min_support:
                             continue
                         for i in grams[g[:-1] + (actual,)]:
-                            out.append(FindingCandidate(
+                            deviant = i + n - 1
+                            if deviant in deviations and len(deviations[deviant].event_ids) >= n:
+                                continue
+                            deviations[deviant] = FindingCandidate(
                                 "SEQUENCE_DEVIATION", f"{' → '.join(g[:-1])} → {actual}, expected {g[-1]}",
                                 ids[i:i + n], sig, expected=g[-1], actual=actual,
                                 stats={"pattern_support": len(pos), "pattern_confidence": round(confidence, 3),
-                                       "deviation_count": count}))
+                                       "deviation_count": count})
                     reverse = g[::-1]
                     if reverse != g and 0 < len(grams.get(reverse, [])) < self.min_support:
                         for i in grams[reverse]:
@@ -159,8 +163,6 @@ class SequenceDetector(Detector):
                     # Where in the stream the pattern lives: only early (disappeared) or only late (emerging).
                     if total >= 30 and len(pos) >= self.min_support:
                         early, late = total * 2 / 3, total / 3
-                        if all(i < early for i in pos) and grams.get(g[:1]) is None and False:
-                            pass
                         if max(pos) < early and sum(1 for k in kinds[int(early):] if k == g[0]) >= self.min_support:
                             out.append(FindingCandidate("PATTERN_DISAPPEARED", f"{' → '.join(g)} stopped occurring",
                                                         ids[pos[-1]:pos[-1] + n], sig, expected="continues", actual="absent in last third",
@@ -169,6 +171,7 @@ class SequenceDetector(Detector):
                             out.append(FindingCandidate("PATTERN_EMERGING", f"{' → '.join(g)} appeared recently",
                                                         ids[pos[0]:pos[0] + n], sig, expected="absent", actual="new",
                                                         stats={"first_position": pos[0], "events": total}))
+            out.extend(deviations.values())
         return out
 
 
@@ -221,35 +224,63 @@ class FrequencyDetector(Detector):
     name = "frequency"
 
     def detect(self, ctx: Context) -> list:
-        from scipy.stats import poisson
+        from scipy.stats import binomtest, poisson
 
         out: list = []
         events = sorted(ctx.events, key=lambda e: (e.get("ts") or ""))
         if len(events) < 40:
             return out
-        t, _timed = ctx.axis(events)
+        t, timed = ctx.axis(events)
         bins = int(min(30, max(6, len(events) // 20)))
         edges = np.linspace(t.min(), t.max() + 1e-9, bins + 1)
+        totals, _ = np.histogram(t, bins=edges)
+        warmup = max(3, bins // 3)
+        cut = ALPHA / bins  # Bonferroni over windows
+
+        def ids_in(b: int, idx: list[int] | None = None) -> list[str]:
+            pool = idx if idx is not None else range(len(events))
+            return [events[i]["id"] for i in pool if edges[b] <= t[i] < edges[b + 1]][:20]
+
+        # Overall activity: bursts and silences of everything (only meaningful on a real time axis).
+        if timed:
+            for b in range(warmup, bins):
+                mu, c = totals[:b].mean(), int(totals[b])
+                if mu > 0 and c >= 3 and poisson.sf(c - 1, mu) < cut:
+                    out.append(FindingCandidate("UNUSUAL_FREQUENCY", f"burst: {c} events in one window (normal {mu:.1f})",
+                                                ids_in(b), None, expected=round(float(mu), 2), actual=c,
+                                                stats={"window": b, "scope": "all events", "direction": "high"}))
+                elif mu >= 5 and poisson.cdf(c, mu) < cut:
+                    before = [events[i]["id"] for i in range(len(events)) if t[i] < edges[b]][-1:]
+                    out.append(FindingCandidate("UNUSUAL_FREQUENCY", f"silence: {c} events in one window (normal {mu:.1f})",
+                                                before, None, expected=round(float(mu), 2), actual=c,
+                                                stats={"window": b, "scope": "all events", "direction": "low"}))
+
+        # Each event type: its share of the window's events, so a global lull is not blamed on every type.
         by_kind: dict[str, list[int]] = defaultdict(list)
         for i, e in enumerate(events):
             by_kind[e["kind"]].append(i)
-        warmup = max(3, bins // 3)
         for kind, idx in by_kind.items():
             if len(idx) < 10:
                 continue
             counts, _ = np.histogram(t[idx], bins=edges)
             for b in range(warmup, bins):
-                mu = counts[:b].mean()
-                c = int(counts[b])
-                in_bin = [events[i]["id"] for i in idx if edges[b] <= t[i] < edges[b + 1]][:20]
-                if mu > 0 and c >= 3 and poisson.sf(c - 1, mu) < ALPHA / bins:
-                    out.append(FindingCandidate("UNUSUAL_FREQUENCY", f"{kind}: {c} in one window (normal {mu:.1f})",
-                                                in_bin, None, expected=round(float(mu), 2), actual=c,
-                                                stats={"window": b, "direction": "high", "p_value": float(poisson.sf(c - 1, mu))}))
-                elif mu >= 5 and poisson.cdf(c, mu) < ALPHA / bins:
-                    out.append(FindingCandidate("UNUSUAL_FREQUENCY", f"{kind}: only {c} in one window (normal {mu:.1f})",
-                                                in_bin or [events[idx[-1]]["id"]], None, expected=round(float(mu), 2), actual=c,
-                                                stats={"window": b, "direction": "low", "p_value": float(poisson.cdf(c, mu))}))
+                n_bin, c = int(totals[b]), int(counts[b])
+                base_total = totals[:b].sum()
+                if n_bin < 5 or base_total == 0:
+                    continue
+                share = counts[:b].sum() / base_total
+                if share <= 0 or share >= 1:
+                    continue
+                high = binomtest(c, n_bin, share, alternative="greater").pvalue
+                low = binomtest(c, n_bin, share, alternative="less").pvalue
+                if high < cut and c >= 3:
+                    out.append(FindingCandidate("UNUSUAL_FREQUENCY", f"{kind}: {c} of {n_bin} events in one window (normal share {share:.0%})",
+                                                ids_in(b, idx), None, expected=round(float(share * n_bin), 2), actual=c,
+                                                stats={"window": b, "direction": "high", "p_value": float(high)}))
+                elif low < cut:
+                    out.append(FindingCandidate("UNUSUAL_FREQUENCY", f"{kind}: only {c} of {n_bin} events in one window (normal share {share:.0%})",
+                                                ids_in(b) or [events[idx[-1]]["id"]], None, expected=round(float(share * n_bin), 2), actual=c,
+                                                stats={"window": b, "direction": "low", "p_value": float(low)}))
             third = bins // 3
             if counts[: bins // 2].sum() == 0 and counts[bins // 2:].sum() >= 5:
                 out.append(FindingCandidate("EMERGING_EVENT", f"{kind} started occurring", [events[i]["id"] for i in idx[:5]],

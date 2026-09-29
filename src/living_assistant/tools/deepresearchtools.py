@@ -7,10 +7,14 @@ reader: every researcher, including the nested ones deep mode creates, uses
 ``LivingAssistantRetriever``, which returns already-read pages. GPT Researcher
 therefore never fetches pages itself, and the same network gates, search budget
 and untrusted-content handling apply as everywhere else in the assistant.
+
+Every page the retriever hands to GPT Researcher is also captured, so a research
+run can be stored as evidence in a research project (see living_assistant.research).
 """
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import re
 import sys
@@ -27,8 +31,10 @@ from living_assistant.core.config import data_dir
 from living_assistant.core.workspace import Workspace
 from living_assistant.security.security_utils import redact_secrets
 
-REPORT_TYPES = {"standard": "research_report", "detailed": "detailed_report", "deep": "deep"}
+REPORT_TYPES = {"quick": None, "standard": "research_report", "detailed": "detailed_report", "deep": "deep"}
 _RUN_LOCK = threading.Lock()  # one report at a time: the local model serves one request at a time anyway
+# Pages read during the current research run (the list is shared by nested researchers and their threads).
+_CAPTURE: contextvars.ContextVar[list | None] = contextvars.ContextVar("research_capture", default=None)
 
 
 def make_retriever(search: Callable, extract: Callable, max_page_chars: int = 12000) -> type:
@@ -65,13 +71,18 @@ def make_retriever(search: Callable, extract: Callable, max_page_chars: int = 12
                 text = _clean(str(page.get("text") or ""))
                 if len(text) < 200:
                     return None
+                meta = page.get("metadata") or {}
                 return {"href": str(page.get("url") or url), "url": str(page.get("url") or url),
                         "title": _clean(str(page.get("title") or title))[:200], "body": snippet,
-                        "raw_content": text[:max_page_chars]}
+                        "raw_content": text[:max_page_chars], "published": meta.get("date"), "query": self.query}
 
             with ThreadPoolExecutor(max_workers=4) as pool:
                 pages = [p for p in pool.map(read, picked[: int(max_results) + 2]) if p]
-            return pages[: int(max_results)]
+            pages = pages[: int(max_results)]
+            captured = _CAPTURE.get()
+            if captured is not None:
+                captured.extend(pages)
+            return pages
 
     return LivingAssistantRetriever
 
@@ -87,6 +98,7 @@ def install_retriever(retriever: type) -> None:
 
 def _run_async(factory: Callable[[], Any]) -> Any:
     box: dict[str, Any] = {}
+    ctx = contextvars.copy_context()  # carry the capture list into the research thread
 
     def target():
         loop = asyncio.ProactorEventLoop() if sys.platform == "win32" else asyncio.new_event_loop()
@@ -98,7 +110,7 @@ def _run_async(factory: Callable[[], Any]) -> Any:
         finally:
             loop.close()
 
-    thread = threading.Thread(target=target, name="gpt-researcher", daemon=True)
+    thread = threading.Thread(target=lambda: ctx.run(target), name="gpt-researcher", daemon=True)
     thread.start()
     thread.join()
     if "error" in box:
@@ -138,67 +150,109 @@ def researcher_config(base_url: str, model: str, api_key: str, context_tokens: i
     }
 
 
-def build_deep_research_tools(workspace: Workspace, search: Callable, extract: Callable, gate: Callable,
-                              base_url: str, model: str, api_key: str = "sk-local", context_tokens: int = 16384,
-                              embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2") -> list[Tool]:
-    install_retriever(make_retriever(search, extract))
+def make_research_runner(search: Callable, extract: Callable, gate: Callable, base_url: str, model: str,
+                         api_key: str = "sk-local", context_tokens: int = 16384,
+                         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2") -> Callable[..., dict]:
+    """``run(question, depth, source_urls)`` -> {report, sources, pages}. Pages are what was actually read."""
+    retriever = make_retriever(search, extract)
+    install_retriever(retriever)
     config = researcher_config(base_url, model, api_key, context_tokens, embedding_model)
 
-    def deep_research(question: str, depth: str = "standard", source_urls: list | None = None, output: str = ""):
+    def run(question: str, depth: str = "standard", source_urls: list | None = None) -> dict:
         question = str(question or "").strip()
         if not question:
             return {"ok": False, "error": "A research question is required."}
-        report_type = REPORT_TYPES.get(str(depth or "standard").lower())
-        if report_type is None:
+        depth = str(depth or "standard").lower()
+        if depth not in REPORT_TYPES:
             return {"ok": False, "error": f"depth must be one of {sorted(REPORT_TYPES)}."}
         sources = [str(u) for u in (source_urls or []) if str(u).startswith(("http://", "https://"))]
         for url in sources:  # GPT Researcher reads these itself, so they pass the gate first
             blocked = gate(url, "Research")
             if blocked:
                 return blocked
-
-        slug = re.sub(r"[^a-z0-9]+", "-", question.lower()).strip("-")[:60] or "report"
-        try:
-            target = workspace.resolve(output or f"research/{datetime.now():%Y%m%d-%H%M}-{slug}.md")
-        except Exception as exc:
-            return {"ok": False, "error": redact_secrets(exc, 300)}
+        started = time.monotonic()
+        if REPORT_TYPES[depth] is None:  # quick: read sources, no report writing
+            pages = retriever(question).search(max_results=5)
+            return {"ok": bool(pages), "question": question, "depth": depth, "report": "", "pages": pages,
+                    "sources": [p["url"] for p in pages], "minutes": round((time.monotonic() - started) / 60, 1),
+                    **({} if pages else {"error": "No readable sources found."})}
         cfg_path = data_dir() / "gpt_researcher.json"
         cfg_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+        captured: list = []
 
         async def go():
             from gpt_researcher import GPTResearcher
 
-            researcher = GPTResearcher(
-                query=question, report_type=report_type, config_path=str(cfg_path), verbose=False,
-                source_urls=sources or None, complement_source_urls=bool(sources),
-            )
+            researcher = GPTResearcher(query=question, report_type=REPORT_TYPES[depth], config_path=str(cfg_path),
+                                       verbose=False, source_urls=sources or None, complement_source_urls=bool(sources))
             await researcher.conduct_research()
             report = await researcher.write_report()
             return report, list(dict.fromkeys(researcher.get_source_urls()))
 
         if not _RUN_LOCK.acquire(blocking=False):
             return {"ok": False, "busy": True, "error": "Another research report is being written; try again when it finishes."}
-        started = time.monotonic()
+        token = _CAPTURE.set(captured)
         try:
             report, urls = _run_async(go)
         except Exception as exc:
-            return {"ok": False, "error": f"Research failed: {redact_secrets(exc, 800)}"}
+            return {"ok": False, "error": f"Research failed: {redact_secrets(exc, 800)}", "pages": captured}
         finally:
+            _CAPTURE.reset(token)
             _RUN_LOCK.release()
+        seen, pages = set(), []
+        for p in captured:
+            if p["url"] not in seen:
+                seen.add(p["url"])
+                pages.append(p)
         report = str(report or "").strip()
-        if not report:
-            return {"ok": False, "error": "The researcher returned an empty report.", "sources": urls}
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(report + "\n", encoding="utf-8")
+        return {"ok": bool(report), "question": question, "depth": depth, "report": report, "sources": urls, "pages": pages,
+                "minutes": round((time.monotonic() - started) / 60, 1),
+                **({} if report else {"error": "The researcher returned an empty report."})}
+
+    return run
+
+
+def build_deep_research_tools(workspace: Workspace, search: Callable, extract: Callable, gate: Callable,
+                              base_url: str, model: str, api_key: str = "sk-local", context_tokens: int = 16384,
+                              embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+                              ingest: Callable[[str, dict], dict] | None = None,
+                              runner: Callable[..., dict] | None = None) -> list[Tool]:
+    """``ingest(project, result)`` stores a run's pages as evidence in a research project, when given."""
+    run = runner or make_research_runner(search, extract, gate, base_url, model, api_key, context_tokens, embedding_model)
+
+    def deep_research(question: str, depth: str = "standard", source_urls: list | None = None, output: str = "",
+                      project: str = ""):
+        result = run(question, depth, source_urls)
+        stored = None
+        if project and ingest is not None and result.get("pages"):
+            try:
+                stored = ingest(project, result)
+            except Exception as exc:
+                stored = {"ok": False, "error": redact_secrets(exc, 400)}
+        if not result.get("ok"):
+            return {**{k: v for k, v in result.items() if k != "pages"}, **({"project_knowledge": stored} if stored else {})}
+        report = result["report"]
+        report_file = None
+        if report:
+            slug = re.sub(r"[^a-z0-9]+", "-", result["question"].lower()).strip("-")[:60] or "report"
+            try:
+                target = workspace.resolve(output or f"research/{datetime.now():%Y%m%d-%H%M}-{slug}.md")
+            except Exception as exc:
+                return {"ok": False, "error": redact_secrets(exc, 300)}
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(report + "\n", encoding="utf-8")
+            report_file = str(target)
         return {
             "ok": True,
-            "question": question,
-            "depth": depth,
-            "report_file": str(target),
-            "sources": urls[:40],
-            "minutes": round((time.monotonic() - started) / 60, 1),
+            "question": result["question"],
+            "depth": result["depth"],
+            "report_file": report_file,
+            "sources": result["sources"][:40],
+            "pages_read": len(result["pages"]),
+            "minutes": result["minutes"],
             "report": report[:12000] + ("\n\n[... truncated; full report in report_file]" if len(report) > 12000 else ""),
-            "instructions": "Summarize the key findings for the user with their [n]/link citations and give the report_file path.",
+            **({"project_knowledge": stored} if stored else {}),
+            "instructions": "Summarize the key findings for the user with their citations and give the report_file path.",
         }
 
     return [
@@ -206,13 +260,15 @@ def build_deep_research_tools(workspace: Workspace, search: Callable, extract: C
             "deep_research",
             "Write a long, cited research report on a topic: plans sub-questions, searches and reads many sources, "
             "and writes a structured markdown report saved to the workspace. Takes several minutes. Use for reports, "
-            "literature/market/competitor reviews and 'research X in depth'; for a quick fact use web_research.",
+            "literature/market/competitor reviews and 'research X in depth'; for a quick fact use web_research. "
+            "Pass `project` to also store every source read as evidence in that research project.",
             {"type": "object", "properties": {
                 "question": {"type": "string", "description": "The research topic or question."},
                 "depth": {"type": "string", "enum": sorted(REPORT_TYPES), "default": "standard",
-                          "description": "standard (~1000 words), detailed (longer, per-subtopic), deep (recursive, slowest)."},
+                          "description": "quick (read sources, no report), standard (~1000 words), detailed, deep (recursive, slowest)."},
                 "source_urls": {"type": "array", "items": {"type": "string"}, "description": "Pages that must be used as sources."},
                 "output": {"type": "string", "description": "Markdown file to save the report to (default research/<date>-<topic>.md)."},
+                "project": {"type": "string", "description": "Research project to store the evidence in (name or id)."},
             }, "required": ["question"]},
             deep_research,
         )

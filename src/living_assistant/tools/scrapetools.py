@@ -104,17 +104,7 @@ def _fill_rates(rows: list[dict], columns: list[str]) -> dict[str, str]:
     return {c: f"{round(100 * sum(1 for r in rows if r.get(c)) / n)}%" for c in columns}
 
 
-def _parse_json(text: str) -> Any:
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(text or "").strip(), flags=re.I)
-    starts = [i for i in (text.find("{"), text.find("[")) if i >= 0]
-    if starts:
-        text = text[min(starts):]
-    try:
-        return json.loads(text)
-    except ValueError:
-        from json_repair import repair_json
-
-        return json.loads(repair_json(text))
+from living_assistant.research.llm import parse_json as _parse_json  # noqa: E402
 
 
 # Class names usable in a plain CSS selector. Utility frameworks (Tailwind: "text-[10px]",

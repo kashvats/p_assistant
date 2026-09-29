@@ -40,19 +40,57 @@ Because this AI has local execution privileges, the codebase is heavily armored 
 *   **Security Sensors:** A daemon that ingests raw OS telemetry (macOS Endpoint Security, Windows Event Logs) to monitor for suspicious child processes or unauthorized network connections.
 
 ### 6. Deployment & Platform Hardening
-*   **Local Web Dashboard:** Hosts a FastAPI backend and a static HTML frontend for interacting with the assistant outside the CLI.
+*   **Local Web Dashboard & Desktop HUD:** Hosts a FastAPI backend with a React + Vite + Tailwind dashboard and a hovering Electron companion HUD.
 *   **Release Manager:** Handles safe, idempotent updates. Creates fresh virtual environments for updates, snapshots user state, and can roll back to a previous version cleanly.
 *   **Cross-Platform Daemons:** Automatically installs the background nervous system as an unprivileged background service (Scheduled Task on Windows, `systemd` on Linux, `LaunchAgent` on macOS).
 
-## Quick Start
+## Quick Start & Access URLs
+
+### Application URLs
+
+Once started, the assistant serves on `127.0.0.1:8787` by default:
+
+| Interface | URL | Description |
+| :--- | :--- | :--- |
+| **Web Dashboard** | [http://127.0.0.1:8787/dashboard](http://127.0.0.1:8787/dashboard) | Primary control center: Chat, Model Manager, Approvals, Skills, Agents, Security, and Activity telemetry. |
+| **Desktop Companion Agent** | [http://127.0.0.1:8787/agent](http://127.0.0.1:8787/agent) | Lightweight, floating HUD interface loaded by the Electron companion. |
+| **Local REST API & Docs** | [http://127.0.0.1:8787/docs](http://127.0.0.1:8787/docs) | Interactive OpenAPI/Swagger documentation covering all 149+ local endpoints. |
+
+---
+
+### Running the Project
+
+#### Option A: One-Click Launchers (Recommended)
+
+- **Windows:** Double-click or run `run.bat`. This automatically checks Python and Node.js prerequisites, validates dependencies, starts the FastAPI server, launches the Electron desktop companion HUD, and opens the Web Dashboard in your browser.
+  ```cmd
+  run.bat
+  ```
+
+- **Linux / macOS:** Run `run.sh` to initialize the environment and start the API server:
+  ```bash
+  chmod +x run.sh
+  ./run.sh
+  ```
+
+#### Option B: Manual CLI Execution
 
 ```bash
-# 1. Clone the repository and navigate into it
-# 2. Install dependencies
+# 1. Install editable package and dependencies
 pip install -e .
 
-# 3. Start the assistant
-organism awake
+# 2. Run initial environment diagnostics and onboarding (optional)
+organism doctor
+organism onboard
+
+# 3. Start the Web Dashboard and API server (Accessible at http://127.0.0.1:8787/dashboard)
+organism serve
+
+# Or run interactive terminal chat:
+organism chat
+
+# Or start the model-free background daemon (Nervous System):
+organism daemon
 ```
 
 ## Documentation

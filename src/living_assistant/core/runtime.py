@@ -544,22 +544,39 @@ def build_runtime(interactive: bool = True) -> Runtime:
         tool_registry.extend(build_scrape_tools(ws, cfg, approval, complete=_complete, snapshot_manager=snapshots))
     except ImportError:  # crawl4ai not installed: the lighter web tools still work
         pass
+    # Research intelligence engine: created on first use (it needs the goal runner built below).
+    _research: dict = {}
+
+    def _research_engine():
+        if 'engine' not in _research:
+            from living_assistant.research.engine import ResearchEngine
+            from living_assistant.research.store import KnowledgeStore
+            shell = tool_registry.get('run_command')
+            _research['engine'] = ResearchEngine(
+                KnowledgeStore(data_dir() / 'knowledge.sqlite3'), workspace_root=ws.roots[0], complete=_complete,
+                research_run=_research.get('runner'), run_command=shell.handler if shell else None, resolve_path=ws.resolve,
+                approval=approval, goals=goals, publish=lambda event, **data: events_bus.publish(event, **data))
+        return _research['engine']
+
     try:
-        from living_assistant.tools.deepresearchtools import build_deep_research_tools
+        from living_assistant.tools.deepresearchtools import build_deep_research_tools, make_research_runner
         from living_assistant.tools.webtools import network_gate
         _llm_cfg = cfg.get('litellm', {}) or {}
         _research_cfg = cfg.get('research', {}) or {}
         _base = str(_llm_cfg.get('base_url') or '') if _llm_cfg.get('enabled') else ''
         _base = _base or str((cfg.get('llamacpp', {}) or {}).get('base_url', 'http://127.0.0.1:8080')).rstrip('/') + '/v1'
-        tool_registry.extend(build_deep_research_tools(
-            ws, _web['web_search'], _web['web_extract_article'],
+        _research['runner'] = make_research_runner(
+            _web['web_search'], _web['web_extract_article'],
             gate=lambda url, purpose: network_gate(url, purpose, approval),
             base_url=_base,
             model=str(_llm_cfg.get('model_alias') or 'openai/local-model').split('/', 1)[-1],
             api_key=str(_llm_cfg.get('api_key') or 'sk-local'),
             context_tokens=int((cfg.get('llamacpp', {}) or {}).get('context_tokens', 16384)),
             embedding_model=str(_research_cfg.get('embedding_model') or 'sentence-transformers/all-MiniLM-L6-v2'),
-        ))
+        )
+        tool_registry.extend(build_deep_research_tools(
+            ws, _web['web_search'], _web['web_extract_article'], gate=None, base_url=_base, model='',
+            runner=_research['runner'], ingest=lambda project, result: _research_engine().ingest_research(project, result)))
     except ImportError:  # gpt-researcher not installed
         pass
     tool_registry.extend(build_browser_tools(browser,enabled=browser_enabled,external=browser_use))
@@ -593,6 +610,13 @@ def build_runtime(interactive: bool = True) -> Runtime:
         publish=lambda event, **data: events_bus.publish(event, **data),
     )
     tool_registry.extend(build_goal_tools(lambda: goals))
+    from living_assistant.tools.researchenginetools import build_research_engine_tools
+    tool_registry.extend(build_research_engine_tools(_research_engine, lambda path: ws.read_text(path, max_chars=2_000_000)))
+    if not os.environ.get('PYTEST_CURRENT_TEST'):
+        try:
+            _research_engine().resume_interrupted()
+        except Exception:
+            pass  # a damaged knowledge store must not stop the assistant from starting
     tool_registry.extend(build_database_tools(cfg))
     tool_registry.extend(build_personal_tools(memory,notifier))
     tool_registry.extend(build_calendar_tools(calendar))

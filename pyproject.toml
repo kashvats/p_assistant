@@ -57,6 +57,10 @@ dependencies = [
   "langchain-openai>=1.1,<1.2",
   "langchain-huggingface>=1.2,<2",
   "sentence-transformers>=5,<7",
+  # Research intelligence engine detectors (living_assistant.research).
+  "ruptures>=1.1,<2",
+  "stumpy>=1.13,<2",
+  "drain3>=0.9,<1",
 ]
 [project.optional-dependencies]
 desktop = [
