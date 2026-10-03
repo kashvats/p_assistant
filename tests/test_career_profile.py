@@ -47,10 +47,12 @@ def test_resume_parser_missing_and_empty(tmp_path):
 
 def test_save_resume_file(tmp_path):
     store = CareerProfileStore(storage_dir=tmp_path)
-    resume_bytes = b"%PDF-1.4 Mock PDF Content"
-    saved_path = store.save_resume_file("my_resume.pdf", resume_bytes)
+    resume_bytes = b"# My Resume\nExperienced developer."
+    saved_res = store.save_resume_file("my_resume.md", resume_bytes)
+    assert saved_res["ok"] is True
+    saved_path = saved_res["path"]
     assert Path(saved_path).exists()
-    assert Path(saved_path).name == "my_resume.pdf"
+    assert Path(saved_path).name == "my_resume.md"
     
     profile = store.get_profile()
     assert profile.resume_file_path == str(saved_path)

@@ -1,14 +1,15 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 import urllib.request
 
 from living_assistant.career.filler import JobFormFiller
-from living_assistant.career.parser import JobParser
+from living_assistant.career.parser import ATSPlatform, ContactEmail, JobParser, ParsedJob
 from living_assistant.career.profile import CareerProfileStore
 from living_assistant.career.tailor import TailoringEngine
 from living_assistant.career.tracker import ApplicationStatus, ApplicationTracker
 from living_assistant.desktop.browser import safe_browser_url
+from living_assistant.security.security_utils import url_network_scope
 from living_assistant.tools.base import Tool
 
 
@@ -48,6 +49,9 @@ def build_career_tools(
         if url and not fetched_html:
             if not safe_browser_url(url):
                 return {"ok": False, "error": f"Invalid or unsafe URL: {url}"}
+            scope, reason = url_network_scope(url)
+            if scope != "public":
+                return {"ok": False, "error": f"Blocked URL ({reason or 'private or invalid network address'})"}
             try:
                 req = urllib.request.Request(
                     url,
@@ -56,7 +60,6 @@ def build_career_tools(
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     fetched_html = resp.read().decode("utf-8", errors="replace")
             except Exception as e:
-                # If direct fetch fails, use fallback mock/minimal html
                 fetched_html = f"<html><body><h1>Job at {url}</h1><p>Failed to direct fetch: {e}</p></body></html>"
 
         parsed = parser.parse_posting(url=url, html=fetched_html)
@@ -93,23 +96,15 @@ def build_career_tools(
 
         # Generate cover letter if none exists
         if not record.cover_letter:
-            from living_assistant.career.parser import ATSPlatform, ParsedJob
-
             parsed_mock = ParsedJob(
                 title=record.title,
                 company=record.company,
                 url=record.url,
                 platform=ATSPlatform(record.platform) if record.platform in [p.value for p in ATSPlatform] else ATSPlatform.GENERIC,
-                description=record.notes or record.title,
+                description=record.description or record.notes or record.title,
             )
             cl = tailor.generate_cover_letter(profile, parsed_mock)
-            app_tracker._get_conn()
-            with app_tracker._get_conn() as conn:
-                conn.execute(
-                    "UPDATE career_applications SET cover_letter = ? WHERE id = ?",
-                    (cl, target_app_id),
-                )
-                conn.commit()
+            app_tracker.save_cover_letter(target_app_id, cl)
 
         preview = filler.stage_application(target_app_id, profile)
         return {
@@ -135,8 +130,6 @@ def build_career_tools(
             return {"ok": False, "error": f"Application {application_id} not found."}
 
         profile = store.get_profile()
-        from living_assistant.career.parser import ATSPlatform, ContactEmail, ParsedJob
-
         contact = None
         if record.recruiter_emails:
             contact = ContactEmail(email=record.recruiter_emails[0], is_hiring_specific=True)
@@ -146,7 +139,7 @@ def build_career_tools(
             company=record.company,
             url=record.url,
             platform=ATSPlatform(record.platform) if record.platform in [p.value for p in ATSPlatform] else ATSPlatform.GENERIC,
-            description=record.notes or f"Opening at {record.company} for {record.title}",
+            description=record.description or record.notes or f"Opening at {record.company} for {record.title}",
         )
         draft = tailor.generate_cold_outreach(profile, job_mock, contact)
         app_tracker.save_outreach(application_id, draft)

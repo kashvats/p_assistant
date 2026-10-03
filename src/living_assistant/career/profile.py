@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
@@ -67,65 +67,64 @@ class CandidateProfile:
 class ResumeParser:
     """Extracts raw text and structure from resumes in PDF, DOCX, MD, and text formats."""
 
-    def extract_text(self, file_path: str | Path) -> str:
+    def parse(self, file_path: str | Path) -> tuple[bool, str, str]:
+        """Returns (success: bool, text: str, error_message: str)."""
         path = Path(file_path)
         if not path.is_file():
-            return ""
+            return False, "", f"File not found: {file_path}"
         if path.stat().st_size == 0:
-            return ""
+            return False, "", "Resume file is empty."
 
         suffix = path.suffix.lower()
 
         if suffix in {".txt", ".md", ".markdown"}:
             try:
-                return path.read_text(encoding="utf-8", errors="replace").strip()
-            except Exception:
-                return ""
+                t = path.read_text(encoding="utf-8", errors="replace").strip()
+                return (True, t, "") if t else (False, "", "Text file is empty.")
+            except Exception as e:
+                return False, "", f"Failed to read text file: {e}"
 
         if suffix == ".docx":
             try:
-                import docx  # python-docx
+                import docx
 
                 doc = docx.Document(str(path))
                 paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-                return "\n".join(paragraphs).strip()
-            except Exception:
-                pass
+                text = "\n".join(paragraphs).strip()
+                if text:
+                    return True, text, ""
+                return False, "", "DOCX file contains no readable text."
+            except Exception as e:
+                return False, "", f"Failed to parse DOCX file: {e}"
 
         if suffix == ".pdf":
-            # Attempt pypdf
             try:
                 import pypdf
 
                 reader = pypdf.PdfReader(str(path))
-                text_parts = []
-                for page in reader.pages:
-                    t = page.extract_text()
-                    if t:
-                        text_parts.append(t)
+                text_parts = [p.extract_text() for p in reader.pages if p.extract_text()]
                 if text_parts:
-                    return "\n".join(text_parts).strip()
+                    return True, "\n".join(text_parts).strip(), ""
             except Exception:
                 pass
 
-            # Attempt fitz (PyMuPDF)
             try:
                 import fitz
 
                 doc = fitz.open(str(path))
-                text_parts = []
-                for page in doc:
-                    text_parts.append(page.get_text())
+                text_parts = [p.get_text() for p in doc if p.get_text()]
                 if text_parts:
-                    return "\n".join(text_parts).strip()
+                    return True, "\n".join(text_parts).strip(), ""
             except Exception:
                 pass
 
-        # Fallback reading raw string tokens
-        try:
-            return path.read_text(encoding="utf-8", errors="ignore").strip()
-        except Exception:
-            return ""
+            return False, "", "Failed to parse PDF document; file may be corrupt or encrypted."
+
+        return False, "", f"Unsupported resume format: {suffix}"
+
+    def extract_text(self, file_path: str | Path) -> str:
+        ok, text, _ = self.parse(file_path)
+        return text if ok else ""
 
 
 class CareerProfileStore:
@@ -165,17 +164,33 @@ class CareerProfileStore:
         self._save(profile)
         return profile
 
-    def save_resume_file(self, filename: str, content: bytes) -> str:
-        safe_name = Path(filename).name
+    def save_resume_file(self, filename: str, content: bytes) -> dict[str, Any]:
+        safe_name = Path(filename).name.strip()
+        if not safe_name:
+            return {"ok": False, "error": "Invalid or empty filename."}
+        if not content:
+            return {"ok": False, "error": "Resume file is empty."}
+
         target_path = self.resumes_dir / safe_name
         target_path.write_bytes(content)
 
-        extracted_text = self.parser.extract_text(target_path)
+        ok, extracted_text, err = self.parser.parse(target_path)
+        if not ok:
+            try:
+                target_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return {"ok": False, "error": f"Failed to parse resume: {err}"}
+
         self.update_profile({
             "resume_file_path": str(target_path),
             "resume_text": extracted_text,
         })
-        return str(target_path)
+        return {
+            "ok": True,
+            "path": str(target_path),
+            "extracted_chars": len(extracted_text),
+        }
 
     def _save(self, profile: CandidateProfile) -> None:
         self._ensure_storage()

@@ -33,7 +33,9 @@ Python, Go, Distributed Systems, Kubernetes, FastAPI, PostgreSQL, Docker, Micros
 - Principal Architect at CloudScale (2022-Present): Led core API scaling handling 2M requests/sec.
 - Senior Backend Engineer at DataFlow (2018-2022): Designed distributed streaming pipelines.
 """
-    saved_resume = profile_store.save_resume_file("master_resume.md", resume_content)
+    saved_resume_res = profile_store.save_resume_file("master_resume.md", resume_content)
+    assert saved_resume_res["ok"] is True
+    saved_resume = saved_resume_res["path"]
     assert Path(saved_resume).exists()
 
     # 3. Update candidate profile & screener preferences

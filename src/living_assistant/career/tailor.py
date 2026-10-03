@@ -104,10 +104,7 @@ Sincerely,
     def generate_cold_outreach(
         self, profile: CandidateProfile, job: ParsedJob, contact: ContactEmail | None = None
     ) -> OutreachEmailDraft:
-        recipient = contact.email if contact else ""
-        if not recipient:
-            safe_co = re.sub(r'[^a-zA-Z0-9]', '', job.company).lower()
-            recipient = f"recruiting@{safe_co}.com"
+        recipient = contact.email if contact and contact.email else ""
 
         name = profile.full_name or "Applicant"
         skills = profile.skills or ["software engineering"]

@@ -1,9 +1,16 @@
 from fastapi.testclient import TestClient
 import pytest
 from living_assistant.api import app
+from living_assistant.security.api_auth import get_api_token
 
 def test_career_api_routes():
-    client = TestClient(app)
+    # 0. Verify unauthenticated call is rejected with 401
+    unauth_client = TestClient(app)
+    unauth_res = unauth_client.get("/api/v1/career/profile")
+    assert unauth_res.status_code == 401
+
+    token = get_api_token()
+    client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
     
     # 1. GET profile
     res_get = client.get("/api/v1/career/profile")

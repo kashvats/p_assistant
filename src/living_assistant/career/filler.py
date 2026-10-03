@@ -126,6 +126,13 @@ class JobFormFiller:
         if not record:
             return {"ok": False, "error": f"Application {app_id} not found"}
 
+        if self.approval_manager is None:
+            return {
+                "ok": False,
+                "app_id": app_id,
+                "error": "No approval manager configured; submission cannot be verified.",
+            }
+
         # Verify approval
         approved = False
         if hasattr(self.approval_manager, "verify_approval"):
@@ -137,8 +144,6 @@ class JobFormFiller:
                 "execute",
             )
             approved = token_val is not None
-        elif approval_token:
-            approved = True
 
         if not approved:
             return {
