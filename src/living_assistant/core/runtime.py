@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from typing import Any
 from pathlib import Path
@@ -60,6 +61,7 @@ from living_assistant.tools.security import build_security_tools
 from living_assistant.tools.desktop import build_desktop_tools
 from living_assistant.tools.gittools import build_git_tools
 from living_assistant.tools.browsertools import build_browser_tools
+from living_assistant.tools.careertools import build_career_tools
 from living_assistant.tools.grouptools import build_group_tools
 from living_assistant.tools.voicetools import build_voice_tools
 from living_assistant.tools.routinetools import build_routine_tools
@@ -158,10 +160,85 @@ class Runtime:
     scheduler: Any = None
     llama_server: Any = None
     goals: Any = None
+    vision: Any = None  # callable returning the VisionEngine, or None when vision is disabled
+
+    def halt(self, reason: str = "kill switch") -> dict:
+        """Kill switch: stop every activity the assistant has running, then release models and processes.
+
+        Chat turns are stopped and background goals are cancelled (so they do not resume on the next
+        start), then ``shutdown`` stops the scheduler, voice, browser, subprocesses and models. The API
+        server itself keeps running; exiting is the caller's choice.
+        """
+        results: dict[str, Any] = {"reason": reason}
+        try:
+            from living_assistant.api_routes import conversations
+
+            with conversations._RUNNING_LOCK:
+                running = list(conversations._RUNNING.values())
+            for stop in running:
+                stop.set()
+            results["chat_turns_stopped"] = len(running)
+        except Exception as exc:
+            results["chat_error"] = str(exc)
+        if self.goals is not None:
+            try:
+                from living_assistant.system.goal_runner import ACTIVE
+
+                active = [g["id"] for g in self.goals.store.list(1000) if g.get("status") in ACTIVE]
+                for gid in active:
+                    self.goals.cancel(gid)
+                results["goals_cancelled"] = active
+            except Exception as exc:
+                results["goals_error"] = str(exc)
+        results.update(self.shutdown())
+        results["orphan_model_servers_stopped"] = Runtime._stop_orphan_model_servers(self)
+        if self.events_bus is not None:
+            try:
+                self.events_bus.publish("system.halted", reason=reason)
+            except Exception:
+                pass
+        return results
+
+    def _stop_orphan_model_servers(self) -> list[int]:
+        """llama-server processes an earlier assistant run started and left behind (their parent is gone).
+
+        Recognised by the assistant's own launch line: the configured model and port plus the flags
+        only the assistant's launcher uses. A server the user started themselves is never touched.
+        """
+        server = getattr(self, "llama_server", None)
+        cfg = getattr(server, "cfg", None) or (getattr(self, "config", None) or {}).get("llamacpp") or {}
+        model = os.path.expandvars(os.path.expanduser(str(cfg.get("model_path") or "")))
+        port = str(getattr(server, "port", None) or urlparse(str(cfg.get("base_url") or "http://127.0.0.1:8080")).port or 8080)
+        if not model:
+            return []
+        stopped = []
+        try:
+            import psutil
+
+            for proc in psutil.process_iter(["pid", "name", "cmdline", "ppid"]):
+                name = str(proc.info.get("name") or "").lower()
+                cmd = [str(c) for c in proc.info.get("cmdline") or []]
+                if not name.startswith("llama-server") or not cmd:
+                    continue
+                own = (os.path.normcase(model) in {os.path.normcase(c) for c in cmd} and "--port" in cmd
+                       and cmd[cmd.index("--port") + 1:cmd.index("--port") + 2] == [port] and "--cache-reuse" in cmd)
+                if own and not psutil.pid_exists(proc.info.get("ppid") or 0):
+                    proc.terminate()
+                    stopped.append(proc.pid)
+        except Exception:
+            pass
+        return stopped
 
     def shutdown(self) -> dict:
         """Section 63 Shutdown: Gracefully stop schedulers, browsers, voice engine, subprocesses, and models."""
         results = {}
+
+        if self.vision is not None:
+            try:
+                self.vision().shutdown()
+                results["vision_stopped"] = True
+            except Exception as exc:
+                results["vision_error"] = str(exc)
 
         if self.llama_server is not None:
             try:
@@ -233,6 +310,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
     cfg = load_config(); hw = detect_hardware(); profile = choose_profile(cfg, hw)
     integrations = ExternalIntegrationRegistry(cfg)
     saved_model = load_model_preferences().get(profile)
+    config_model = str(((cfg.get('profiles') or {}).get(profile) or {}).get('models', {}).get('orchestrator') or '')
     if saved_model:
         cfg.setdefault("profiles", {}).setdefault(profile, {}).setdefault("models", {})["orchestrator"] = saved_model
     pcfg = cfg['profiles'][profile]
@@ -346,6 +424,14 @@ def build_runtime(interactive: bool = True) -> Runtime:
         llamacpp=llamacpp_provider,
     )
     mm=ModelManager(provider, resource_manager=resources, event_bus=events_bus)
+    if saved_model and config_model and saved_model != config_model:
+        # A model picked earlier that is no longer installed must not replace the configured one.
+        try:
+            installed = provider.available_models()
+        except Exception:
+            installed = []
+        if installed and saved_model not in installed and mm.resolve_local_model(saved_model) not in installed:
+            pcfg["models"]["orchestrator"] = config_model
     configured_model = str(pcfg["models"]["orchestrator"])
     resolved_model = mm.resolve_local_model(configured_model)
     if resolved_model and not AirLLMProvider.is_airllm_model(resolved_model):
@@ -375,6 +461,21 @@ def build_runtime(interactive: bool = True) -> Runtime:
         pcfg["models"]["orchestrator"] = resolved_model
         save_model_preference(profile, resolved_model)
     desktop_controller=DesktopController(ws, approval, cfg, provider=provider, model_manager=mm, quiet_provider=personal.is_quiet, default_model=str(pcfg['models']['orchestrator']))
+    # Local vision (separate llama.cpp server per vision model), created on first use.
+    _vision: dict = {}
+
+    def vision_engine():
+        if 'engine' not in _vision:
+            from living_assistant.vision.engine import VisionEngine
+            chosen = load_model_preferences().get('vision')
+            vcfg = {**cfg, 'vision': {**(cfg.get('vision') or {}), **({'chosen_default': chosen} if chosen else {})}}
+            _vision['engine'] = VisionEngine(vcfg, data_dir() / 'logs', chat_server=llama_server,
+                                             notify=lambda event, data: events_bus.publish(event, **data))
+        return _vision['engine']
+
+    vision_enabled = bool((cfg.get('vision', {}) or {}).get('enabled', True))
+    if vision_enabled:
+        desktop_controller.vision = vision_engine
     keep_alive=int(cfg['ollama'].get('keep_alive_seconds',45))
     context_tokens=min(
         int(pcfg.get('context_tokens',4096)),
@@ -544,42 +645,8 @@ def build_runtime(interactive: bool = True) -> Runtime:
         tool_registry.extend(build_scrape_tools(ws, cfg, approval, complete=_complete, snapshot_manager=snapshots))
     except ImportError:  # crawl4ai not installed: the lighter web tools still work
         pass
-    # Research intelligence engine: created on first use (it needs the goal runner built below).
-    _research: dict = {}
-
-    def _research_engine():
-        if 'engine' not in _research:
-            from living_assistant.research.engine import ResearchEngine
-            from living_assistant.research.store import KnowledgeStore
-            shell = tool_registry.get('run_command')
-            _research['engine'] = ResearchEngine(
-                KnowledgeStore(data_dir() / 'knowledge.sqlite3'), workspace_root=ws.roots[0], complete=_complete,
-                research_run=_research.get('runner'), run_command=shell.handler if shell else None, resolve_path=ws.resolve,
-                approval=approval, goals=goals, publish=lambda event, **data: events_bus.publish(event, **data))
-        return _research['engine']
-
-    try:
-        from living_assistant.tools.deepresearchtools import build_deep_research_tools, make_research_runner
-        from living_assistant.tools.webtools import network_gate
-        _llm_cfg = cfg.get('litellm', {}) or {}
-        _research_cfg = cfg.get('research', {}) or {}
-        _base = str(_llm_cfg.get('base_url') or '') if _llm_cfg.get('enabled') else ''
-        _base = _base or str((cfg.get('llamacpp', {}) or {}).get('base_url', 'http://127.0.0.1:8080')).rstrip('/') + '/v1'
-        _research['runner'] = make_research_runner(
-            _web['web_search'], _web['web_extract_article'],
-            gate=lambda url, purpose: network_gate(url, purpose, approval),
-            base_url=_base,
-            model=str(_llm_cfg.get('model_alias') or 'openai/local-model').split('/', 1)[-1],
-            api_key=str(_llm_cfg.get('api_key') or 'sk-local'),
-            context_tokens=int((cfg.get('llamacpp', {}) or {}).get('context_tokens', 16384)),
-            embedding_model=str(_research_cfg.get('embedding_model') or 'sentence-transformers/all-MiniLM-L6-v2'),
-        )
-        tool_registry.extend(build_deep_research_tools(
-            ws, _web['web_search'], _web['web_extract_article'], gate=None, base_url=_base, model='',
-            runner=_research['runner'], ingest=lambda project, result: _research_engine().ingest_research(project, result)))
-    except ImportError:  # gpt-researcher not installed
-        pass
     tool_registry.extend(build_browser_tools(browser,enabled=browser_enabled,external=browser_use))
+    tool_registry.extend(build_career_tools(browser_controller=browser, approval_manager=approval))
     tool_registry.extend(build_media_tools(ws,cfg))
     tool_registry.extend(build_log_tools(ws,projects))
     from living_assistant.system.goal_runner import GOAL_ROUND_TOOLS, GoalRunner, GoalStore
@@ -610,13 +677,6 @@ def build_runtime(interactive: bool = True) -> Runtime:
         publish=lambda event, **data: events_bus.publish(event, **data),
     )
     tool_registry.extend(build_goal_tools(lambda: goals))
-    from living_assistant.tools.researchenginetools import build_research_engine_tools
-    tool_registry.extend(build_research_engine_tools(_research_engine, lambda path: ws.read_text(path, max_chars=2_000_000)))
-    if not os.environ.get('PYTEST_CURRENT_TEST'):
-        try:
-            _research_engine().resume_interrupted()
-        except Exception:
-            pass  # a damaged knowledge store must not stop the assistant from starting
     tool_registry.extend(build_database_tools(cfg))
     tool_registry.extend(build_personal_tools(memory,notifier))
     tool_registry.extend(build_calendar_tools(calendar))
@@ -635,10 +695,15 @@ def build_runtime(interactive: bool = True) -> Runtime:
     if bool(tool_sets.get('self_improvement', False)):
         tool_registry.extend(build_improvement_tools(improvements, evaluations, canaries, repairs))
     tool_registry.extend(build_voice_tools(voice))
+    from living_assistant.tools.filetools import build_file_tools
+    tool_registry.extend(build_file_tools(ws))
     if bool(tool_sets.get('security_suite', False)):
         tool_registry.extend(build_security_tools(ws,approval,guardian,security_sensors))
     if bool(cfg.get('desktop',{}).get('enabled',True)):
         tool_registry.extend(build_desktop_tools(ws,approval,desktop_controller))
+    if vision_enabled:
+        from living_assistant.tools.visiontools import build_vision_tools
+        tool_registry.extend(build_vision_tools(vision_engine, ws))
     if openviking_adapter is not None:
         tool_registry.extend(build_viking_tools(openviking_adapter))
     if agentmemory_adapter is not None:
@@ -703,7 +768,7 @@ def build_runtime(interactive: bool = True) -> Runtime:
         name="system_metabolize",
         description="Clear unused AI models from memory (VRAM) and garbage collect RAM. Use this if the system feels slow or if you encounter OOM/memory errors.",
         parameters={},
-        handler=lambda **kwargs: resource_manager.metabolize(),
+        handler=lambda **kwargs: resources.metabolize(),
     )])
 
     tools=tool_registry.all()
@@ -720,5 +785,6 @@ def build_runtime(interactive: bool = True) -> Runtime:
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,repairs,canaries,browser,
                    personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller,integrations,openviking_adapter,agentmemory_adapter,codebase_memory_adapter,
                    diagram=diagram_adapter,cybersecurity=cybersecurity_adapter,graft=graft_adapter,openmontage=openmontage_adapter,edge0=edge0_adapter,agency_agents=agency_agents_adapter,scientific_skills=scientific_skills_adapter,awesome_harness=awesome_harness_adapter,awesome_agent_tools=awesome_agent_tools_adapter,
-                   skill_manager=skill_manager,agent_manager=agent_manager,scheduler=scheduler,llama_server=llama_server,goals=goals)
+                   skill_manager=skill_manager,agent_manager=agent_manager,scheduler=scheduler,llama_server=llama_server,goals=goals,
+                   vision=vision_engine if vision_enabled else None)
 
