@@ -5,3 +5,4 @@ implementations live in :mod:`living_assistant.cli.commands`.
 """
 
 from .commands import *  # noqa: F401,F403
+import living_assistant.cli.career  # noqa: F401

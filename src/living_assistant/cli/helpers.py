@@ -30,6 +30,7 @@ experience_app = typer.Typer(help="Evidence-weighted lessons from past mistakes 
 model_app = typer.Typer(help="Inspect and manage adaptive local-model residency.")
 platform_app = typer.Typer(help="Cross-platform capability, link, and background-service diagnostics.")
 release_app = typer.Typer(help="Versioned install, backup, rollback, and runtime lifecycle.")
+career_app = typer.Typer(help="Job search, resume management, application form filling, and outreach.")
 
 for sub, name in [
     (project_app, "project"),
@@ -56,5 +57,6 @@ for sub, name in [
     (model_app, "model"),
     (platform_app, "platform"),
     (release_app, "release"),
+    (career_app, "career"),
 ]:
     app.add_typer(sub, name=name)

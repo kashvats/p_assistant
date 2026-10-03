@@ -1,14 +1,24 @@
 from __future__ import annotations
 
-import hmac
-import os
-from urllib.parse import urlparse
+import sys
+
+# Libraries (GPT Researcher, crawlers) print emoji; on Windows a console or a redirected log
+# defaults to cp1252 and the print raises UnicodeEncodeError inside the tool. Never let output
+# encoding break work.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # replaced or detached streams (tests, services)
+        pass
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
 
 from living_assistant.api_routes.agents import router as agents_router
+from living_assistant.api_routes.career import router as career_router
 from living_assistant.api_routes.assistant import router as assistant_router
+from living_assistant.api_routes.conversations import router as conversations_router
+from living_assistant.api_routes.vision import router as vision_router
+from living_assistant.api_routes.files import router as files_router
 from living_assistant.api_routes.desktop import router as desktop_router
 from living_assistant.api_routes.improvements import router as improvements_router
 from living_assistant.api_routes.integrations import router as integrations_router
@@ -44,6 +54,7 @@ from living_assistant.api_routes.system import router as system_router
 from living_assistant.api_routes.ui import router as ui_router
 from living_assistant.api_routes.workspace import router as workspace_router
 from living_assistant.core.runtime import Runtime, get_runtime
+from living_assistant.security import local_api
 from living_assistant.security.api_auth import get_api_token
 from living_assistant.system.platform_hardening import platform_status, service_status
 
@@ -53,76 +64,16 @@ app = FastAPI(title="Living Assistant Local API", version="0.17.0")
 # continues through get_runtime(), matching the pre-router behavior.
 runtime = None
 
-_LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
-
-
-def _allowed_hostnames() -> set[str]:
-    extra = {
-        item.strip().lower()
-        for item in os.environ.get("ASSISTANT_ALLOWED_HOSTS", "").split(",")
-        if item.strip()
-    }
-    return _LOCAL_HOSTS | extra
-
-
-def _host_only(value: str) -> str:
-    try:
-        cleaned = value.strip()
-        if cleaned.startswith("[") and "]" in cleaned:
-            return cleaned[1:cleaned.index("]")].lower()
-        if cleaned.count(":") > 1:
-            # Unbracketed IPv6 literal
-            return cleaned.split("%")[0].lower()
-        return (urlparse("//" + cleaned).hostname or "").lower()
-    except Exception:
-        return ""
-
-
-def _origin_is_local_or_same(origin: str, request_host: str) -> bool:
-    try:
-        parsed = urlparse(origin)
-        return parsed.scheme in {"http", "https"} and (
-            parsed.hostname or ""
-        ).lower() in (_allowed_hostnames() | {request_host})
-    except Exception:
-        return False
+_LOCAL_HOSTS = local_api.LOCAL_HOSTS
+# The boundary lives in security.local_api (shared with the research server); these names stay for compatibility.
+_allowed_hostnames = local_api.allowed_hostnames
+_host_only = local_api.host_only
+_origin_is_local_or_same = local_api.origin_is_local_or_same
 
 
 @app.middleware("http")
 async def local_api_boundary(request: Request, call_next):
-    host = _host_only(request.headers.get("host", ""))
-    if host not in _allowed_hostnames():
-        return JSONResponse(
-            {"detail": "Invalid Host header for local assistant API."},
-            status_code=400,
-        )
-    origin = request.headers.get("origin")
-    if origin and not _origin_is_local_or_same(origin, host):
-        return JSONResponse(
-            {
-                "detail": (
-                    "Cross-origin browser access to the local assistant API "
-                    "is blocked."
-                )
-            },
-            status_code=403,
-        )
-
-    if request.method == "OPTIONS":
-        resp = Response(status_code=204)
-        if origin and _origin_is_local_or_same(origin, host):
-            resp.headers["Access-Control-Allow-Origin"] = origin
-            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-            resp.headers["Access-Control-Max-Age"] = "86400"
-        return resp
-
-    response = await call_next(request)
-    if origin and _origin_is_local_or_same(origin, host):
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    return response
+    return await local_api.local_boundary(request, call_next)
 
 
 def _rt() -> Runtime:
@@ -130,21 +81,7 @@ def _rt() -> Runtime:
 
 
 def _auth(authorization: str | None = None, token_param: str | None = None) -> None:
-    token = get_api_token()
-    supplied = None
-    if authorization:
-        s = authorization.strip()
-        if s.lower().startswith("bearer "):
-            s = s[7:].strip()
-        supplied = s
-    elif token_param:
-        supplied = token_param.strip()
-
-    if not supplied or not hmac.compare_digest(
-        supplied.encode("utf-8"),
-        token.encode("utf-8"),
-    ):
-        raise HTTPException(status_code=401, detail="Invalid token")
+    local_api.check_token(authorization, token_param)
 
 
 API_VERSION = "1.0.0"
@@ -190,6 +127,9 @@ app.include_router(models_router)
 app.include_router(peers_router)
 app.include_router(desktop_router)
 app.include_router(assistant_router)
+app.include_router(conversations_router)
+app.include_router(vision_router)
+app.include_router(files_router)
 app.include_router(workspace_router)
 app.include_router(personal_router)
 app.include_router(security_router)
@@ -197,6 +137,7 @@ app.include_router(improvements_router)
 app.include_router(integrations_router)
 app.include_router(skills_router)
 app.include_router(agents_router)
+app.include_router(career_router)
 app.include_router(ui_router)
 
 

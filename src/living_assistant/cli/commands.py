@@ -55,7 +55,9 @@ from .helpers import (
     model_app,
     platform_app,
     release_app,
+    career_app,
 )
+import living_assistant.cli.career  # noqa: F401
 
 @app.command()
 def onboard():
