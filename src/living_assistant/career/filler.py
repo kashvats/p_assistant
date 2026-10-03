@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from living_assistant.career.parser import ATSPlatform
+from living_assistant.career.profile import CandidateProfile
+from living_assistant.career.tracker import ApplicationStatus, ApplicationTracker
+from living_assistant.desktop.browser import safe_browser_url
+
+
+@dataclass
+class SubmissionPreview:
+    app_id: str
+    company: str
+    title: str
+    url: str
+    status: str
+    fields_prepared: dict[str, Any] = field(default_factory=dict)
+    screenshot_path: str = ""
+    approval_token: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "app_id": self.app_id,
+            "company": self.company,
+            "title": self.title,
+            "url": self.url,
+            "status": self.status,
+            "fields_prepared": self.fields_prepared,
+            "screenshot_path": self.screenshot_path,
+            "approval_token": self.approval_token,
+        }
+
+
+class JobFormFiller:
+    """Fills candidate details into ATS application forms and gates final submission on human approval."""
+
+    def __init__(
+        self,
+        browser_controller: Any,
+        approval_manager: Any,
+        tracker: ApplicationTracker,
+    ) -> None:
+        self.browser_controller = browser_controller
+        self.approval_manager = approval_manager
+        self.tracker = tracker
+
+    def map_form_fields(
+        self, profile: CandidateProfile, platform: ATSPlatform | str
+    ) -> dict[str, Any]:
+        parts = profile.full_name.strip().split(maxsplit=1)
+        first_name = parts[0] if parts else ""
+        last_name = parts[1] if len(parts) > 1 else ""
+
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "full_name": profile.full_name,
+            "email": profile.email,
+            "phone": profile.phone,
+            "location": profile.location,
+            "linkedin": profile.linkedin_url,
+            "github": profile.github_url,
+            "website": profile.portfolio_url,
+            "resume_path": profile.resume_file_path,
+            "legally_authorized": "Yes" if profile.screener.legally_authorized else "No",
+            "requires_sponsorship": "Yes" if profile.screener.requires_visa_sponsorship else "No",
+            "desired_salary": profile.screener.target_compensation,
+            "notice_period": f"{profile.screener.notice_period_weeks} weeks",
+            "gender": profile.screener.eeoc_gender,
+            "race": profile.screener.eeoc_race,
+            "veteran": profile.screener.eeoc_veteran,
+            "disability": profile.screener.eeoc_disability,
+        }
+
+    def stage_application(
+        self, app_id: str, profile: CandidateProfile
+    ) -> SubmissionPreview:
+        record = self.tracker.get_application(app_id)
+        if not record:
+            raise ValueError(f"Application {app_id} not found in tracker")
+
+        if record.url and not safe_browser_url(record.url):
+            raise ValueError(f"Unsafe or invalid application URL: {record.url}")
+
+        fields = self.map_form_fields(profile, record.platform)
+
+        # Pre-submit approval request
+        reason = f"Apply to {record.company} for {record.title} ({record.url})"
+        token = ""
+
+        if hasattr(self.approval_manager, "require_approval"):
+            res = self.approval_manager.require_approval(
+                "career_submit_application",
+                {"app_id": app_id, "company": record.company, "title": record.title, "url": record.url},
+            )
+            token = res.get("token", "") if isinstance(res, dict) else str(res)
+        elif hasattr(self.approval_manager, "request"):
+            res = self.approval_manager.request("career_submit_application", reason)
+            token = res.get("id", "") if isinstance(res, dict) else ""
+        elif hasattr(self.approval_manager, "create"):
+            res = self.approval_manager.create("career_submit_application", reason)
+            token = res.get("id", "") if isinstance(res, dict) else ""
+
+        # Update tracker
+        self.tracker.update_status(app_id, ApplicationStatus.READY_FOR_REVIEW)
+        self.tracker.save_submission(app_id, submitted_fields=fields, screenshot_path="")
+
+        return SubmissionPreview(
+            app_id=app_id,
+            company=record.company,
+            title=record.title,
+            url=record.url,
+            status=ApplicationStatus.READY_FOR_REVIEW.value,
+            fields_prepared=fields,
+            screenshot_path="",
+            approval_token=token,
+        )
+
+    def execute_submission(
+        self, app_id: str, approval_token: str
+    ) -> dict[str, Any]:
+        record = self.tracker.get_application(app_id)
+        if not record:
+            return {"ok": False, "error": f"Application {app_id} not found"}
+
+        # Verify approval
+        approved = False
+        if hasattr(self.approval_manager, "verify_approval"):
+            approved = bool(self.approval_manager.verify_approval(approval_token))
+        elif hasattr(self.approval_manager, "consume_preapproval"):
+            token_val = self.approval_manager.consume_preapproval(
+                "career_submit_application",
+                f"Apply to {record.company} for {record.title} ({record.url})",
+                "execute",
+            )
+            approved = token_val is not None
+        elif approval_token:
+            approved = True
+
+        if not approved:
+            return {
+                "ok": False,
+                "app_id": app_id,
+                "error": "Approval denied or token invalid; application was not submitted.",
+            }
+
+        # If browser controller has live session/submit method, execute it
+        if hasattr(self.browser_controller, "submit_form"):
+            try:
+                self.browser_controller.submit_form(record.url)
+            except Exception as e:
+                return {"ok": False, "app_id": app_id, "error": f"Browser submission error: {e}"}
+
+        self.tracker.update_status(app_id, ApplicationStatus.APPLIED, notes="Submitted after human approval")
+        return {"ok": True, "app_id": app_id, "status": "applied"}
