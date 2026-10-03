@@ -1,5 +1,7 @@
 /* Living Assistant dashboard — React SPA. No model-controlled HTML is injected. */
 import { loadPlotly } from './chart_loader.js';
+import { ACCEPT, extractFiles, fileChip, kindOf, mediaList, uploadFile } from './chatmedia.js';
+import { Markdown } from './markdown.js';
 import { makeResourceSample, resourceSampleLabel, resourceSeries } from './resource_chart_data.js';
 const React = globalThis.React;
 const ReactDOM = globalThis.ReactDOM;
@@ -7,11 +9,17 @@ const Prism = globalThis.Prism;
 const h = React.createElement;
 
 const NAV = [
-  ['overview', '🏠 Overview'], ['models', 'Models'], ['chat', '💬 Chat'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'],
+  ['overview', '🏠 Overview'], ['models', 'Models'], ['chat', '💬 Chat'], ['career', '💼 Career & Jobs'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'],
   ['organize', '📅 Calendar & Todos'], ['security', '🔒 Security'], ['activity', '📊 Activity'], ['tools', '🔧 Tools'],
 ];
 
 function cx(...parts) { return parts.filter(Boolean).join(' '); }
+// Hosts DOM built by chatmedia.js (file chips, media cards) inside the React tree; rebuilt when `depKey` changes.
+function DomNode({make, depKey, className}) {
+  const ref = React.useRef(null);
+  React.useEffect(() => { if (ref.current) ref.current.replaceChildren(make()); }, [depKey]);
+  return h('div', {ref, className});
+}
 function safeText(value) { return value == null ? '' : String(value); }
 function fmtBytes(bytes) {
   const n = Number(bytes || 0);
@@ -39,78 +47,6 @@ function makeSessionId() {
     return globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
   }
   return `session${Date.now().toString(36)}`.slice(0, 12);
-}
-
-function tokenizeInline(text, keyPrefix) {
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
-  const out = []; let cursor = 0; let i = 0;
-  for (const match of text.matchAll(pattern)) {
-    if (match.index > cursor) out.push(text.slice(cursor, match.index));
-    const token = match[0]; const key = `${keyPrefix}-${i++}`;
-    if (token.startsWith('**')) out.push(h('strong', {key}, token.slice(2, -2)));
-    else if (token.startsWith('`')) out.push(h('code', {key}, token.slice(1, -1)));
-    else {
-      const parsed = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-      const label = parsed ? parsed[1] : token; const href = parsed ? parsed[2].trim() : '';
-      let safe = false;
-      try { safe = ['http:', 'https:', 'mailto:'].includes(new URL(href, location.href).protocol); } catch (_) {}
-      out.push(safe ? h('a', {key, href, target: '_blank', rel: 'noopener noreferrer'}, label) : label);
-    }
-    cursor = match.index + token.length;
-  }
-  if (cursor < text.length) out.push(text.slice(cursor));
-  return out;
-}
-
-function renderPrismToken(token, key) {
-  if (typeof token === 'string') return token;
-  const content = Array.isArray(token.content)
-    ? token.content.map((part, idx) => renderPrismToken(part, `${key}-${idx}`))
-    : renderPrismToken(token.content, `${key}-c`);
-  const aliases = Array.isArray(token.alias) ? token.alias : token.alias ? [token.alias] : [];
-  return h('span', {key, className: ['token', token.type, ...aliases].join(' ')}, content);
-}
-function CodeBlock({language, source}) {
-  const lang = (language || '').toLowerCase();
-  const grammar = Prism && Prism.languages ? (Prism.languages[lang] || Prism.languages.plain) : null;
-  const tokens = grammar && Prism.tokenize ? Prism.tokenize(source, grammar) : [source];
-  return h('pre', {className: 'font-mono text-xs overflow-x-auto rounded-xl bg-slate-950 p-3 border border-slate-800'},
-    h('code', {className: lang ? `language-${lang}` : ''}, tokens.map((t, i) => renderPrismToken(t, `tok-${i}`))));
-}
-function Markdown({text}) {
-  const source = safeText(text).replace(/\r\n?/g, '\n');
-  const lines = source.split('\n'); const nodes = []; let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const fence = line.match(/^```\s*([A-Za-z0-9_+-]*)\s*$/);
-    if (fence) {
-      const language = fence[1] || ''; const code = []; i += 1;
-      while (i < lines.length && !/^```\s*$/.test(lines[i])) code.push(lines[i++]);
-      if (i < lines.length) i += 1;
-      nodes.push(h(CodeBlock, {key: `code-${i}`, language, source: code.join('\n')})); continue;
-    }
-    if (!line.trim()) { i += 1; continue; }
-    const heading = line.match(/^(#{1,4})\s+(.+)$/);
-    if (heading) { const tag = `h${heading[1].length}`; nodes.push(h(tag, {key: `h-${i}`}, tokenizeInline(heading[2], `h-${i}`))); i += 1; continue; }
-    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
-    if (bullet) {
-      const items = [];
-      while (i < lines.length) { const m = lines[i].match(/^\s*[-*]\s+(.+)$/); if (!m) break; items.push(h('li', {key: `li-${i}`}, tokenizeInline(m[1], `li-${i}`))); i += 1; }
-      nodes.push(h('ul', {key: `ul-${i}`}, items)); continue;
-    }
-    const numbered = line.match(/^\s*\d+\.\s+(.+)$/);
-    if (numbered) {
-      const items = [];
-      while (i < lines.length) { const m = lines[i].match(/^\s*\d+\.\s+(.+)$/); if (!m) break; items.push(h('li', {key: `oli-${i}`}, tokenizeInline(m[1], `oli-${i}`))); i += 1; }
-      nodes.push(h('ol', {key: `ol-${i}`}, items)); continue;
-    }
-    const quote = line.match(/^>\s?(.*)$/);
-    if (quote) { nodes.push(h('blockquote', {key: `q-${i}`}, tokenizeInline(quote[1], `q-${i}`))); i += 1; continue; }
-    const para = [line]; i += 1;
-    while (i < lines.length && lines[i].trim() && !/^```/.test(lines[i]) && !/^(#{1,4})\s+/.test(lines[i]) && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+\.\s+/.test(lines[i]) && !/^>\s?/.test(lines[i])) para.push(lines[i++]);
-    nodes.push(h('p', {key: `p-${i}`}, tokenizeInline(para.join('\n'), `p-${i}`)));
-  }
-  return h('div', {className: 'markdown-body'}, nodes);
 }
 
 class AgentFace extends React.Component {
@@ -171,92 +107,11 @@ class MicSpectrum extends React.Component {
   }
 }
 
-class FloatingAgent extends React.Component {
-  constructor(props) {
-    super(props);
-    let pos = null;
-    try { pos = JSON.parse(localStorage.getItem('assistant_agent_pos') || 'null'); } catch (_) {}
-    this.state = {pos, dragging: false, hover: false};
-    this.drag = null;
-    this.el = null;
-    this.onResize = () => this.setState(({pos: p}) => ({pos: p ? this.clamp(p.x, p.y) : p}));
-    // React 16.0 has no synthetic pointer events, so native listeners drive dragging.
-    this.down = (e) => this.onPointerDown(e);
-    this.move = (e) => this.onPointerMove(e);
-    this.up = (e) => this.onPointerUp(e);
-  }
-  componentDidMount() {
-    window.addEventListener('resize', this.onResize);
-    if (this.el) this.el.addEventListener('pointerdown', this.down);
-  }
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.onResize);
-    if (this.el) this.el.removeEventListener('pointerdown', this.down);
-    window.removeEventListener('pointermove', this.move);
-    window.removeEventListener('pointerup', this.up);
-  }
-  clamp(x, y) {
-    const size = 64, pad = 8;
-    return {
-      x: Math.min(Math.max(pad, x), window.innerWidth - size - pad),
-      y: Math.min(Math.max(pad, y), window.innerHeight - size - pad),
-    };
-  }
-  current() { return this.state.pos || {x: window.innerWidth - 96, y: window.innerHeight - 110}; }
-  onPointerDown(e) {
-    if (e.button !== 0) return;
-    const p = this.current();
-    this.drag = {sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false};
-    window.addEventListener('pointermove', this.move);
-    window.addEventListener('pointerup', this.up);
-  }
-  onPointerMove(e) {
-    if (!this.drag) return;
-    const dx = e.clientX - this.drag.sx, dy = e.clientY - this.drag.sy;
-    if (!this.drag.moved && Math.hypot(dx, dy) < 5) return;
-    this.drag.moved = true;
-    this.setState({dragging: true, pos: this.clamp(this.drag.ox + dx, this.drag.oy + dy)});
-  }
-  onPointerUp() {
-    const drag = this.drag;
-    this.drag = null;
-    window.removeEventListener('pointermove', this.move);
-    window.removeEventListener('pointerup', this.up);
-    if (!drag) return;
-    if (drag.moved) {
-      this.setState({dragging: false});
-      try { localStorage.setItem('assistant_agent_pos', JSON.stringify(this.current())); } catch (_) {}
-    } else if (this.props.onActivate) {
-      this.props.onActivate();
-    }
-  }
-  onKeyDown(e) {
-    if ((e.key === 'Enter' || e.key === ' ') && this.props.onActivate) { e.preventDefault(); this.props.onActivate(); }
-  }
-  render() {
-    const {mood, label} = this.props;
-    const p = this.current();
-    const showBubble = label && (mood !== 'idle' || this.state.hover) && !this.state.dragging;
-    return h('div', {
-      className: cx('floating-agent', this.state.dragging && 'dragging', p.x < window.innerWidth / 2 && 'left'),
-      ref: (el) => { this.el = el; if (el) { el.style.left = `${p.x}px`; el.style.top = `${p.y}px`; } },
-      role: 'button',
-      tabIndex: 0,
-      'aria-label': label || 'Assistant',
-      onMouseEnter: () => this.setState({hover: true}),
-      onMouseLeave: () => this.setState({hover: false}),
-      onKeyDown: (e) => this.onKeyDown(e),
-    },
-      h(AgentFace, {size: 'md', mood, track: true, title: label}),
-      showBubble ? h('div', {className: 'agent-bubble'}, label) : null);
-  }
-}
-
 class App extends React.Component {
   constructor(props) {
     super(props);
-    const sessionId = localStorage.getItem('assistant_session') || makeSessionId();
-    localStorage.setItem('assistant_session', sessionId);
+    // The conversation is the server's shared active one (also used by the floating agent and voice).
+    const sessionId = null;
     this.state = {
       page: hashPage(), token: initialToken(), tokenInput: '',
       sessionId, status: null, desktop: null, usage: null, models: null, approvals: [], todos: [], calendar: [],
@@ -266,16 +121,17 @@ class App extends React.Component {
       skills: [], selectedSkill: null, skillDraftPrompt: '', skillSearch: '', skillBusy: false, skillTrace: null, skillDryRun: true, skillCollections: null,
       agents: [], selectedAgent: null, agentDraftPrompt: '', agentSearch: '', agentBusy: false, agentTrace: null, agentDryRun: true,
       toast: '', error: '',
-      voiceRecording: false, attachedFile: null, speakReplies: readFlag('assistant_speak_replies'),
+      voiceRecording: false, attachedFile: null, pendingFiles: [], uploading: 0, killOpen: false, killBusy: false, killed: null, speakReplies: readFlag('assistant_speak_replies'),
       toolsStatus: null, browserSessions: [],
       expandedTools: {},
       goals: [], goalText: '', goalCheck: '', goalCwd: '.', goalBusy: false,
+      conversations: [], vision: null, careerProfile: null, careerApplications: [], careerJobUrl: '', careerBusy: false, careerOutreachDraft: null,
     };
     this.pollers = []; this.activityController = null; this.approvalSeen = new Set(); this.chatController = null;
   }
   componentDidMount() {
     this.onHash = () => this.setState({page: hashPage()}); window.addEventListener('hashchange', this.onHash);
-    this.refreshAll(); this.startActivityStream(); this.loadChatHistory();
+    this.refreshAll(); this.startActivityStream(); this.loadActiveConversation();
     this.pollers.push(setInterval(() => this.loadStatus(), 2500));
     this.pollers.push(setInterval(() => this.loadApprovals(), 5000));
     this.pollers.push(setInterval(() => this.loadUsage(), 10000));
@@ -292,25 +148,6 @@ class App extends React.Component {
     if (el && prevState.messages !== this.state.messages && (this.stickToBottom || prevState.messages.length !== this.state.messages.length)) {
       el.scrollTop = el.scrollHeight;
     }
-  }
-  agentMood() {
-    const {voiceRecording, streaming, messages, approvals} = this.state;
-    const last = messages[messages.length - 1];
-    if (voiceRecording) return ['listening', 'Listening…'];
-    if (streaming) {
-      const running = last && (last.steps || []).find(s => s.status === 'running');
-      return running ? ['working', `Running ${running.tool}…`] : ['thinking', (last && last.phase) || 'Thinking…'];
-    }
-    if (approvals.length) return ['alert', `${approvals.length} approval${approvals.length === 1 ? '' : 's'} waiting`];
-    if (last && last.error) return ['error', 'Something went wrong'];
-    if (!this.state.status) return ['error', 'Assistant offline'];
-    return ['idle', 'Click to talk · drag to move'];
-  }
-  activateAgent() {
-    if (this.state.streaming) { this.navigate('chat'); return; }
-    if (this.state.approvals.length && this.state.page !== 'chat') { this.navigate('approvals'); return; }
-    this.navigate('chat');
-    this.voiceAsk();
   }
   authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer ${this.state.token}`} : {}); }
   async api(url, opt = {}) {
@@ -333,7 +170,26 @@ class App extends React.Component {
     } catch (error) { this.setState({status: null}); }
   }
   async loadUsage() { try { this.setState({usage: await this.api('/models/usage?days=30')}); } catch (_) {} }
-  async loadModels() { try { this.setState({models: await this.api('/models/local')}); } catch (e) { this.notify(`Unable to load models: ${e.message}`, true); } }
+  async loadModels() {
+    try { this.setState({models: await this.api('/models/local')}); } catch (e) { this.notify(`Unable to load models: ${e.message}`, true); }
+    this.loadVision();
+  }
+  async loadVision() {
+    // Vision is optional (vision.enabled=false answers 503): the page then shows no vision section.
+    const [models, status, bench] = await Promise.allSettled([this.api('/vision/models'), this.api('/vision/status'), this.api('/vision/benchmark')]);
+    this.setState({vision: models.status === 'fulfilled' ? {models: models.value.models || [], status: status.status === 'fulfilled' ? status.value : null,
+      bench: bench.status === 'fulfilled' ? bench.value.results || [] : []} : null});
+  }
+  async setVisionDefault(model) {
+    try { await this.api('/vision/default', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({model})}); this.notify(`Vision model: ${model}`); }
+    catch (e) { this.notify(e.message, true); }
+    this.loadVision();
+  }
+  async downloadVision(model) {
+    try { await this.api(`/vision/models/${encodeURIComponent(model)}/download`, {method: 'POST'}); this.notify(`Downloading ${model}…`); }
+    catch (e) { this.notify(e.message, true); }
+    setTimeout(() => this.loadVision(), 1500);
+  }
   async loadApprovals() {
     try {
       const approvals = await this.api('/approvals');
@@ -530,20 +386,60 @@ class App extends React.Component {
     try { localStorage.setItem('assistant_speak_replies', speakReplies ? '1' : '0'); } catch (_) {}
     this.setState({speakReplies});
   }
-  async loadChatHistory() {
+  async loadActiveConversation() {
     try {
-      const res = await this.api(`/sessions/${encodeURIComponent(this.state.sessionId)}`);
+      const active = await this.api('/conversations/active');
+      if (active?.id) this.setState({sessionId: active.id}, () => this.loadChatHistory());
+    } catch (_) {}
+    this.loadConversations();
+  }
+  async loadConversations() {
+    try {
+      const res = await this.api('/conversations?limit=30');
+      this.setState({conversations: Array.isArray(res?.conversations) ? res.conversations : []});
+    } catch (_) {}
+  }
+  async loadChatHistory() {
+    const sid = this.state.sessionId;
+    if (!sid) return;
+    try {
+      const res = await this.api(`/conversations/${encodeURIComponent(sid)}/messages`);
+      if (sid !== this.state.sessionId || this.state.streaming) return;
       const rows = Array.isArray(res?.messages) ? res.messages : [];
-      if (!this.state.messages.length && rows.length) {
-        this.setState({messages: rows.filter(r => r.role === 'user' || r.role === 'assistant').map(r => ({role: r.role, text: safeText(r.content), steps: []}))});
+      this.setState({messages: rows.filter(r => r.role === 'user' || r.role === 'assistant').map(r => ({
+        role: r.role, text: safeText(r.content), steps: [], viaVoice: r.source === 'voice', media: (r.meta && r.meta.media) || []}))});
+      // A turn keeps running on the server when the page is refreshed; show that it is still coming.
+      const busy = await this.api(`/chat/running/${encodeURIComponent(sid)}`).catch(() => null);
+      if (busy?.running && sid === this.state.sessionId && !this.state.streaming) {
+        this.setState(prev => ({messages: [...prev.messages, {role: 'assistant', text: '', steps: [],
+          phase: 'Still working on your last request - it continues after a refresh'}]}));
       }
     } catch (_) {}
   }
-  newChat() {
+  async switchConversation(sessionId) {
+    if (!sessionId || sessionId === this.state.sessionId) return;
     if (this.state.streaming) this.cancelChat();
-    const sessionId = makeSessionId();
-    localStorage.setItem('assistant_session', sessionId);
-    this.setState({sessionId, messages: [], chatTools: [], chatInput: ''});
+    try { await this.api('/conversations/active', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({session_id: sessionId})}); } catch (e) { this.notify(e.message, true); return; }
+    this.setState({sessionId, messages: [], chatTools: []}, () => this.loadChatHistory());
+  }
+  async newChat() {
+    if (this.state.streaming) this.cancelChat();
+    try {
+      const created = await this.api('/conversations', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})});
+      this.setState({sessionId: created.id, messages: [], chatTools: [], chatInput: ''});
+      this.loadConversations();
+    } catch (e) { this.notify(`New chat failed: ${e.message}`, true); }
+  }
+  // Another interface (floating agent, voice) changed the conversation: follow it.
+  onConversationEvent(event) {
+    const data = event?.data || {};
+    if (event.type === 'conversation.active' && data.session_id && data.session_id !== this.state.sessionId && !this.state.streaming) {
+      this.setState({sessionId: data.session_id, messages: []}, () => this.loadChatHistory());
+      this.loadConversations();
+    } else if ((event.type === 'chat.completed' || event.type === 'chat.updated') && data.session_id) {
+      if (data.session_id === this.state.sessionId && !this.state.streaming) this.loadChatHistory();
+      this.loadConversations();
+    }
   }
   async decideInline(approvalId, approved, retryText) {
     try {
@@ -625,7 +521,7 @@ class App extends React.Component {
       await this.loadToolsStatus();
     } catch (e) { this.notify(`Failed to start browser session: ${e.message}`, true); }
   }
-  async refreshAll() { await Promise.allSettled([this.loadStatus(), this.loadUsage(), this.loadModels(), this.loadSkills(), this.loadAgents(), this.loadApprovals(), this.loadTodos(), this.loadCalendar(), this.loadSecurity(), this.loadActivity(), this.loadToolsStatus()]); }
+  async refreshAll() { await Promise.allSettled([this.loadStatus(), this.loadUsage(), this.loadModels(), this.loadSkills(), this.loadAgents(), this.loadApprovals(), this.loadTodos(), this.loadCalendar(), this.loadSecurity(), this.loadActivity(), this.loadToolsStatus(), this.loadCareer()]); }
   async startActivityStream() {
     if (this.activityController) this.activityController.abort();
     const controller = new AbortController(); this.activityController = controller;
@@ -641,6 +537,7 @@ class App extends React.Component {
           try {
             const event = JSON.parse(row.slice(5).trim());
             this.setState(prev => ({lastEvent: Math.max(prev.lastEvent, Number(event.id || 0)), activity: [...prev.activity, event].slice(-100)}));
+            this.onConversationEvent(event);
           } catch (_) {}
         }
       }
@@ -661,11 +558,45 @@ class App extends React.Component {
   async deleteCalendar(id) { try { await this.api(`/calendar/${encodeURIComponent(id)}`,{method:'DELETE'}); await this.loadCalendar(); } catch(e){this.notify(e.message,true);} }
   async pullModel() { const model=this.state.modelPullName.trim(); if(!model||this.state.modelBusy)return; this.setState({modelBusy:true}); try { const r=await this.api('/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})}); if(r?.ok===false)throw new Error(r.error||'Model pull failed'); this.setState({modelPullName:''}); this.notify(`Pulled ${model}`); await this.loadModels(); } catch(e){this.notify(e.message,true);} finally{this.setState({modelBusy:false});} }
   async deleteModel(model) { if(!globalThis.confirm(`Delete local model "${model}"?`))return; try{const r=await this.api('/models/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,confirm:true})});if(r?.ok===false)throw new Error(r.error||'Delete failed');this.notify(`Deleted ${model}`);await this.loadModels();}catch(e){this.notify(e.message,true);} }
+  async attachFiles(list) {
+    const files = [...(list || [])].filter(Boolean);
+    for (const file of files) {
+      const isImage = String(file.type || '').startsWith('image/');
+      let name = file.name && file.name !== 'image.png' ? file.name : (isImage ? 'pasted image.png' : 'file');
+      const pending = this.state.pendingFiles;
+      const images = pending.filter(f => f.kind === 'image').length;
+      if (kindOf(name) === 'image' ? images >= 4 : pending.length - images >= 8) {
+        this.notify('That is the most files one message can carry (4 images, 8 other files).', true);
+        break;
+      }
+      this.setState(prev => ({uploading: prev.uploading + 1}));
+      try {
+        const saved = await uploadFile(file, this.state.token, name);
+        this.setState(prev => ({pendingFiles: [...prev.pendingFiles, {id: saved.id, ref: saved.id, name: saved.name, kind: saved.kind, bytes: saved.bytes}]}));
+      } catch (e) {
+        this.notify(`Could not attach ${name}: ${e.message}`, true);
+      } finally {
+        this.setState(prev => ({uploading: prev.uploading - 1}));
+      }
+    }
+    if (this.chatBox) this.chatBox.focus();
+  }
+  removePending(id) { this.setState(prev => ({pendingFiles: prev.pendingFiles.filter(f => f.id !== id)})); }
   cancelChat() {
     if (this.chatController) {
       this.chatController.abort();
       this.chatController = null;
     }
+    if (this.state.sessionId) {
+      this.api('/chat/stop', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({session_id: this.state.sessionId})}).catch(() => {});
+    }
+  }
+  regenerate() {
+    const msgs = this.state.messages;
+    const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+    if (!lastUser || this.state.streaming) return;
+    const cut = msgs.lastIndexOf(lastUser);
+    this.setState({messages: msgs.slice(0, cut)}, () => this.sendChat(lastUser.text, {viaVoice: lastUser.viaVoice, regenerate: true}));
   }
   updateLastAssistant(fn) {
     this.setState(prev => {
@@ -683,7 +614,8 @@ class App extends React.Component {
         this.updateLastAssistant(m => ({...m, steps: [...m.steps, {kind: 'note', text: note}], text: ''}));
       }
       if (event.status === 'generating') run.stepText = '';
-      this.updateLastAssistant(m => ({...m, phase: event.status === 'generating' ? `Thinking (step ${event.step || 1})` : 'Starting'}));
+      const phase = {generating: `Thinking (step ${event.step || 1})`, reading: 'Reading the attached files', looking: 'Looking at the images'}[event.status] || 'Starting';
+      this.updateLastAssistant(m => ({...m, phase}));
     } else if (event.type === 'token') {
       run.stepText += event.text || '';
       const text = run.stepText;
@@ -694,6 +626,7 @@ class App extends React.Component {
         this.updateLastAssistant(m => ({...m, text: '', phase: `Running ${event.tool}`, steps: [...m.steps, {kind: 'tool', tool: event.tool, args: event.args || '', status: 'running'}]}));
         this.setState(prev => ({chatTools: [{tool: event.tool, status: 'started', at: Date.now()}, ...prev.chatTools].slice(0, 40)}));
       } else {
+        if (event.media && event.media.length) this.updateLastAssistant(m => ({...m, media: [...(m.media || []), ...event.media]}));
         this.updateLastAssistant(m => {
           const steps = m.steps;
           for (let i = steps.length - 1; i >= 0; i -= 1) {
@@ -716,25 +649,32 @@ class App extends React.Component {
     } else if (event.type === 'final') {
       run.finalText = event.text || run.stepText;
       const text = run.finalText;
-      this.updateLastAssistant(m => ({...m, text, phase: null}));
+      this.updateLastAssistant(m => ({...m, text, phase: null, media: event.media || m.media}));
     } else if (event.type === 'error') {
       throw new Error(event.error || 'Chat stream failed');
     }
   }
   async sendChat(textOverride, opts = {}) {
-    const text = safeText(textOverride ?? this.state.chatInput).trim();
-    if (!text || this.state.streaming) return;
-    const user = {role: 'user', text, viaVoice: !!opts.viaVoice};
+    let text = safeText(textOverride ?? this.state.chatInput).trim();
+    const attached = opts.regenerate || textOverride != null ? [] : this.state.pendingFiles;
+    if ((!text && !attached.length) || this.state.streaming || this.state.uploading) return;
+    const images = attached.filter(f => f.kind === 'image').map(f => f.id);
+    const files = attached.filter(f => f.kind !== 'image');
+    if (!text) text = files.length ? 'Please look at the attached file.' : 'What is in this image?';
+    const shown = opts.regenerate ? text : [text, ...images.map(id => `[image ${id}]`), ...files.map(f => `[file ${f.id} ${f.name}]`)].join('\n');
+    const user = {role: 'user', text: shown, viaVoice: !!opts.viaVoice};
     const assistant = {role: 'assistant', text: '', steps: [], phase: 'Starting', retryText: text};
-    this.setState(prev => ({chatInput: textOverride == null ? '' : prev.chatInput, streaming: true, messages: [...prev.messages, user, assistant]}));
+    this.setState(prev => ({chatInput: textOverride == null ? '' : prev.chatInput, pendingFiles: attached.length ? [] : prev.pendingFiles,
+                            streaming: true, messages: [...prev.messages, user, assistant]}));
     const controller = new AbortController();
     this.chatController = controller;
     const run = {stepText: '', finalText: ''};
     try {
-      const response = await fetch('/chat/stream', {
+      const response = await fetch(opts.regenerate ? '/chat/regenerate' : '/chat/stream', {
         method: 'POST', signal: controller.signal,
         headers: this.authHeaders({'Content-Type': 'application/json', 'Accept': 'text/event-stream'}),
-        body: JSON.stringify({message: text, session_id: this.state.sessionId}),
+        body: JSON.stringify(opts.regenerate ? {session_id: this.state.sessionId}
+          : {message: text, session_id: this.state.sessionId, source: opts.viaVoice ? 'voice' : 'text', images, files: files.map(f => f.id)}),
       });
       if (!response.ok || !response.body) throw new Error((await response.text()).slice(0, 2000) || `HTTP ${response.status}`);
       const reader = response.body.getReader();
@@ -769,6 +709,48 @@ class App extends React.Component {
       Promise.allSettled([this.loadActivity(), this.loadStatus(), this.loadApprovals()]);
     }
   }
+  async killSwitch(mode) {
+    this.setState({killBusy: true});
+    if (this.chatController) this.chatController.abort();
+    try {
+      const r = await this.api('/system/kill', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                               body: JSON.stringify({mode, reason: `kill switch (dashboard, ${mode})`})});
+      const stopped = [r.chat_turns_stopped ? `${r.chat_turns_stopped} chat turn(s)` : '',
+                       (r.goals_cancelled || []).length ? `${r.goals_cancelled.length} goal(s)` : '',
+                       (r.research_runs_cancelled || []).length ? `${r.research_runs_cancelled.length} research run(s)` : '']
+        .filter(Boolean).join(', ');
+      this.setState({killOpen: false, killed: mode === 'shutdown'
+        ? 'The assistant is shut down: backend, model servers and desktop app are closed. Start it again with run.bat.'
+        : `Everything stopped${stopped ? `: ${stopped}` : ''}. Models and background processes are released; the assistant is idle.`});
+    } catch (e) {
+      // A shutdown can cut the connection before the answer arrives; anything else is a real failure.
+      const cut = mode === 'shutdown' && /fetch|network|load failed/i.test(e.message);
+      this.setState({killOpen: false, killed: cut ? 'The assistant has shut down.' : null});
+      if (!cut) this.notify(/not found|404/i.test(e.message)
+        ? 'The running backend is older than this page and has no kill switch yet: close its run.bat window, then start run.bat again.'
+        : `Kill switch failed: ${e.message}`, true);
+    } finally {
+      this.setState({killBusy: false});
+    }
+  }
+  renderKillDialog() {
+    if (!this.state.killOpen) return null;
+    const busy = this.state.killBusy;
+    return h('div', {className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Kill switch',
+                     onClick: e => { if (e.target === e.currentTarget && !busy) this.setState({killOpen: false}); }},
+      h('div', {className: 'w-full max-w-md rounded-2xl border border-rose-800 bg-slate-900 p-5 shadow-2xl'},
+        h('div', {className: 'text-lg font-bold text-rose-200'}, '⏻ Kill switch'),
+        h('p', {className: 'mt-2 text-sm text-slate-300'}, 'Stops running chats, background goals, research runs, scheduled routines, voice, browser sessions, model servers and every other process the assistant started.'),
+        h('div', {className: 'mt-4 grid gap-2'},
+          h('button', {disabled: busy, autoFocus: true, onClick: () => this.killSwitch('shutdown'),
+                       className: 'rounded-xl border border-rose-600 bg-rose-700 px-4 py-3 text-left text-white hover:bg-rose-600 disabled:opacity-50'},
+            h('div', {className: 'font-semibold'}, '⏻ Shut the assistant down'), h('div', {className: 'text-xs text-rose-100/90'}, 'Stops everything, ends every process it started, closes the desktop app and exits.')),
+          h('button', {disabled: busy, onClick: () => this.killSwitch('stop'),
+                       className: 'rounded-xl border border-amber-700 bg-amber-950 px-4 py-2 text-left text-amber-100 hover:bg-amber-900 disabled:opacity-50'},
+            h('div', {className: 'text-sm font-semibold'}, 'Only stop what it is doing'), h('div', {className: 'text-xs text-amber-200/80'}, 'Halts all activity but keeps the assistant running, idle.')),
+          h('button', {disabled: busy, onClick: () => this.setState({killOpen: false}),
+                       className: 'rounded-xl border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800 disabled:opacity-50'}, busy ? 'Stopping…' : 'Cancel'))));
+  }
   renderShell(content) {
     const pageLabel = NAV.find(([id])=>id===this.state.page)?.[1] || 'Overview';
     const online = !!this.state.status;
@@ -784,14 +766,21 @@ class App extends React.Component {
           h('div',{className:'flex flex-wrap gap-2 items-center'},
             h('span',{className:'inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-400'},h('span',{className:cx('h-2 w-2 rounded-full',online?'bg-emerald-400':'bg-rose-400')}),online?`online · ${this.state.status.profile}`:'offline'),
             h('input',{type:'password',value:this.state.tokenInput,onChange:e=>this.setState({tokenInput:e.target.value}),placeholder:'API token',className:'w-48 sm:w-64 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-brand-400'}),
-            h('button',{className:'px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700',onClick:()=>this.useToken()},'Use token'))),
+            h('button',{className:'px-3 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700',onClick:()=>this.useToken()},'Use token'),
+            h('button',{title:'Kill switch: stop everything the assistant is doing',onClick:()=>this.setState({killOpen:true}),
+                        className:'px-3 py-2 rounded-xl border border-rose-800 bg-rose-950 text-rose-200 hover:bg-rose-900 font-semibold'},'⏻ Kill switch'))),
+        this.state.killed ? h('div',{role:'status',className:'mb-4 rounded-xl border border-rose-800 bg-rose-950/60 px-4 py-3 text-sm text-rose-100 flex items-start gap-3'},
+          h('span',{className:'flex-1'},this.state.killed),
+          h('button',{onClick:()=>this.setState({killed:null}),className:'text-rose-300 hover:text-white','aria-label':'Dismiss'},'✕')) : null,
         content),
-      h(FloatingAgent,{mood:this.agentMood()[0],label:this.agentMood()[1],onActivate:()=>this.activateAgent()}),
+      this.renderKillDialog(),
       this.state.toast ? h('div',{role:'status',className:cx('fixed left-1/2 -translate-x-1/2 bottom-4 z-50 max-w-md rounded-xl border px-4 py-3 shadow-xl text-sm',this.state.error?'border-rose-800 bg-rose-950 text-rose-100':'border-slate-700 bg-slate-900')},this.state.toast):null);
   }
   render() {
-    const pages={overview:this.renderOverview(),models:this.renderModels(),chat:this.renderChat(),skills:this.renderSkills(),agents:this.renderAgents(),approvals:this.renderApprovals(),organize:this.renderOrganize(),security:this.renderSecurity(),activity:this.renderActivity()};
-    return this.renderShell(pages[this.state.page]||pages.overview);
+    // Only the visible page is built, inside an error boundary: one broken page must not blank the app.
+    const pages={overview:()=>this.renderOverview(),models:()=>this.renderModels(),chat:()=>this.renderChat(),skills:()=>this.renderSkills(),agents:()=>this.renderAgents(),approvals:()=>this.renderApprovals(),organize:()=>this.renderOrganize(),security:()=>this.renderSecurity(),activity:()=>this.renderActivity(),career:()=>this.renderCareer()};
+    const page = pages[this.state.page] ? this.state.page : 'overview';
+    return this.renderShell(h(ErrorBoundary,{key:page,name:page},h(PageBody,{render:pages[page]})));
   }
   renderSkills() {
     const sel = this.state.selectedSkill;
@@ -1082,7 +1071,40 @@ class App extends React.Component {
       this.card('Model usage',h(UsageTable,{usage})),
       h('div',{className:'grid md:grid-cols-12 gap-3'},this.card('Pending approvals',h(ApprovalList,{rows:this.state.approvals.slice(0,4),decide:(id,v)=>this.decideApproval(id,v)}),'md:col-span-6'),this.card('Recent activity',h(ActivityList,{rows:this.state.activity.slice(-8)}),'md:col-span-6')));
   }
-  renderModels(){ const data=this.state.models||{}; return this.card('Local model manager',h('div',{className:'space-y-3'},h('div',{className:'flex flex-wrap gap-2 text-sm text-slate-400'},h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`GPU ${data.gpu?.name||'not detected'}`),h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`Free VRAM ${data.gpu?.free_vram_gb??'--'} GB`),h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`Disk ${fmtBytes(data.total_disk_bytes)}`)),h('div',{className:'grid grid-cols-[minmax(0,1fr)_auto] gap-2'},h('input',{value:this.state.modelPullName,onChange:e=>this.setState({modelPullName:e.target.value}),onKeyDown:e=>{if(e.key==='Enter')this.pullModel();},placeholder:'e.g. qwen2.5:7b',className:'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('button',{disabled:this.state.modelBusy,onClick:()=>this.pullModel(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50'},this.state.modelBusy?'Pulling…':'Pull model')),h(ModelTable,{models:data.models||[],onDelete:m=>this.deleteModel(m)}))); }
+  renderVision() {
+    const v = this.state.vision;
+    if (!v) return null;
+    const cats = ['ocr', 'ui', 'symbols', 'charts', 'diagrams', 'photo'];
+    const running = v.status?.running?.model;
+    const models = h('div', {className: 'overflow-x-auto'}, h('table', {className: 'w-full text-sm'},
+      h('thead', null, h('tr', {className: 'text-left text-xs uppercase tracking-wider text-slate-500'},
+        ['Model', 'Mode', 'State', ''].map(t => h('th', {key: t, className: 'py-2 pr-3 font-medium'}, t)))),
+      h('tbody', null, v.models.map(m => h('tr', {key: m.name, className: 'border-t border-slate-800'},
+        h('td', {className: 'py-2 pr-3'}, h('div', {className: 'font-medium'}, m.name, m.default ? h('span', {className: 'ml-2 text-xs text-brand-300'}, 'default') : null),
+          h('div', {className: 'text-xs text-slate-500'}, m.notes)),
+        h('td', {className: 'py-2 pr-3 text-slate-400'}, m.mode === 'swap' ? 'pauses chat model' : 'runs alongside'),
+        h('td', {className: 'py-2 pr-3 text-slate-400'}, m.name === running ? 'loaded' : m.downloaded ? 'downloaded'
+          : m.download?.status === 'downloading' ? `downloading ${m.download.total ? Math.round(100 * m.download.done / m.download.total) : 0}%` : 'not downloaded'),
+        h('td', {className: 'py-2 text-right whitespace-nowrap'},
+          m.downloaded ? (m.default ? null : h('button', {onClick: () => this.setVisionDefault(m.name), className: 'px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, 'Make default'))
+            : h('button', {onClick: () => this.downloadVision(m.name), disabled: m.download?.status === 'downloading', className: 'px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs disabled:opacity-50'}, 'Download')))))));
+    const bench = v.bench.length ? h('div', {className: 'overflow-x-auto'}, h('table', {className: 'w-full text-xs'},
+      h('thead', null, h('tr', {className: 'text-left uppercase tracking-wider text-slate-500'},
+        ['Model', 'Mode', 'Passed', ...cats, 'Median s', 'RAM MB'].map(t => h('th', {key: t, className: 'py-2 pr-3 font-medium'}, t)))),
+      h('tbody', null, v.bench.map(r => h('tr', {key: r.model + r.variant, className: 'border-t border-slate-800'},
+        h('td', {className: 'py-1.5 pr-3 font-medium'}, r.model), h('td', {className: 'py-1.5 pr-3 text-slate-400'}, r.variant),
+        h('td', {className: 'py-1.5 pr-3'}, `${r.passed}/${r.total}`),
+        ...cats.map(c => h('td', {key: c, className: 'py-1.5 pr-3 text-slate-400'}, r.categories[c] ? `${r.categories[c][0]}/${r.categories[c][1]}` : '–')),
+        h('td', {className: 'py-1.5 pr-3 text-slate-400'}, r.median_seconds ?? '–'), h('td', {className: 'py-1.5 text-slate-400'}, r.peak_rss_mb ?? '–'))))))
+      : h('div', {className: 'text-sm text-slate-500'}, 'No benchmark results yet (python benchmarks/vision/run.py).');
+    return h('div', {className: 'space-y-3'},
+      this.card('Vision models', h('div', {className: 'space-y-2'},
+        h('p', {className: 'text-sm text-slate-400'}, 'Used for attached images, screen questions, research figures and camera frames. Each runs in its own local llama.cpp server, loaded on demand.'),
+        models)),
+      this.card('Vision benchmark (this machine)', bench));
+  }
+  renderModels(){ return h('div',{className:'space-y-3'},this.renderLlmModels(),this.renderVision()); }
+  renderLlmModels(){ const data=this.state.models||{}; return this.card('Local model manager',h('div',{className:'space-y-3'},h('div',{className:'flex flex-wrap gap-2 text-sm text-slate-400'},h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`GPU ${data.gpu?.name||'not detected'}`),h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`Free VRAM ${data.gpu?.free_vram_gb??'--'} GB`),h('span',{className:'rounded-full border border-slate-700 px-3 py-2'},`Disk ${fmtBytes(data.total_disk_bytes)}`)),h('div',{className:'grid grid-cols-[minmax(0,1fr)_auto] gap-2'},h('input',{value:this.state.modelPullName,onChange:e=>this.setState({modelPullName:e.target.value}),onKeyDown:e=>{if(e.key==='Enter')this.pullModel();},placeholder:'e.g. qwen2.5:7b',className:'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('button',{disabled:this.state.modelBusy,onClick:()=>this.pullModel(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-50'},this.state.modelBusy?'Pulling…':'Pull model')),h(ModelTable,{models:data.models||[],onDelete:m=>this.deleteModel(m)}))); }
   renderStep(step, i, retryText) {
     if (step.kind === 'note') {
       return h('div', {key: i, className: 'text-xs text-slate-400 italic border-l-2 border-slate-700 pl-3 py-1'}, step.text);
@@ -1109,9 +1131,19 @@ class App extends React.Component {
   }
   renderMessage(m, i) {
     if (m.role === 'user') {
+      // Images attached from the floating agent are kept in the text as [image img_…] markers.
+      const {text, files} = extractFiles(m.text);
+      const images = [...text.matchAll(/\[image (img_[0-9a-f]{16})\]/g)].map(x => x[1]);
+      const tokenQuery = this.state.token ? `?token=${encodeURIComponent(this.state.token)}` : '';
       return h('div', {key: i, className: 'flex justify-end'},
         h('div', {className: 'max-w-[85%] rounded-2xl rounded-br-md bg-brand-600 px-4 py-2.5 text-white whitespace-pre-wrap break-words'},
-          m.viaVoice ? h('span', {className: 'mr-2 text-xs opacity-75', title: 'Spoken'}, '🎙') : null, m.text));
+          images.length ? h('div', {className: 'flex flex-wrap gap-2 mb-2'}, images.map(id => h('img', {
+            key: id, src: `/attachments/${id}${tokenQuery}`, alt: 'Attached image', loading: 'lazy',
+            className: 'max-h-48 max-w-full rounded-lg border border-white/20'}))) : null,
+          files.length ? h(DomNode, {className: 'chat-file-chips', depKey: files.map(f => f.ref).join(','),
+            make: () => { const frag = document.createDocumentFragment(); files.forEach(f => frag.appendChild(fileChip(f, this.state.token))); return frag; }}) : null,
+          m.viaVoice ? h('span', {className: 'mr-2 text-xs opacity-75', title: 'Spoken'}, '🎙') : null,
+          text.replace(/\[image img_[0-9a-f]{16}\]/g, '').trim()));
     }
     const steps = m.steps || [];
     return h('div', {key: i, className: 'flex gap-3 items-start'},
@@ -1119,12 +1151,16 @@ class App extends React.Component {
       h('div', {className: 'min-w-0 flex-1 max-w-[85%] space-y-2'},
         steps.length ? h('div', {className: 'space-y-1.5'}, steps.map((s, idx) => this.renderStep(s, idx, m.retryText))) : null,
         m.text ? h('div', {className: 'rounded-2xl rounded-tl-md border border-slate-700 bg-slate-800/80 px-4 py-3'}, h(Markdown, {text: m.text})) : null,
+        m.media && m.media.length ? h(DomNode, {depKey: m.media.map(x => x.ref).join(','), make: () => mediaList(m.media, this.state.token)}) : null,
         m.phase ? h('div', {className: 'flex items-center gap-2 text-xs text-slate-400'},
           h('span', {className: 'typing-dots'}, h('i'), h('i'), h('i')), m.phase) : null,
         m.stopped ? h('div', {className: 'text-xs text-slate-500'}, 'Stopped.') : null,
         m.error ? h('div', {className: 'rounded-xl border border-rose-900 bg-rose-950/50 px-3 py-2 text-sm text-rose-200 flex flex-wrap items-center gap-2'},
           h('span', {className: 'break-words'}, m.error),
-          m.retryText && !this.state.streaming ? h('button', {onClick: () => this.sendChat(m.retryText), className: 'px-2.5 py-1 rounded-lg border border-rose-700 hover:bg-rose-900 text-xs'}, 'Retry') : null) : null));
+          m.retryText && !this.state.streaming ? h('button', {onClick: () => this.sendChat(m.retryText), className: 'px-2.5 py-1 rounded-lg border border-rose-700 hover:bg-rose-900 text-xs'}, 'Retry') : null) : null,
+        i === this.state.messages.length - 1 && !m.phase && !this.state.streaming && (m.text || m.error)
+          ? h('button', {onClick: () => this.regenerate(), title: 'Ask again and replace this answer',
+                         className: 'text-xs text-slate-400 hover:text-slate-200'}, '↻ Regenerate') : null));
   }
   renderChat() {
     const {messages, streaming, voiceRecording, chatInput, speakReplies} = this.state;
@@ -1153,8 +1189,26 @@ class App extends React.Component {
       'aria-live': 'polite',
     }, messages.length ? messages.map((m, i) => this.renderMessage(m, i)) : empty);
 
-    const composer = h('div', {className: 'mt-3 rounded-2xl border border-slate-700 bg-slate-950 focus-within:border-brand-500 transition'},
+    const pendingFiles = this.state.pendingFiles;
+    const composer = h('div', {
+      className: 'mt-3 rounded-2xl border border-slate-700 bg-slate-950 focus-within:border-brand-500 transition',
+      onDragOver: e => { if ([...(e.dataTransfer?.items || [])].some(it => it.kind === 'file')) e.preventDefault(); },
+      onDrop: e => { const f = [...(e.dataTransfer?.files || [])]; if (f.length) { e.preventDefault(); this.attachFiles(f); } },
+    },
+      pendingFiles.length || this.state.uploading ? h('div', {className: 'flex flex-wrap items-center gap-2 px-3 pt-3'},
+        h(DomNode, {className: 'chat-file-chips', depKey: pendingFiles.map(f => f.id).join(','), make: () => {
+          const frag = document.createDocumentFragment();
+          pendingFiles.forEach(f => frag.appendChild(fileChip(f, this.state.token, {onRemove: () => this.removePending(f.id)})));
+          return frag;
+        }}),
+        this.state.uploading ? h('span', {className: 'text-xs text-slate-400'}, 'Uploading…') : null) : null,
+      h('input', {type: 'file', multiple: true, accept: ACCEPT, hidden: true, ref: el => { this.fileInput = el; },
+        onChange: e => { this.attachFiles(e.target.files); e.target.value = ''; }}),
       h('textarea', {
+        onPaste: e => {
+          const f = [...(e.clipboardData?.items || [])].filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+          if (f.length) { e.preventDefault(); this.attachFiles(f); }
+        },
         ref: el => { this.chatBox = el; },
         rows: 2,
         value: chatInput,
@@ -1176,6 +1230,13 @@ class App extends React.Component {
           className: cx('h-9 w-9 rounded-full border flex items-center justify-center transition disabled:opacity-50',
             voiceRecording ? 'border-rose-500 bg-rose-600 text-white animate-pulse' : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200'),
         }, '🎙'),
+        h('button', {
+          onClick: () => this.fileInput && this.fileInput.click(),
+          disabled: streaming,
+          title: 'Attach files (images, video, audio, PDF, CSV/XLSX, documents)',
+          'aria-label': 'Attach files',
+          className: 'h-9 w-9 rounded-full border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition disabled:opacity-50',
+        }, '📎'),
         voiceRecording ? h(MicSpectrum, {api: (path) => this.api(path)}) : null,
         h('button', {
           onClick: () => this.toggleSpeakReplies(),
@@ -1186,11 +1247,16 @@ class App extends React.Component {
         h('div', {className: 'flex-1'}),
         streaming
           ? h('button', {onClick: () => this.cancelChat(), title: 'Stop (Esc)', className: 'h-9 px-4 rounded-full border border-rose-700 bg-rose-950 text-rose-200 hover:bg-rose-900 transition'}, '■ Stop')
-          : h('button', {onClick: () => this.sendChat(), disabled: !chatInput.trim(), className: 'h-9 px-4 rounded-full border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 transition font-medium'}, 'Send ➤')));
+          : h('button', {onClick: () => this.sendChat(), disabled: (!chatInput.trim() && !pendingFiles.length) || !!this.state.uploading, className: 'h-9 px-4 rounded-full border border-brand-500 bg-brand-600 hover:bg-brand-500 disabled:opacity-40 transition font-medium'}, 'Send ➤')));
 
     const chatPanel = h('div', {className: 'flex flex-col h-[calc(100vh-11rem)] min-h-[26rem]'},
       h('div', {className: 'flex items-center justify-between mb-3'},
-        h('div', {className: 'text-xs text-slate-500 font-mono'}, `session ${this.state.sessionId}`),
+        h('select', {
+          value: this.state.sessionId || '', onChange: e => this.switchConversation(e.target.value),
+          'aria-label': 'Conversation',
+          className: 'max-w-xs truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-300'},
+          (this.state.conversations.some(c => c.id === this.state.sessionId) ? [] : [h('option', {key: 'cur', value: this.state.sessionId || ''}, 'Current conversation')])
+            .concat(this.state.conversations.map(c => h('option', {key: c.id, value: c.id}, `${c.title || 'Untitled'} (${c.message_count || 0})`)))),
         h('button', {onClick: () => this.newChat(), className: 'px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, '+ New chat')),
       thread, composer);
 
@@ -1202,8 +1268,19 @@ class App extends React.Component {
           h('span', {className: 'ml-auto text-slate-500 shrink-0'}, x.status === 'started' ? 'running' : x.status)))
       : h('div', {className: 'text-slate-500 text-sm'}, 'Tool calls will appear here as they run.');
 
+    const history = this.state.conversations.length
+      ? h('div', {className: 'space-y-1 max-h-72 overflow-y-auto pr-1'}, this.state.conversations.slice(0, 30).map(c => h('button', {
+          key: c.id, onClick: () => this.switchConversation(c.id),
+          className: cx('w-full text-left rounded-lg px-2.5 py-2 text-xs border transition',
+            c.id === this.state.sessionId ? 'border-brand-500 bg-brand-600/15' : 'border-transparent hover:bg-slate-800')},
+          h('div', {className: 'font-medium text-slate-200 truncate'}, c.title || 'Untitled'),
+          h('div', {className: 'text-slate-500 truncate'},
+            `${c.message_count || 0} messages · ${String(c.updated_at || '').slice(0, 16).replace('T', ' ')}`))))
+      : h('div', {className: 'text-slate-500 text-sm'}, 'No conversations yet.');
+
     const side = h('div', {className: 'space-y-3'},
       pending.length ? this.card(`Waiting for you (${pending.length})`, h(ApprovalList, {rows: pending.slice(0, 3), decide: (id, v) => this.decideApproval(id, v)})) : null,
+      this.card('Conversations', history),
       this.card('Live tool activity', h('div', null, activity)),
       this.renderGoals(),
       this.card('What I can do', h('ul', {className: 'text-sm text-slate-400 space-y-1.5'},
@@ -1213,14 +1290,191 @@ class App extends React.Component {
         h('li', null, '📜 Log analysis & live monitoring, project audits'),
         h('li', null, '🗂 Files, shell, git, calendar, reminders, memory'))));
 
-    return h('div', {className: 'grid lg:grid-cols-12 gap-3'},
-      this.card(null, chatPanel, 'lg:col-span-8'),
-      h('div', {className: 'lg:col-span-4'}, side));
+    // The side panel only sits beside the chat on wide screens; narrower, it goes below so the chat keeps its width.
+    return h('div', {className: 'grid xl:grid-cols-12 gap-3'},
+      this.card(null, chatPanel, 'xl:col-span-8 min-w-0'),
+      h('div', {className: 'xl:col-span-4 min-w-0'}, side));
   }
   renderApprovals(){return this.card('Pending approvals',h(ApprovalList,{rows:this.state.approvals,decide:(id,v)=>this.decideApproval(id,v)}));}
   renderOrganize(){return h('div',{className:'grid md:grid-cols-12 gap-3'},this.card('Todos',h('div',{className:'space-y-3'},h('div',{className:'grid grid-cols-1 sm:grid-cols-2 gap-2'},h('input',{value:this.state.todoTitle,onChange:e=>this.setState({todoTitle:e.target.value}),placeholder:'Add a todo',className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('input',{type:'datetime-local',value:this.state.todoDue,onChange:e=>this.setState({todoDue:e.target.value}),className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'})),h('button',{onClick:()=>this.addTodo(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600'},'Add'),h(ItemList,{rows:this.state.todos,kind:'todo',onAction:id=>this.completeTodo(id)})),'md:col-span-6'),this.card('Calendar',h('div',{className:'space-y-3'},h('div',{className:'grid grid-cols-1 sm:grid-cols-2 gap-2'},h('input',{value:this.state.calTitle,onChange:e=>this.setState({calTitle:e.target.value}),placeholder:'Event title',className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'}),h('input',{type:'datetime-local',value:this.state.calStart,onChange:e=>this.setState({calStart:e.target.value}),className:'rounded-xl border border-slate-700 bg-slate-950 px-3 py-2'})),h('button',{onClick:()=>this.addCalendar(),className:'px-3 py-2 rounded-xl border border-brand-500 bg-brand-600'},'Add'),h(ItemList,{rows:this.state.calendar,kind:'calendar',onAction:id=>this.deleteCalendar(id)})),'md:col-span-6'));}
   renderSecurity(){const sec=this.state.security;return h('div',{className:'grid md:grid-cols-12 gap-3'},this.card('Guardian summary',h('pre',{className:'font-mono text-xs overflow-x-auto whitespace-pre-wrap'},JSON.stringify(sec.summary,null,2)),'md:col-span-4'),this.card('Sensor platform',h('pre',{className:'font-mono text-xs overflow-x-auto whitespace-pre-wrap'},JSON.stringify(sec.sensors,null,2)),'md:col-span-4'),this.card('Open findings',h('div',{className:'space-y-2'},sec.findings.length?sec.findings.map((x,i)=>h('div',{key:i,className:'rounded-xl border border-slate-800 p-3'},h('strong',null,`${x.severity||''} · ${x.kind||x.title||'Finding'}`),h('div',{className:'text-sm text-slate-400'},x.summary||x.details||JSON.stringify(x)))):h('div',{className:'text-slate-500'},'No open findings.')),'md:col-span-4'));}
+
+    async loadCareer() {
+      try {
+        const p = await this.api("/api/v1/career/profile");
+        const a = await this.api("/api/v1/career/applications");
+        this.setState({careerProfile: p.profile, careerApplications: a.applications || []});
+      } catch (_) {}
+    }
+
+    async analyzeCareerJob(apply = false) {
+      const url = this.state.careerJobUrl.trim();
+      if (!url) return;
+      this.setState({careerBusy: true});
+      try {
+        if (apply) {
+          const res = await this.api("/api/v1/career/jobs/apply", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({url}),
+          });
+          this.notify("Application pre-filled & staged! Awaiting review.");
+        } else {
+          const res = await this.api("/api/v1/career/jobs/analyze", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({url}),
+          });
+          this.notify(`Analyzed ${res.company || "Job"}! ${res.recruiter_emails?.length || 0} emails found.`);
+        }
+        await this.loadCareer();
+      } catch (err) {
+        this.notify(err.message, true);
+      } finally {
+        this.setState({careerBusy: false});
+      }
+    }
+
+    async generateCareerOutreach(appId) {
+      try {
+        const res = await this.api(`/api/v1/career/applications/${encodeURIComponent(appId)}/outreach`, {method: "POST"});
+        if (res.outreach_email) {
+          this.setState({careerOutreachDraft: res.outreach_email});
+          this.notify("Cold outreach email draft ready!");
+        }
+      } catch (err) {
+        this.notify(err.message, true);
+      }
+    }
+
+    renderCareer() {
+      const p = this.state.careerProfile || {};
+      const screener = p.screener || {};
+      const apps = this.state.careerApplications || [];
+      const draft = this.state.careerOutreachDraft;
+
+      return h("div", {className: "space-y-4"},
+        h("div", {className: "grid md:grid-cols-12 gap-3"},
+          this.card("Candidate Profile & Resume", h("div", {className: "space-y-2 text-sm"},
+            h("div", {className: "flex justify-between border-b border-slate-800 pb-2"},
+              h("span", {className: "text-slate-400"}, "Full Name:"),
+              h("strong", null, p.full_name || "Not configured")
+            ),
+            h("div", {className: "flex justify-between border-b border-slate-800 pb-2"},
+              h("span", {className: "text-slate-400"}, "Email:"),
+              h("span", null, p.email || "Not set")
+            ),
+            h("div", {className: "flex justify-between border-b border-slate-800 pb-2"},
+              h("span", {className: "text-slate-400"}, "Master Resume:"),
+              h("span", {className: p.resume_file_path ? "text-emerald-400" : "text-slate-500"}, p.resume_file_path ? "Attached & Parsed" : "None")
+            ),
+            h("div", {className: "flex justify-between border-b border-slate-800 pb-2"},
+              h("span", {className: "text-slate-400"}, "Work Authorization:"),
+              h("span", null, screener.legally_authorized ? "Authorized" : "No")
+            ),
+            h("div", {className: "pt-1"},
+              h("span", {className: "text-slate-400 block mb-1"}, "Skills:"),
+              h("div", {className: "flex flex-wrap gap-1"},
+                (p.skills && p.skills.length ? p.skills : ["No skills listed"]).map((s, idx) =>
+                  h("span", {key: idx, className: "px-2 py-0.5 rounded-full text-xs bg-slate-800 text-slate-300"}, s)
+                )
+              )
+            )
+          ), "md:col-span-5"),
+
+          this.card("Job Opportunity Actions", h("div", {className: "space-y-3"},
+            h("p", {className: "text-xs text-slate-400"}, "Paste any job posting URL (Greenhouse, Lever, Ashby, LinkedIn, Indeed, etc.) to analyze requirements, extract recruiter emails, and pre-fill applications."),
+            h("input", {
+              value: this.state.careerJobUrl,
+              onChange: (e) => this.setState({careerJobUrl: e.target.value}),
+              placeholder: "https://boards.greenhouse.io/... or https://jobs.lever.co/...",
+              className: "w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100",
+            }),
+            h("div", {className: "flex gap-2"},
+              h("button", {
+                disabled: this.state.careerBusy || !this.state.careerJobUrl.trim(),
+                onClick: () => this.analyzeCareerJob(false),
+                className: "px-3 py-2 rounded-xl border border-slate-600 bg-slate-800 text-sm hover:bg-slate-700 disabled:opacity-50"
+              }, this.state.careerBusy ? "Processing..." : "Analyze & Harvest Emails"),
+              h("button", {
+                disabled: this.state.careerBusy || !this.state.careerJobUrl.trim(),
+                onClick: () => this.analyzeCareerJob(true),
+                className: "px-3 py-2 rounded-xl border border-brand-500 bg-brand-600 text-sm hover:bg-brand-500 disabled:opacity-50"
+              }, "Pre-fill Application")
+            )
+          ), "md:col-span-7")
+        ),
+
+        draft ? this.card("Generated Cold Outreach Email Draft", h("div", {className: "space-y-2 text-sm font-mono bg-slate-950 p-3 rounded-xl border border-slate-800"},
+          h("div", null, h("strong", {className: "text-brand-400"}, "To: "), draft.recipient),
+          h("div", null, h("strong", {className: "text-brand-400"}, "Subject: "), draft.subject),
+          h("div", {className: "border-t border-slate-800 pt-2 whitespace-pre-wrap text-slate-300"}, draft.body),
+          h("button", {
+            onClick: () => this.setState({careerOutreachDraft: null}),
+            className: "mt-2 text-xs px-2 py-1 bg-slate-800 rounded hover:bg-slate-700"
+          }, "Close Draft")
+        )) : null,
+
+        this.card("Applications Pipeline", h("div", {className: "overflow-x-auto"},
+          apps.length === 0 ? h("div", {className: "text-sm text-slate-500 py-3"}, "No applications tracked yet.") :
+          h("table", {className: "w-full text-left text-sm border-collapse"},
+            h("thead", null,
+              h("tr", {className: "border-b border-slate-800 text-slate-400 text-xs"},
+                h("th", {className: "py-2 px-3"}, "Company"),
+                h("th", {className: "py-2 px-3"}, "Role"),
+                h("th", {className: "py-2 px-3"}, "Platform"),
+                h("th", {className: "py-2 px-3"}, "Status"),
+                h("th", {className: "py-2 px-3"}, "Recruiter Emails"),
+                h("th", {className: "py-2 px-3"}, "Actions")
+              )
+            ),
+            h("tbody", null,
+              apps.map((a) =>
+                h("tr", {key: a.id, className: "border-b border-slate-800/50 hover:bg-slate-900/40"},
+                  h("td", {className: "py-2.5 px-3 font-semibold text-slate-200"}, a.company),
+                  h("td", {className: "py-2.5 px-3 text-cyan-300"}, a.title),
+                  h("td", {className: "py-2.5 px-3 text-yellow-400 text-xs uppercase"}, a.platform),
+                  h("td", {className: "py-2.5 px-3"},
+                    h("span", {className: "px-2 py-0.5 rounded-full text-xs font-medium " + (
+                      a.status === "applied" ? "bg-emerald-950 text-emerald-300 border border-emerald-800" :
+                      a.status === "ready_for_review" ? "bg-amber-950 text-amber-300 border border-amber-800" :
+                      "bg-slate-800 text-slate-300"
+                    )}, a.status)
+                  ),
+                  h("td", {className: "py-2.5 px-3 text-xs text-slate-300"},
+                    (a.recruiter_emails && a.recruiter_emails.length) ? a.recruiter_emails.join(", ") : h("span", {className: "text-slate-600"}, "None found")
+                  ),
+                  h("td", {className: "py-2.5 px-3"},
+                    h("button", {
+                      onClick: () => this.generateCareerOutreach(a.id),
+                      className: "px-2.5 py-1 text-xs rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200"
+                    }, "Draft Outreach")
+                  )
+                )
+              )
+            )
+          )
+        ))
+      );
+    }
+
   renderActivity(){return this.card('Activity timeline',h(ActivityList,{rows:this.state.activity}));}
+}
+
+// Renders a page from inside the error boundary, so errors thrown while building it are caught too.
+function PageBody({render}) { return render(); }
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = {error: null}; }
+  static getDerivedStateFromError(error) { return {error}; }
+  componentDidCatch(error, info) { console.error(`Page "${this.props.name}" failed:`, error, info && info.componentStack); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return h('div', {role: 'alert', className: 'rounded-2xl border border-rose-800 bg-rose-950/60 p-5 space-y-3'},
+      h('div', {className: 'font-semibold text-rose-100'}, `The ${this.props.name} page hit an error.`),
+      h('pre', {className: 'font-mono text-xs text-rose-200 whitespace-pre-wrap'}, String(this.state.error && (this.state.error.stack || this.state.error.message) || this.state.error).slice(0, 1500)),
+      h('button', {onClick: () => this.setState({error: null}), className: 'px-3 py-2 rounded-xl border border-rose-700 bg-rose-900 hover:bg-rose-800 text-sm'}, 'Try again'));
+  }
 }
 
 class ResourceChart extends React.Component {
