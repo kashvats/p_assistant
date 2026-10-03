@@ -103,6 +103,14 @@
 - **CLI Commands (`organism`):** Complete suites for `agent`, `skill`, `chat`, `models`, `security`, `todo`, `calendar`, `routine`, `improve`, `quarantine`, `desktop`, `browser`, `voice`.
 - **FastAPI Local Backend:** 149 verified endpoints without route collisions.
 
+### H. Career Assistant & Automated Job Application Subsystem
+- **Candidate Profile & Resume Ingestion (`src/living_assistant/career/profile.py`):** Multi-format parser (PDF, DOCX, Markdown), persistent candidate profile (`career_profile.json`), and structured screener defaults.
+- **Job Parser & Recruiter Email Extractor (`src/living_assistant/career/parser.py`):** ATS platform detection (Greenhouse, Lever, Ashby, LinkedIn, Indeed, Workday), observation sanitization against prompt injection, and DOM/regex recruiter email harvesting.
+- **Application Tailoring & Cold Outreach (`src/living_assistant/career/tailor.py`):** Customized cover letter generation, screener questionnaire synthesis, and personalized cold outreach emails with pitch bullets and call-to-action.
+- **Dual-Engine Form Filler & Approval Gate (`src/living_assistant/career/filler.py`):** Deterministic ATS field mapping and browser agent fallback; hard pause before submission requiring interactive approval via `ApprovalManager`.
+- **Application Tracker (`src/living_assistant/career/tracker.py`):** SQLite persistence (`career_applications.db`) for tracking application lifecycle, contacts, and outreach drafts.
+- **Unified Interfaces:** Career agent tools (`careertools.py`), REST API endpoints (`/api/v1/career/*`), CLI commands (`organism career [profile|analyze|apply|list|outreach]`), and WebUI Career dashboard view.
+
 ---
 
 ## 🔴 2. NOT WORKING / PENDING / NOT YET IMPLEMENTED

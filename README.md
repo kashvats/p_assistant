@@ -44,6 +44,13 @@ Because this AI has local execution privileges, the codebase is heavily armored 
 *   **Release Manager:** Handles safe, idempotent updates. Creates fresh virtual environments for updates, snapshots user state, and can roll back to a previous version cleanly.
 *   **Cross-Platform Daemons:** Automatically installs the background nervous system as an unprivileged background service (Scheduled Task on Windows, `systemd` on Linux, `LaunchAgent` on macOS).
 
+### 7. Career Assistant & Automated Job Applications
+*   **Resume & Profile Ingestion:** Ingests and parses PDF, DOCX, and Markdown resumes, maintaining a structured candidate profile and screener preferences.
+*   **ATS Form Filling:** Pre-fills application forms across Greenhouse, Lever, Ashby, LinkedIn Easy Apply, and Indeed with candidate details and resume attachments.
+*   **Recruiter Contact Harvesting:** Automatically scans job postings and company domains for recruiter, talent acquisition, and careers emails for cold outreach.
+*   **Tailored Cold Outreach:** Drafts high-converting, personalized cold outreach emails directly to hiring managers without fabricating credentials.
+*   **Pre-Submit Approval Gate:** Pauses before every final submission with field summaries and screenshot previews, requiring explicit human approval before submitting.
+
 ## Quick Start & Access URLs
 
 ### Application URLs
@@ -96,6 +103,7 @@ organism daemon
 ## Documentation
 
 Detailed architecture and module documentation can be found in the `docs/` directory:
+* [Career Assistant & Job Applications](docs/CAREER_ASSISTANT.md)
 * [Architecture Overview](docs/ARCHITECTURE.md)
 * [Evaluated Self Improvement](docs/EVALUATED_SELF_IMPROVEMENT.md)
 * [Experience Engine](docs/EXPERIENCE_ENGINE.md)
