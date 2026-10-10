@@ -1,34 +1,62 @@
 # Node Registry
 
-| Node ID | Type | Implementation Files | Responsibility |
-| :--- | :--- | :--- | :--- |
-| `NODE_SKILL_MANAGER` | service | `src/living_assistant/skills/package.py` | Package directory I/O, versioning, manifest loading, import/export. |
-| `NODE_SKILL_STORE` | database | `src/living_assistant/skills/store.py` | SQLite lifecycle storage (`skill_lifecycle`, `skill_versions`, `skill_executions`). |
-| `NODE_SKILL_CREATOR` | service | `src/living_assistant/skills/creator.py` | Natural-language prompt parsing to validated draft manifest & workflow. |
-| `NODE_SKILL_GUARD` | security | `src/living_assistant/skills/guards.py` | Out-of-model permission enforcement (paths, tools, network, subprocess). |
-| `NODE_PORTABLE_ADAPTER` | service | `src/living_assistant/skills/adapters.py` | Stable portable interfaces (`files.list`, `files.move`, dry-run, undo log). |
-| `NODE_DOC_EXTRACTOR` | service | `src/living_assistant/skills/extractor.py` | Invoices & document extraction with confidence scoring. |
-| `NODE_SKILL_RUNNER` | worker | `src/living_assistant/skills/runner.py` | Step-by-step workflow execution, retry safety, trace recording. |
-| `NODE_SKILL_API` | api | `src/living_assistant/api_routes/skills.py` | REST API routes for draft creation, test, activate, rollback, export. |
-| `NODE_SKILL_UI` | ui | `src/living_assistant/webui/src/main.js` | React dashboard tab for skills management. |
-| `NODE_AGENT_MANAGER` | service | `src/living_assistant/agents/custom/manager.py` | Custom agent lifecycle orchestration, storage, snapshots, and execution coordination. |
-| `NODE_AGENT_STORE` | database | `src/living_assistant/agents/custom/store.py` | SQLite persistence for agent lifecycles, versions, executions, actions, and memory. |
-| `NODE_AGENT_CREATOR` | service | `src/living_assistant/agents/custom/creator.py` | Natural-language draft generation, heuristic role inference, and tool allowlisting. |
-| `NODE_AGENT_EXECUTOR` | worker | `src/living_assistant/agents/custom/runner.py` | Bounded step execution, loop detection, outcome verification, and trace recording. |
-| `NODE_AGENT_DELEGATION` | security | `src/living_assistant/agents/custom/delegation.py` | Controlled delegation, permission inheritance, depth bounding, and inference slot coordination. |
-| `NODE_AGENT_MEMORY` | service | `src/living_assistant/agents/custom/memory.py` | Scoped memory isolation for working context, agent notes, and project knowledge. |
-| `NODE_AGENT_API` | api | `src/living_assistant/api_routes/agents.py` | REST API endpoints for agent listing, drafting, activation, execution, export/import. |
-| `NODE_AGENT_UI` | ui | `src/living_assistant/webui/src/main.js` | React dashboard tab for custom agent creation, inspection, and live execution. |
-| `NODE_DIAGRAM_DESIGN` | adapter | `src/living_assistant/integrations/diagram_design.py` | Editorial diagram engine with deterministic IR extraction (Mermaid, Draw.io, Excalidraw), accessible SVG generation, and safety self-check across 41 diagram types. |
-| `NODE_CYBERSECURITY_SKILLS` | adapter | `src/living_assistant/integrations/cybersecurity_skills.py` | Cybersecurity skills catalog adapter with 800+ defensive techniques, threat modeling, and multi-layered OWASP prompt injection auditing. |
-| `NODE_GRAFT_MEMORY` | adapter | `src/living_assistant/integrations/graft.py` | Persistent local AI agent memory layer with verified recall, hybrid retrieval, graph exploration, and embedded SQLite FTS5 fallback. |
-| `NODE_RETRY_POLICY` | core | `src/living_assistant/core/retry_policy.py` | Differentiated HTTP retry policy with exponential backoff and jitter. |
-| `NODE_IDEMPOTENCY_STORE` | core | `src/living_assistant/core/idempotency.py` | Thread-safe deduplication store preventing duplicate side-effecting operations. |
-| `NODE_BROWSER_DOWNLOAD_TRACKER` | desktop | `src/living_assistant/desktop/download_tracker.py` | Ingests, normalizes, verifies completion of, and quarantines dangerous browser downloads. |
-| `NODE_SYSTEM_GRAPH_VALIDATOR` | system | `src/living_assistant/system/graph_validator.py` | Validates system.graph.yaml integrity against code reality, duplicate node IDs, and cycles. |
-| `NODE_CONFIG_VALIDATOR` | core | `src/living_assistant/core/config_validator.py` | Enforces configuration schema boundaries for ports, timeouts, URLs, and providers. |
-| `NODE_CONFIG_MANAGER` | core | `src/living_assistant/core/config_manager.py` | Atomic configuration hot-reload coordinator and secret rotation manager. |
-| `NODE_MIGRATION_MANAGER` | core | `src/living_assistant/core/migration.py` | Transactional schema migration engine guaranteeing data integrity and rollbacks. |
-| `NODE_BACKUP_MANAGER` | core | `src/living_assistant/core/backup.py` | Creates state recovery backups excluding plaintext secrets and safely restores them. |
-| `NODE_AUDIT_LOGGER` | security | `src/living_assistant/security/audit.py` | Immutable security audit log maintaining audit trail for privileged operations. |
-
+| Node ID | Type | Feature ID | Implementation Files | Responsibility | Dependencies |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `NODE_RUNTIME` | service | - | `src/living_assistant/core/runtime.py` | Central application runtime composing tools, orchestrator, stores, and background engines. | `NODE_TOOL_REGISTRY`, `NODE_WORKSPACE`, `NODE_MODEL_PROVIDER` |
+| `NODE_TOOL_REGISTRY` | service | - | `src/living_assistant/tools/registry.py` | Ordered tool repository preventing duplicate registration and providing lookup. | - |
+| `NODE_ORCHESTRATOR` | service | - | `src/living_assistant/agents/orchestrator.py` | Main ReAct LLM loop with tool dispatch, context budgeting, and specialist handoffs. | `NODE_TOOL_REGISTRY`, `NODE_MODEL_PROVIDER`, `NODE_APPROVAL_MANAGER`, `NODE_WORKSPACE` |
+| `NODE_APPROVAL_MANAGER` | security | - | `src/living_assistant/core/approval.py` | Approval store and interactive gate for privileged operations with action hashing. | - |
+| `NODE_WORKSPACE` | service | - | `src/living_assistant/core/workspace.py` | Filesystem root confinement, path resolution, and security boundary enforcement. | - |
+| `NODE_MODEL_PROVIDER` | service | - | `src/living_assistant/core/model_provider.py` | Universal model inference management (Ollama, AirLLM, and LiteLLM/Universal API routing). | `NODE_RESOURCE_GOVERNOR` |
+| `NODE_ISOLATED_EXECUTOR` | service | - | `src/living_assistant/core/isolated_executor.py` | Secure subprocess execution boundary for toxic/conflicting external tools. | `NODE_WORKSPACE` |
+| `NODE_LEGACY_SKILLS` | service | - | `src/living_assistant/core/skills.py` | Flat JSON prompt-skill matching against trigger keywords. | - |
+| `NODE_WEBUI` | ui | - | `src/living_assistant/webui/src/main.js` | React single-page dashboard for assistant monitoring, chat, models, and approvals. | `NODE_API` |
+| `NODE_API` | api | - | `src/living_assistant/api.py` | FastAPI REST endpoints for desktop, workspace, models, and assistant control. | `NODE_RUNTIME` |
+| `NODE_RESOURCE_GOVERNOR` | system | - | `src/living_assistant/system/resource_manager.py` | Hardware telemetry, process/system load snapshots, GPU backends, and background throttling. | - |
+| `NODE_CODEBASE_INDEX` | service | - | `src/living_assistant/system/codebase_index.py` | Offline semantic index with sparse vector embeddings and throttled iteration. | `NODE_RESOURCE_GOVERNOR`, `NODE_WORKSPACE` |
+| `NODE_EXTERNAL_INTEGRATIONS`| integrations | - | `src/living_assistant/integrations/external.py` | Lazy isolation registry for external open-source modules and skill directories. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_BROWSER_USE_INTEGRATION`| adapter | - | `src/living_assistant/integrations/browser_use.py` | Sandboxed agentic web browser automation adapter. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_OPENVIKING_INTEGRATION` | adapter | - | `src/living_assistant/integrations/openviking.py` | Hierarchical context and repository indexing integration. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_AGENTMEMORY_INTEGRATION`| adapter | - | `src/living_assistant/integrations/agentmemory.py` | Persistent key-value agent memory adapter with vector similarity search. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_CODEBASE_MEMORY_INTEGRATION` | adapter | - | `src/living_assistant/integrations/codebase_memory.py` | Knowledge graph AST code index and architectural decision record management. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_PLATFORM_ENVIRONMENT` | system | - | `src/living_assistant/system/environment.py` | Cross-platform data/cache/config directories and isolated uv/venv environment manager. | - |
+| `NODE_KEYRING_VAULT` | security | - | `src/living_assistant/security/keyring_vault.py` | OS Credential Manager integration with encrypted file vault and memory fallbacks. | - |
+| `NODE_SKILL_MANAGER` | service | `FEAT-19` | `src/living_assistant/skills/manager.py` | End-to-end custom skill creation, validation, permission enforcement, and execution. | `NODE_TOOL_REGISTRY`, `NODE_WORKSPACE`, `NODE_APPROVAL_MANAGER` |
+| `NODE_AGENT_MANAGER` | service | `FEAT-20` | `src/living_assistant/agents/custom/manager.py` | Custom agent lifecycle management, orchestrator integration, delegation, and memory. | `NODE_ORCHESTRATOR`, `NODE_TOOL_REGISTRY`, `NODE_SKILL_MANAGER` |
+| `NODE_DISK_CACHE` | system | - | `src/living_assistant/system/disk_cache.py` | Persistent disk caching layer with namespace partitioning, TTL expiry, and memory fallback. | - |
+| `NODE_WATCHDOG_SERVICE` | system | - | `src/living_assistant/system/watchdog_service.py` | Debounced filesystem event observer with burst coalescing and incremental index updates. | `NODE_WORKSPACE` |
+| `NODE_SCHEDULER_SERVICE` | system | - | `src/living_assistant/system/scheduler.py` | Structured SQLite scheduled task store, persistent reminders, and recurring cron jobs. | - |
+| `NODE_ARTICLE_EXTRACTOR` | system | - | `src/living_assistant/system/article_extractor.py` | Article and documentation text extractor powered by Trafilatura with metadata extraction. | `NODE_DISK_CACHE` |
+| `NODE_DIAGRAM_DESIGN` | adapter | - | `src/living_assistant/integrations/diagram_design.py` | Editorial diagram engine with deterministic IR extraction (Mermaid, Draw.io, Excalidraw). | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_CYBERSECURITY_SKILLS` | adapter | - | `src/living_assistant/integrations/cybersecurity_skills.py` | Cybersecurity skills catalog adapter with 800+ defensive techniques and threat modeling. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_GRAFT_MEMORY` | adapter | - | `src/living_assistant/integrations/graft.py` | Persistent local AI agent memory layer with verified recall and hybrid retrieval. | `NODE_ISOLATED_EXECUTOR` |
+| `NODE_RETRY_POLICY` | core | - | `src/living_assistant/core/retry_policy.py` | Differentiated HTTP retry policy with exponential backoff and decorrelated full jitter. | - |
+| `NODE_IDEMPOTENCY_STORE` | core | - | `src/living_assistant/core/idempotency.py` | Thread-safe deduplication store preventing duplicate side-effecting operations. | - |
+| `NODE_BROWSER_DOWNLOAD_TRACKER` | desktop | - | `src/living_assistant/desktop/download_tracker.py` | Tracks, verifies completion of, and normalizes browser downloads with quarantine checks. | `NODE_WORKSPACE` |
+| `NODE_SYSTEM_GRAPH_VALIDATOR` | system | - | `src/living_assistant/system/graph_validator.py` | Validates system.graph.yaml integrity against code reality, duplicate node IDs, and cycles. | - |
+| `NODE_CONFIG_VALIDATOR` | core | - | `src/living_assistant/core/config_validator.py` | Enforces configuration schema boundaries for ports, timeouts, URLs, and providers. | - |
+| `NODE_CONFIG_MANAGER` | core | - | `src/living_assistant/core/config_manager.py` | Atomic configuration hot-reload coordinator and secret rotation manager with log redaction. | `NODE_CONFIG_VALIDATOR` |
+| `NODE_MIGRATION_MANAGER` | core | - | `src/living_assistant/core/migration.py` | Transactional schema migration engine guaranteeing data integrity and rollbacks. | - |
+| `NODE_BACKUP_MANAGER` | core | - | `src/living_assistant/core/backup.py` | Creates state recovery backups excluding plaintext secrets and safely restores them. | `NODE_WORKSPACE` |
+| `NODE_AUDIT_LOGGER` | security | - | `src/living_assistant/security/audit.py` | Immutable security audit log maintaining audit trail for privileged operations. | - |
+| `NODE_COLLIBRI_LLAMA_SERVER` | service | `F2` | `src/living_assistant/system/llama_server.py` | Managed local llama.cpp supervisor providing GPU-accelerated and CPU-fallback serving. | `NODE_MODEL_PROVIDER`, `NODE_RESOURCE_GOVERNOR` |
+| `NODE_HERMES_CONTRACTOR` | agent | `F1` | `src/living_assistant/integrations/hermes_contractor.py` | Sole autonomous runtime wrapping hermes-agent AIAgent with armored tool dispatch. | `NODE_TOOL_REGISTRY`, `NODE_WORKSPACE`, `NODE_APPROVAL_MANAGER` |
+| `NODE_CODEBASE_ONBOARDING` | system | `F3` | `src/living_assistant/system/codebase_onboarding.py` | Brownfield codebase pickup engine parsing ASTs, dependency trees, and system graphs. | `NODE_SYSTEM_GRAPH_VALIDATOR`, `NODE_CODEBASE_INDEX`, `NODE_CODEBASE_MEMORY_INTEGRATION`, `NODE_WORKSPACE` |
+| `NODE_ONBOARDING_API` | api | `F4` | `src/living_assistant/api_routes/workspace.py` | REST endpoint POST /projects/onboard triggering asynchronous repository onboarding. | `NODE_CODEBASE_ONBOARDING`, `NODE_WORKSPACE`, `NODE_API` |
+| `NODE_ONBOARDING_CLI` | cli | `F4` | `src/living_assistant/cli/commands.py` | Typer CLI command 'organism project onboard <path>' for terminal-based onboarding. | `NODE_CODEBASE_ONBOARDING`, `NODE_WORKSPACE` |
+| `NODE_DIRECTOR` | service | `F5` | `src/living_assistant/agents/director.py` | Personal Assistant Director classifying intents into 7 domains and gating Directive B4 specs. | `NODE_ORCHESTRATOR`, `NODE_APPROVAL_MANAGER`, `NODE_SOFTWARE_COMPANY_WORKFLOW` |
+| `NODE_SOFTWARE_COMPANY_MODELS` | core | `F6` | `src/living_assistant/agents/software_company/models.py` | Pydantic domain models: CompanyPlan, TaskSpec, DeveloperOutput, QAReport, VerificationVerdict. | - |
+| `NODE_SOFTWARE_COMPANY_TASK_GRAPH` | system | `F6` | `src/living_assistant/agents/software_company/task_graph.py` | Hierarchical DAG manager enforcing depth <= 3, execution budgets, and cancellation. | `NODE_SOFTWARE_COMPANY_MODELS` |
+| `NODE_SOFTWARE_COMPANY_ROLES` | service | `F6` | `src/living_assistant/agents/software_company/roles.py` | Dynamic role profile catalogue of 28 roles across 7 departments in Hermes runtime. | `NODE_HERMES_CONTRACTOR`, `NODE_TOOL_REGISTRY`, `NODE_SOFTWARE_COMPANY_MODELS` |
+| `NODE_SOFTWARE_COMPANY_WORKFLOW` | workflow | `F6` | `src/living_assistant/agents/software_company/workflow.py` | Multi-agent execution pipeline: Manager -> Developers -> QA Gate -> Final Verifier Gate. | `NODE_SOFTWARE_COMPANY_ROLES`, `NODE_SOFTWARE_COMPANY_TASK_GRAPH`, `NODE_TASK_SCOPED_PERMISSIONS`, `NODE_WORKSPACE` |
+| `NODE_SPECIALIST_ROLES` | agent | `F7` | `src/living_assistant/agents/software_company/roles.py` | Specialist profiles: Tool Operator and GitHub Researcher (REUSE, ADAPT, DEPEND, INSPIRE, REJECT). | `NODE_SOFTWARE_COMPANY_ROLES`, `NODE_TOOL_REGISTRY`, `NODE_WORKSPACE` |
+| `NODE_TASK_SCOPED_PERMISSIONS` | security | `F8` | `src/living_assistant/security/permissions.py` | Evaluates ROLE+TASK+ENV+RESOURCE+RISK=ALLOWED, protects frozen tests, manages VRAM leases. | `NODE_WORKSPACE`, `NODE_APPROVAL_MANAGER`, `NODE_MODEL_PROVIDER` |
+| `NODE_CODING_ROUTER` | api | `F9` | `src/living_assistant/api_routes/coding.py` | Unified coding router exposing /coding/generate, /coding/patch, /coding/audit, /coding/repair, /coding/search. | `NODE_API`, `NODE_HERMES_CONTRACTOR`, `NODE_COLLIBRI_LLAMA_SERVER`, `NODE_CODEBASE_ONBOARDING`, `NODE_TASK_SCOPED_PERMISSIONS`, `NODE_WORKSPACE` |
+| `NODE_GEMINI_KNOWLEDGE_BASE` | system | `F10` | `agent/architecture/system.graph.yaml` | Authoritative knowledge base under agent/ and docs/ validated by SystemGraphValidator. | `NODE_SYSTEM_GRAPH_VALIDATOR` |
+| `NODE_WORKSPACE_SNAPSHOTS` | system | - | `src/living_assistant/system/workspace_snapshots.py` | Source-tree archive snapshot and recovery engine for AI-driven workspace mutation rollback. | `NODE_WORKSPACE` |
+| `NODE_GIT_CHANGE_MANAGER` | vcs | `F11` | `src/living_assistant/system/git_manager.py` | Autonomous Git change manager capturing baselines, managing checkpoints, and performing non-destructive rollbacks. | `NODE_WORKSPACE`, `NODE_WORKSPACE_SNAPSHOTS` |
+| `NODE_INCIDENT_RECOVERY` | security | `F12` | `src/living_assistant/agents/software_company/incident_recovery.py` | Human-in-the-loop action gatekeeper and 8-stage incident recovery manager. | `NODE_GIT_CHANGE_MANAGER`, `NODE_APPROVAL_MANAGER`, `NODE_WORKSPACE` |
+| `NODE_FINAL_VERIFIER` | governance | `F13` | `src/living_assistant/agents/software_company/roles/verifier.py` | Authoritative completion gate verifying all 5 verification pillars (criteria, tests, security, artifacts, git state) before transitioning tasks to COMPLETED. | `NODE_SOFTWARE_COMPANY_ROLES`, `NODE_GIT_CHANGE_MANAGER`, `NODE_SYSTEM_GRAPH_VALIDATOR` |
+| `NODE_SOFTWARE_COMPANY_EVAL_BENCHMARK` | eval | `F14` | `tests/test_feat_benchmark_and_final_verification.py` | Dual-track multi-task evaluation benchmark and authoritative final verifier test harness. | `NODE_SOFTWARE_COMPANY_WORKFLOW`, `NODE_FINAL_VERIFIER`, `NODE_GIT_CHANGE_MANAGER`, `NODE_INCIDENT_RECOVERY` |
+| `NODE_SOFTWARE_PROJECT_SCAFFOLDING` | service | `F15` | `src/living_assistant/tools/software_company_tools.py` | General-purpose multi-archetype software scaffolding (Notes, Blog, Expense Tracker, Chat, Contacts, E-Commerce, Custom, Todo) with Product Vision Blueprint discovery, anti-loop clarification, and live multi-agent execution timeline. | `NODE_PROMPT_ENGINEER`, `NODE_SOFTWARE_COMPANY_WORKFLOW`, `NODE_WORKSPACE`, `NODE_TASK_SCOPED_PERMISSIONS` |
+| `NODE_SKILL_LEARNING_ENGINE` | service | `F16` | `src/living_assistant/skills/learning.py` | Persistent Skill Learning and Acquisition System: capability gap detection, multi-source procedural learning, 6-stage lifecycle (PROPOSED -> LEARNING -> TESTING -> VERIFIED -> DEPRECATED \| FAILED), isolated sandboxed testing, security gating, and publication into persistent catalog. | `NODE_SKILL_MANAGER`, `NODE_WORKSPACE`, `NODE_TOOL_REGISTRY`, `NODE_APPROVAL_MANAGER` |

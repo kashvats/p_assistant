@@ -7,7 +7,8 @@ INDEX = Path('src/living_assistant/webui/index.html')
 
 
 def _app() -> str:
-    return APP.read_text(encoding='utf-8')
+    # main.js plus the Markdown renderer it imports (shared with the research server's page)
+    return APP.read_text(encoding='utf-8') + APP.with_name('markdown.js').read_text(encoding='utf-8')
 
 
 def test_ui02_chat_renders_assistant_markdown_without_html_injection():

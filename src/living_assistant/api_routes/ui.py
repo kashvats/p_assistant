@@ -39,7 +39,11 @@ def _page(filename: str) -> HTMLResponse:
             "Cache-Control": "no-store",
             "Content-Security-Policy": (
                 "default-src 'self'; img-src 'self' data:; "
-                "connect-src 'self'; style-src 'self'; "
+                # The two hashes are the <style> blocks the vendored Plotly 3.3.1 injects
+                # (an empty one and its chart rules); no other inline style is allowed.
+                "connect-src 'self'; style-src 'self' "
+                "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=' "
+                "'sha256-V2sIX92Uh6ZaGSFTKMHghsB85b9toJtmazgG09AI2uk='; "
                 "script-src 'self'; frame-ancestors 'none'; "
                 "base-uri 'none'; object-src 'none'"
             ),

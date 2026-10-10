@@ -221,13 +221,14 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             return {'ok': False, 'error': redact_secrets(e, 1000)}
         text = bytes(buf).decode(encoding, errors='replace')
         from living_assistant.system.article_extractor import get_article_extractor
-        return get_article_extractor().extract(
+        result = get_article_extractor().extract(
             text,
             url=final_url,
             include_comments=include_comments,
             output_format=output_format,
             max_text_chars=max_text,
         )
+        return result
 
     def _stream_download(url: str, dest: Path) -> tuple[int,str,str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -536,10 +537,8 @@ def build_web_tools(workspace: Workspace, config: dict, approval: ApprovalManage
             
         dl_res = download_image(url, destination)
         if dl_res.get('ok') and 'path' in dl_res:
-            path_str = dl_res['path'].replace('\\', '/')
-            if not path_str.startswith('/'):
-                path_str = '/' + path_str
-            dl_res["URGENT_INSTRUCTION"] = f"Image successfully downloaded. You MUST reply to the user using exactly this markdown so the image shows in the chat UI: ![image](file://{path_str})"
+            # The chat shows downloaded files itself (from the tool result's path); a file:// link would not render.
+            dl_res["note"] = "The image is downloaded and shown in the chat. Do not paste its path or a file:// link."
         return dl_res
 
     def web_search(query: str, num: int = 5, use_cache: bool | None = None):

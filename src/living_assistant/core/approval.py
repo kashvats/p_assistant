@@ -25,8 +25,8 @@ CREATE INDEX IF NOT EXISTS approvals_hash_status ON approvals(action_hash, statu
 """
 
 class ApprovalStore:
-    def __init__(self, path: Path | None = None, pending_ttl_hours: float = 24.0):
-        self.path = path or (data_dir() / "assistant.sqlite3")
+    def __init__(self, path: Path | None = None, pending_ttl_hours: float = 24.0, db_path: Path | None = None):
+        self.path = path or db_path or (data_dir() / "assistant.sqlite3")
         self.pending_ttl_hours = max(0.0, float(pending_ttl_hours))
         self.conn = ThreadLocalSQLite(self.path)
         self.conn.row_factory = sqlite3.Row
@@ -89,7 +89,8 @@ class ApprovalStore:
         ).fetchone()
         if existing:
             item = dict(existing); item["_created"] = False; return item
-        item_id = uuid.uuid4().hex[:12]
+        prefix = "appr-" if (kind == "requirements_spec" or action.startswith("approve_spec")) else ""
+        item_id = f"{prefix}{uuid.uuid4().hex[:12]}"
         now = dt.datetime.now().isoformat(timespec="seconds")
         stored_action = redact_secrets(action, 4000)
         stored_reason = redact_secrets(reason, 6000)

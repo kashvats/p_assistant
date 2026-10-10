@@ -754,6 +754,9 @@ def build_runtime(interactive: bool = True) -> Runtime:
     )
     tool_registry.extend(build_agent_tools(agent_manager))
 
+    from living_assistant.tools.software_company_tools import build_software_company_tools
+    tool_registry.extend(build_software_company_tools(workspace=ws))
+
     from living_assistant.system.scheduler import LivingScheduler
     from living_assistant.tools.schedulertools import build_scheduler_tools
     scheduler = LivingScheduler(

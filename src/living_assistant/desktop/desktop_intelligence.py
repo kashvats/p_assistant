@@ -46,6 +46,7 @@ class DesktopController:
     """
 
     _ocr_engine = None
+    vision = None  # callable returning the local VisionEngine (set by the runtime)
 
     def __init__(self, workspace, approval, config: dict, provider=None, model_manager=None, quiet_provider=None, default_model: str = ""):
         self.default_model = default_model
@@ -378,8 +379,21 @@ $out | ConvertTo-Json -Compress -Depth 4
             }
         base = {"ok": True, "monitor_id": int(monitor_id), "captured_at": now_iso, "size": list(image.size)}
 
-        model = self._vision_model()
         vision_error = None
+        if self.vision is not None and not str(self.desktop_cfg.get("vision_model") or "").strip():
+            try:
+                import io
+                buf = io.BytesIO()
+                image.save(buf, format="PNG")
+                seen = self.vision().analyze(buf.getvalue(), question=prompt, task="ui")
+                if seen.get("ok"):
+                    return {**base, "mode": "vision", "model": seen["model"], "analysis": seen["text"],
+                            "seconds": seen.get("seconds")}
+                vision_error = seen.get("error")
+            except Exception as exc:
+                vision_error = redact_secrets(exc, 600)
+
+        model = self._vision_model()
         if model and self._model_accepts_images(model):
             try:
                 analysis = self._vision_chat(model, image, prompt)

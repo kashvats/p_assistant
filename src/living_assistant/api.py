@@ -15,6 +15,7 @@ from fastapi import FastAPI, Header, HTTPException, Request, Response
 
 from living_assistant.api_routes.agents import router as agents_router
 from living_assistant.api_routes.career import router as career_router
+from living_assistant.api_routes.coding import router as coding_router
 from living_assistant.api_routes.assistant import router as assistant_router
 from living_assistant.api_routes.conversations import router as conversations_router
 from living_assistant.api_routes.vision import router as vision_router
@@ -138,6 +139,7 @@ app.include_router(integrations_router)
 app.include_router(skills_router)
 app.include_router(agents_router)
 app.include_router(career_router)
+app.include_router(coding_router)
 app.include_router(ui_router)
 
 

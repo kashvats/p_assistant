@@ -1,46 +1,98 @@
 flowchart TD
-    User["User Request (Chat / Voice / UI / CLI)"] --> Orch["Orchestrator (agents/orchestrator.py)"]
-    Orch --> |"Matches Trigger / Invokes"| SkillMgr["SkillManager (skills/manager.py)"]
-    Orch --> |"Invokes / Delegates"| AgentMgr["AgentManager (agents/custom/manager.py)"]
+    User["User Request (Chat / Voice / WebUI / CLI)"] --> Director["NODE_DIRECTOR: Director (agents/director.py)"]
 
-    User --> |"Create Skill Command"| SkillCreator["SkillCreator (skills/creator.py)"]
-    SkillCreator --> |"Introspects"| ToolReg["ToolRegistry (tools/registry.py)"]
-    SkillCreator --> |"Generates Draft"| ModelMgr["ModelManager (core/model_provider.py)"]
-    SkillCreator --> |"Validates Schema"| SkillManifest["SkillManifest (skills/manifest.py)"]
-    SkillCreator --> |"Saves DRAFT"| SkillStore["SkillStore (skills/store.py - SQLite)"]
+    Director --> |"Classify: personal, media, computer"| Orch["NODE_ORCHESTRATOR: Orchestrator (agents/orchestrator.py)"]
+    Director --> |"Classify: coding, technical"| B4Spec["Directive B4 Functional Spec Generation"]
 
-    User --> |"Create Agent Command"| AgentCreator["AgentCreator (agents/custom/creator.py)"]
-    AgentCreator --> |"Infers Role & Tools"| ToolReg
-    AgentCreator --> |"Infers Skills"| SkillMgr
-    AgentCreator --> |"Validates Contract"| AgentManifest["AgentManifest (agents/custom/manifest.py)"]
-    AgentCreator --> |"Saves DRAFT"| AgentStore["AgentStore (agents/custom/store.py - SQLite)"]
+    B4Spec --> |"Requires Approval"| ApprMgr["NODE_APPROVAL_MANAGER: ApprovalManager (core/approval.py)"]
+    ApprMgr --> |"User Approves Spec"| SoftComp["NODE_SOFTWARE_COMPANY_WORKFLOW: CompanyWorkflow (workflow.py)"]
 
-    SkillMgr --> |"Read Package & Hash"| SkillDiskPkg["skills/<id>/ (SKILL.md, manifest.json, examples)"]
-    SkillMgr --> |"Read State & Approvals"| SkillStore
-    SkillMgr --> |"Execute"| SkillRunner["SkillExecutor (skills/runner.py)"]
-    SkillRunner --> |"Check Scopes & Allowlists"| SkillGuard["SkillPermissionGuard (skills/guards.py)"]
-    SkillGuard --> |"Request Interactive Approval"| ApprMgr["ApprovalManager (core/approval.py)"]
-    SkillRunner --> |"Portable Invocation"| Adapter["PortableToolAdapter (skills/adapters.py)"]
-    Adapter --> |"files.list / files.move / dry-run"| Workspace["Workspace (core/workspace.py)"]
-    Adapter --> |"documents.extract"| Extractor["DocumentExtractor (skills/extractor.py)"]
+    subgraph Software_Company_Subsystem["Software Company Multi-Agent Hierarchy (F6, F7, F8)"]
+        SoftComp --> Mgr["Manager / Tech Lead (roles/manager.py)"]
+        Mgr --> |"Decomposes into DAG"| TaskGraph["NODE_SOFTWARE_COMPANY_TASK_GRAPH: HierarchicalTaskGraph (task_graph.py)"]
+        TaskGraph --> |"Enforces Depth <= 3 & Budgets"| TaskNodes["TaskNodes (TaskSpec, Models)"]
+        
+        TaskNodes --> |"Activates Dynamic Roles"| Hermes["NODE_HERMES_CONTRACTOR: HermesContractor (hermes_contractor.py)"]
+        Hermes --> |"Dynamic Profiles"| RoleReg["NODE_SOFTWARE_COMPANY_ROLES: RoleRegistry (roles.py)"]
+        
+        RoleReg --> DevRoles["Engineering: Backend, Frontend, DB, SRE"]
+        RoleReg --> SpecRoles["NODE_SPECIALIST_ROLES: Tool Operator, GitHub Researcher"]
+        
+        Hermes --> |"Intercepts 100% Tool Calls"| PermEngine["NODE_TASK_SCOPED_PERMISSIONS: TaskScopedPermissionEngine (permissions.py)"]
+        PermEngine --> |"Evaluate: Role+Task+Env+Resource+Risk"| PermCheck{"Allowed?"}
+        
+        PermCheck --> |"No / Violation"| PermDenied["Raise PermissionDeniedViolation"]
+        PermCheck --> |"Yes"| ToolReg["NODE_TOOL_REGISTRY: ToolRegistry (tools/registry.py)"]
+        
+        ToolReg --> |"Path Resolution"| Workspace["NODE_WORKSPACE: Workspace (core/workspace.py)"]
+        
+        DevRoles --> |"Attempts Edit"| FrozenGate{"Target is Frozen QA Test?"}
+        FrozenGate --> |"Yes"| BlockFrozen["BLOCKED: FrozenTestViolation"]
+        FrozenGate --> |"No"| WorkFiles["Workspace Target Files"]
+        
+        Harness["TestHarness (workflow.py)"] --> |"Executes Frozen Tests"| QARunner["pytest / Test Runner"]
+        QARunner --> |"Generates Machine Evidence"| QAReport["QAReport: exit_code, log_hash, commit_sha"]
+        
+        QAReport --> QAGate{"QA Status?"}
+        QAGate --> |"REJECTED (Failures / Trace)"| RemediationLoop{"Remediation Cycle <= 3?"}
+        RemediationLoop --> |"Yes"| Mgr
+        RemediationLoop --> |"Exceeded > 3"| EscalateHuman["Escalate to Human Supervisor"]
+        
+        QAGate --> |"ACCEPTED"| FinalVerifier["Final Verifier Gate (roles/verifier.py)"]
+        FinalVerifier --> |"Verifies Artifact IDs"| Completed["WorkflowStatus.COMPLETED"]
+    end
 
-    AgentMgr --> |"Read Package & Hash"| AgentDiskPkg["agents/<id>/ (AGENT.md, manifest.json, examples)"]
-    AgentMgr --> |"Read State & Approvals"| AgentStore
-    AgentMgr --> |"Execute"| AgentRunner["AgentExecutor (agents/custom/runner.py)"]
-    AgentRunner --> |"Check Delegation & Slots"| DelegationCoord["AgentDelegationCoordinator (agents/custom/delegation.py)"]
-    AgentRunner --> |"Scoped Memory Access"| ScopedMem["AgentScopedMemory (agents/custom/memory.py)"]
-    AgentRunner --> |"Invokes Allowed Tools"| ToolReg
-    AgentRunner --> |"Invokes Allowed Skills"| SkillMgr
+    subgraph Coding_Router_Subsystem["Unified AI Coding Assistant Router (F9)"]
+        CodingAPI["NODE_CODING_ROUTER: Coding Router (api_routes/coding.py)"]
+        CodingAPI --> |"POST /coding/generate"| Hermes
+        CodingAPI --> |"POST /coding/patch"| ASTPatcher["AST Patch Engine & Workspace"]
+        CodingAPI --> |"POST /coding/audit"| OnboardingEngine["NODE_CODEBASE_ONBOARDING: CodebaseOnboarding (codebase_onboarding.py)"]
+        CodingAPI --> |"POST /coding/repair"| RepairLoop["Autonomous Test/Syntax Repair Loop"]
+        CodingAPI --> |"POST /coding/search"| SearchEngine["SearXNG / Semantic Code Search"]
+    end
 
-    SkillsAPI["FastAPI /skills (api_routes/skills.py)"] --> SkillMgr
-    AgentsAPI["FastAPI /agents (api_routes/agents.py)"] --> AgentMgr
-    WebUI["React WebUI (webui/src/main.js)"] --> SkillsAPI
-    WebUI --> AgentsAPI
-    
-    ModelMgr --> |"Route local/Ollama"| OllamaProvider["Ollama Provider"]
-    ModelMgr --> |"Route airllm:"| AirLLMProvider["AirLLM Provider"]
-    ModelMgr --> |"Route openai/ anthropic/"| LiteLLMProvider["Universal / LiteLLM Provider"]
+    subgraph Codebase_Onboarding_Subsystem["Brownfield Codebase Pickup & Graph Sync (F3, F4, F10)"]
+        CLI_Onboard["NODE_ONBOARDING_CLI: CLI organism project onboard (commands.py)"] --> OnboardingEngine
+        API_Onboard["NODE_ONBOARDING_API: POST /projects/onboard (workspace.py)"] --> OnboardingEngine
+        OnboardingEngine --> |"AST Parsing & Symbol Indexing"| CodeIndex["NODE_CODEBASE_INDEX: CodebaseIndex (codebase_index.py)"]
+        OnboardingEngine --> |"Generates / Updates"| SysGraph["system.graph.yaml"]
+        SysGraph --> |"Integrity Validation"| GraphValidator["NODE_SYSTEM_GRAPH_VALIDATOR: SystemGraphValidator (graph_validator.py)"]
+    end
 
-    Orch --> |"Uses Complex Tools"| IsolatedExecutor["Isolated Executor (core/isolated_executor.py)"]
-    IsolatedExecutor --> |"Sandboxed Process"| BrowserUse["Browser-Use Adapter"]
-    IsolatedExecutor --> |"Sandboxed Process"| OpenViking["OpenViking Adapter"]
+    subgraph Model_Inference_Subsystem["Hardware Telemetry & Model Routing (F2, F8)"]
+        PermEngine --> |"Select Model Tier"| ModelRouter["DynamicModelRouter (permissions.py)"]
+        ModelRouter --> |"Lease GPU VRAM"| VRAMLease["VRAMLeaseManager (permissions.py)"]
+        VRAMLease --> |"<=4GB Serial Fallback"| Collibri["NODE_COLLIBRI_LLAMA_SERVER: LlamaServerSupervisor (llama_server.py)"]
+        ModelRouter --> |"Cloud / API"| LiteLLM["NODE_MODEL_PROVIDER: Universal / LiteLLM Provider"]
+    end
+
+    subgraph Personal_Subsystem["Personal Assistant Core & Isolated Tools"]
+        Orch --> SkillMgr["NODE_SKILL_MANAGER: SkillManager (skills/manager.py)"]
+        SkillMgr --> SkillLearn["NODE_SKILL_LEARNING_ENGINE: SkillLearningEngine (skills/learning.py)"]
+        SkillLearn --> |"6-Stage Lifecycle"| SkillStages["PROPOSED -> LEARNING -> TESTING -> VERIFIED"]
+        Orch --> AgentMgr["NODE_AGENT_MANAGER: AgentManager (agents/custom/manager.py)"]
+        Orch --> IsoExec["NODE_ISOLATED_EXECUTOR: IsolatedExecutor (isolated_executor.py)"]
+        IsoExec --> BrowserUse["Browser-Use Adapter"]
+        IsoExec --> OpenViking["OpenViking Adapter"]
+    end
+
+    subgraph Governance_And_Recovery_Subsystem["Governance, Git Checkpoints & Incident Recovery (F11, F12)"]
+        SoftComp --> GitCM["NODE_GIT_CHANGE_MANAGER: GitChangeManager (system/git_manager.py)"]
+        GitCM --> |"Step 1: Baseline SHA"| TaskBase["TaskBaseline (commit, branch, dirty_state)"]
+        GitCM --> |"Step 2: Pre-Mutation Checkpoint"| Snapshots["NODE_WORKSPACE_SNAPSHOTS: WorkspaceSnapshotManager"]
+
+        Hermes --> Gatekeeper["NODE_INCIDENT_RECOVERY: ActionGatekeeper (incident_recovery.py)"]
+        Gatekeeper --> |"Evaluate Action"| ActionClassCheck{"Action Class?"}
+        ActionClassCheck --> |"AUTOMATIC"| ToolReg
+        ActionClassCheck --> |"APPROVAL_REQUIRED"| ApprMgr["NODE_APPROVAL_MANAGER: ApprovalManager"]
+        ActionClassCheck --> |"PROHIBITED"| ProhibitBlock["BLOCKED: Non-Destructive Safety Policy"]
+
+        Harness --> |"Runtime Defect / Incident"| IncMgr["IncidentRecoveryManager (incident_recovery.py)"]
+        IncMgr --> |"Stage 1: Detect"| IncDetect["DETECTED"]
+        IncDetect --> |"Stage 2: Diagnose"| IncDiag["DIAGNOSED"]
+        IncDiag --> |"Stage 3: Contain"| IncContain["CONTAINED"]
+        IncContain --> |"Stage 4: Safe Rollback"| GitCM
+        GitCM --> |"Restore Snapshot"| IncRollback["ROLLED_BACK"]
+        IncRollback --> |"Stage 5: Repair"| IncRepair["REPAIRED"]
+        IncRepair --> |"Stage 6-8: Test, Verify, Document"| IncResolve["RESOLVED"]
+    end

@@ -51,16 +51,6 @@ dependencies = [
   "rapidfuzz>=3,<4",
   "json-repair>=0.30",
   "openpyxl>=3.1,<4",
-  # Research reports (deep_research). langchain-openai stays below 1.2: newer releases need
-  # openai>=2.45 while hermes-agent pins openai==2.24.
-  "gpt-researcher==0.16.1",
-  "langchain-openai>=1.1,<1.2",
-  "langchain-huggingface>=1.2,<2",
-  "sentence-transformers>=5,<7",
-  # Research intelligence engine detectors (living_assistant.research).
-  "ruptures>=1.1,<2",
-  "stumpy>=1.13,<2",
-  "drain3>=0.9,<1",
 ]
 [project.optional-dependencies]
 desktop = [

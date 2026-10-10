@@ -15,11 +15,9 @@ def _dashboard_source() -> str:
 
 
 def _app_source() -> str:
-    return (
-        resources.files("living_assistant")
-        .joinpath("webui/src/main.js")
-        .read_text(encoding="utf-8")
-    )
+    # main.js plus the Markdown renderer it imports (shared with the research server's page)
+    src = resources.files("living_assistant").joinpath("webui/src")
+    return src.joinpath("main.js").read_text(encoding="utf-8") + src.joinpath("markdown.js").read_text(encoding="utf-8")
 
 
 def test_dashboard_webui_has_safe_markdown_and_prism_pipeline():
@@ -94,6 +92,17 @@ def test_floating_agent_page_asks_for_microphone_consent(monkeypatch):
     assert "e.isTrusted" in agent  # consent only from a real click
     assert "if (!drag) return;" in agent  # a stray pointer release never starts listening
     assert "/voice/meter" in agent
+
+
+def test_vendored_react_supports_the_apis_the_dashboard_uses():
+    # React 16.0 lacked createRef; the dashboard crashed on load and every page (chat included) went blank.
+    root = resources.files("living_assistant").joinpath("webui")
+    react = root.joinpath("vendor/react.production.min.js").read_text(encoding="utf-8")
+    assert "createRef" in react and "forwardRef" in react
+    page = root.joinpath("index.html").read_text(encoding="utf-8")
+    assert "react.production.min.js?v=" in page and "react-dom.production.min.js?v=" in page  # busts the immutable cache
+    app = _app_source()
+    assert "class ErrorBoundary" in app and "h(ErrorBoundary" in app  # one broken page must not blank the app
 
 
 def test_webui_is_declared_as_package_data():

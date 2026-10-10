@@ -422,6 +422,15 @@ scraping:
   max_detail_pages: 50     # item pages opened to fill columns missing from a listing
   max_crawl_pages: 100
 
-# deep_research (GPT Researcher on the local model; sources come from web_search).
-research:
-  embedding_model: sentence-transformers/all-MiniLM-L6-v2
+# Local vision: images, screenshots, OCR, symbols, UI, charts, diagrams, camera frames.
+# Each vision model runs in its own llama.cpp server, started on demand. Models are in
+# src/living_assistant/vision/models.py; add others under `models:` (name: {repo, file, mmproj, mode}).
+# Chosen by benchmarks/vision (see benchmarks/vision/RESULTS.md) — re-run it after changing hardware.
+vision:
+  enabled: true
+  default: qwen3-vl-2b
+  tasks: {}                  # per-task override, e.g. {ocr: qwen3-vl-2b, photo: qwen3-vl-4b}
+  port: 8091
+  idle_unload_seconds: 300   # stop the vision server after this long unused
+  max_image_side: 1280       # larger images are downscaled first (CPU image encoding is slow)
+  ocr_assist: true           # give the model on-device OCR text for text-heavy tasks

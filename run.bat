@@ -13,7 +13,9 @@ set "TEMP_DIR=%TEMP%\LivingAssistant"
 if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%" >nul 2>&1
 set "REQ_FILE=%TEMP_DIR%\requirements-%RANDOM%-%RANDOM%.txt"
 set "TOKEN_FILE=%TEMP_DIR%\api-token-%RANDOM%-%RANDOM%.txt"
-set "ELECTRON_RUNTIME_DIR=%TEMP_DIR%\electron-runtime"
+set "ELECTRON_VERSION=44.4.5"
+rem One folder per Electron version: upgrading installs beside the old runtime instead of over it.
+set "ELECTRON_RUNTIME_DIR=%TEMP_DIR%\electron-runtime-%ELECTRON_VERSION%"
 set "ELECTRON_EXE=%ELECTRON_RUNTIME_DIR%\node_modules\electron\dist\electron.exe"
 
 echo ========================================================
@@ -108,6 +110,18 @@ if not exist "%VENV_PY%" (
     )
 )
 
+rem The venv borrows the standard library of the Python named in .venv\pyvenv.cfg ("home").
+rem If that Python was removed or replaced by another version, the installed packages cannot load.
+"%VENV_PY%" -c "import encodings, pydantic_core" >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] The virtual environment's base Python is missing or has changed version.
+    echo         .venv was built for Python 3.12; its base is set in .venv\pyvenv.cfg:
+    type "%VENV_DIR%\pyvenv.cfg"
+    echo         Point "home" at an installed Python 3.12, or delete .venv to rebuild it.
+    pause
+    exit /b 1
+)
+
 echo [SETUP] Checking runtime dependencies...
 
 set "REQ_EXTRACT_CODE=import os,pathlib,tomllib; d=tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8')); pathlib.Path(os.environ['REQ_FILE']).write_text(''.join(x+'\n' for x in d.get('project',{}).get('dependencies',[])),encoding='utf-8')"
@@ -141,6 +155,8 @@ if errorlevel 1 echo [WARN] Could not install the Chromium browser used for scra
 
 set "PYTHONPATH=%PROJECT_ROOT%src"
 set "PYTHONUNBUFFERED=1"
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
 
 if not defined ASSISTANT_API_TOKEN (
     "%VENV_PY%" -c "from living_assistant.security.api_auth import get_api_token; print(get_api_token())" > "%TOKEN_FILE%"
@@ -159,6 +175,7 @@ echo.
 powershell.exe -NoProfile -Command "try { $null = (New-Object System.Net.Sockets.TcpClient).Connect('%HOST%', %PORT%); exit 0 } catch { exit 1 }" >nul 2>&1
 if not errorlevel 1 (
     echo Living Assistant is already running.
+    if exist "%ELECTRON_EXE%" start "" "%ELECTRON_EXE%" "%PROJECT_ROOT%electron-assistant"
     echo Opening dashboard in your browser...
     start "" "%URL%"
     pause
@@ -182,7 +199,7 @@ if not exist "%ELECTRON_EXE%" (
     if not exist "%ELECTRON_RUNTIME_DIR%" mkdir "%ELECTRON_RUNTIME_DIR%" >nul 2>&1
     pushd "%ELECTRON_RUNTIME_DIR%"
     if not exist "package.json" (
-        >package.json echo {"private":true,"dependencies":{"electron":"26.6.10"}}
+        >package.json echo {"private":true,"dependencies":{"electron":"%ELECTRON_VERSION%"}}
     )
     call npm.cmd install --no-audit --no-fund --package-lock=false
     if errorlevel 1 (
@@ -191,7 +208,14 @@ if not exist "%ELECTRON_EXE%" (
         pause
         exit /b 1
     )
+    rem Some npm setups skip Electron's postinstall, which downloads the actual binary.
+    if not exist "%ELECTRON_EXE%" call node.exe node_modules\electron\install.js
     popd
+    if not exist "%ELECTRON_EXE%" (
+        echo [ERROR] The desktop companion runtime downloaded but electron.exe is missing.
+        pause
+        exit /b 1
+    )
 )
 
 echo Starting hovering desktop companion...
@@ -200,6 +224,10 @@ start "" "%ELECTRON_EXE%" "%PROJECT_ROOT%electron-assistant"
 "%VENV_PY%" -m uvicorn living_assistant.api:app --host %HOST% --port %PORT%
 
 set "EXIT_CODE=%ERRORLEVEL%"
+if "%EXIT_CODE%"=="99" (
+    echo Living Assistant was stopped by the kill switch.
+    exit /b 0
+)
 
 echo.
 if not "%EXIT_CODE%"=="0" (

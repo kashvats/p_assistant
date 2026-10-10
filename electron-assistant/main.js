@@ -1,316 +1,363 @@
-const { app, BrowserWindow, ipcMain, screen, powerMonitor, globalShortcut, Tray, Menu, nativeImage } = require('electron')
+// Living Assistant desktop shell: the floating agent (orb + chat panel) that stays on top of
+// the desktop, independent of any browser. It keeps the local backend running, remembers
+// where you put it, lives in the system tray and can start with the OS.
+const { app, BrowserWindow, desktopCapturer, ipcMain, screen, globalShortcut, Tray, Menu, nativeImage, shell, dialog } = require('electron')
+const { spawn } = require('child_process')
+const fs = require('fs')
+const http = require('http')
 const path = require('path')
 
-let tray = null
-let agentWin = null
-let mainWin = null
-
-const API_URL = process.env.ASSISTANT_API_URL || 'http://127.0.0.1:8787'
-const AGENT_W = 380
-const AGENT_H = 320
-
-function openDashboard() {
-  require('electron').shell.openExternal(`${API_URL}/dashboard`)
+if (!app.requestSingleInstanceLock()) {
+  app.quit()  // another copy is already running; it gets a 'second-instance' event instead
+} else {
+  main()
 }
 
-function showAgent() {
-  if (!agentWin || agentWin.isDestroyed()) createAgentWindow()
-  else agentWin.showInactive()
-}
+function main() {
+  const API_URL = (process.env.ASSISTANT_API_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
+  const PROJECT_ROOT = path.resolve(__dirname, '..')
+  const SIZE = { collapsed: { w: 380, h: 320 }, expanded: { w: 440, h: 720 } }
+  const settingsFile = () => path.join(app.getPath('userData'), 'agent-settings.json')
 
-// The floating agent: a small transparent, always-on-top window whose empty
-// areas pass clicks through to the desktop. It loads /agent from the local API.
-function createAgentWindow() {
-  const { workArea } = screen.getPrimaryDisplay()
-  agentWin = new BrowserWindow({
-    width: AGENT_W,
-    height: AGENT_H,
-    x: workArea.x + workArea.width - AGENT_W - 8,
-    y: workArea.y + workArea.height - AGENT_H - 8,
-    frame: false,
-    transparent: true,
-    resizable: false,
-    movable: true,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    skipTaskbar: true,
-    hasShadow: false,
-    alwaysOnTop: true,
-    backgroundColor: '#00000000',
-    webPreferences: {
-      preload: path.join(__dirname, 'agent-preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  // 'screen-saver' is the highest z-level; 'floating' drops behind fullscreen apps on Windows.
-  agentWin.setAlwaysOnTop(true, 'screen-saver')
-  agentWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  agentWin.setIgnoreMouseEvents(true, { forward: true })
+  let agentWin = null
+  let tray = null
+  let expanded = false
+  let backendChild = null
+  let settings = loadSettings()
 
-  // Only the local agent page may load here; anything else opens in the browser.
-  agentWin.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith(`${API_URL}/agent`)) { event.preventDefault(); require('electron').shell.openExternal(url) }
-  })
-  agentWin.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(API_URL)) require('electron').shell.openExternal(url)
-    return { action: 'deny' }
-  })
+  function loadSettings() {
+    try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) } catch (_) { return {} }
+  }
+  function saveSettings(patch) {
+    settings = { ...settings, ...patch }
+    try {
+      fs.mkdirSync(path.dirname(settingsFile()), { recursive: true })
+      fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2))
+    } catch (_) {}
+  }
 
-  const load = () => { if (agentWin && !agentWin.isDestroyed()) agentWin.loadURL(`${API_URL}/agent`) }
-  // The API may still be starting (run.bat launches both); keep retrying until it answers.
-  agentWin.webContents.on('did-fail-load', () => setTimeout(load, 3000))
-  load()
+  // ---- window placement: remembered by the orb's corner (bottom-right of the window) ----
 
-  const cursorTimer = setInterval(() => {
-    if (!agentWin || agentWin.isDestroyed()) return clearInterval(cursorTimer)
-    if (agentWin.isVisible()) agentWin.webContents.send('agent-cursor', screen.getCursorScreenPoint())
-  }, 50)
-  // Fullscreen apps (browsers, players) re-raise themselves when focused and can
-  // cover other topmost windows; put the agent back on top without taking focus.
-  const topTimer = setInterval(() => {
-    if (!agentWin || agentWin.isDestroyed()) return clearInterval(topTimer)
-    if (agentWin.isVisible() && !agentWin.isFocused()) agentWin.moveTop()
-  }, 1500)
-  agentWin.on('closed', () => { clearInterval(cursorTimer); clearInterval(topTimer); agentWin = null })
-}
+  // The orb's centre sits ORB px in from the window's bottom-right corner (.desk-dock is
+  // 200x200 at the corner with a 64px face). Collapsed, the transparent part of the window
+  // may hang off-screen but the whole face stays visible and reachable; expanded, the chat
+  // panel stays fully inside the work area.
+  const ORB = 100, HALF = 32, PAD = 8
 
-ipcMain.handle('agent-move', (_event, dx, dy) => {
-  if (!agentWin || agentWin.isDestroyed()) return false
-  const [x, y] = agentWin.getPosition()
-  // Keep the orb (bottom-right of the window) on some screen.
-  const display = screen.getDisplayNearestPoint({ x: x + AGENT_W - 100, y: y + AGENT_H - 100 })
-  const area = display.workArea
-  const nx = Math.min(Math.max(x + dx, area.x - AGENT_W + 170), area.x + area.width - 170)
-  const ny = Math.min(Math.max(y + dy, area.y - AGENT_H + 170), area.y + area.height - 170)
-  agentWin.setPosition(Math.round(nx), Math.round(ny), false)
-  return true
-})
+  function clampToDisplay(right, bottom, w, h) {
+    const display = screen.getDisplayNearestPoint({ x: Math.round(right - ORB), y: Math.round(bottom - ORB) })
+    const area = display.workArea
+    const collapsed = w === SIZE.collapsed.w && h === SIZE.collapsed.h
+    const overhang = collapsed ? ORB - HALF - PAD : 0
+    const minRight = collapsed ? ORB + HALF + PAD : Math.min(w, area.width)
+    const minBottom = collapsed ? ORB + HALF + PAD : Math.min(h, area.height)
+    const r = Math.min(Math.max(right, area.x + minRight), area.x + area.width + overhang)
+    const b = Math.min(Math.max(bottom, area.y + minBottom), area.y + area.height + overhang)
+    let x = Math.round(r - w), y = Math.round(b - h)
+    if (y < area.y) y = area.y  // an expanded panel never goes above the top of the screen
+    return { x, y, width: w, height: h }
+  }
 
-ipcMain.handle('agent-click-through', (_event, on) => {
-  if (!agentWin || agentWin.isDestroyed()) return false
-  agentWin.setIgnoreMouseEvents(Boolean(on), { forward: true })
-  return true
-})
-
-ipcMain.handle('agent-menu', (_event, opts) => {
-  if (!agentWin || agentWin.isDestroyed()) return false
-  Menu.buildFromTemplate([
-    { label: 'Open Dashboard', click: openDashboard },
-    { label: 'Speak replies', type: 'checkbox', checked: Boolean(opts && opts.speakReplies),
-      click: () => agentWin && agentWin.webContents.send('agent-menu-action', 'toggle-speak') },
-    { label: 'Show Assistant window', click: showAssistant },
-    { type: 'separator' },
-    { label: 'Hide floating agent', click: () => agentWin && agentWin.hide() },
-  ]).popup({ window: agentWin })
-  return true
-})
-
-function showAssistant() {
- if (!mainWin || mainWin.isDestroyed()) createWindow()
- mainWin.show()
- mainWin.focus()
-}
-
-function hideAssistant() {
- const win = mainWin
- if (win) win.hide()
-}
-
-function createTray() {
- if (tray) return
- const image = nativeImage.createFromPath(path.join(__dirname, '..', 'passistant.png'))
- tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image)
- tray.setToolTip('Living Assistant')
- tray.setContextMenu(Menu.buildFromTemplate([
-   { label: 'Show Assistant', click: showAssistant },
-   { label: 'Hide Assistant', click: hideAssistant },
-   { label: 'Show Floating Agent', click: showAgent },
-   { label: 'Open Dashboard', click: openDashboard },
-   { label: 'Settings', click: () => { showAssistant(); mainWin?.webContents.send('open-settings') } },
-   { type: 'separator' },
-   { label: 'Quit', click: () => app.quit() },
- ]))
- tray.on('click', showAssistant)
-}
-
-function createWindow() {
-  const primaryDisplay = screen.getPrimaryDisplay()
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
-
-  const windowWidth = Math.min(1420, Math.floor(screenWidth * 0.95))
-  const windowHeight = Math.min(890, Math.floor(screenHeight * 0.94))
-
-  const win = new BrowserWindow({
-    show: false, // the floating agent is the primary surface; open this from the tray or agent menu
-    width: windowWidth,
-    height: windowHeight,
-    minWidth: 1080,
-    minHeight: 700,
-    center: true,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    resizable: true,
-    backgroundColor: '#050711',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false
+  function anchor() {
+    if (agentWin && !agentWin.isDestroyed()) {
+      const b = agentWin.getBounds()
+      return { right: b.x + b.width, bottom: b.y + b.height }
     }
-  })
+    const area = screen.getPrimaryDisplay().workArea
+    if (Number.isFinite(settings.right) && Number.isFinite(settings.bottom)) return { right: settings.right, bottom: settings.bottom }
+    return { right: area.x + area.width - 8, bottom: area.y + area.height - 8 }
+  }
 
-  mainWin = win
-  win.on('closed', () => { if (mainWin === win) mainWin = null })
-  win.loadFile(path.join(__dirname, 'index.html'))
-  const signalTimer = setInterval(() => {
-    if (win.isDestroyed()) return
-    const point = screen.getCursorScreenPoint()
-    win.webContents.send('companion-signal', {
-      cursor: { x: point.x, y: point.y },
-      windowBounds: win.getBounds(),
-      idleSeconds: powerMonitor.getSystemIdleTime(),
-      observedAt: new Date().toISOString(),
+  let expandAnchor = null  // the orb's corner when the panel opened: collapsing returns exactly there
+  function applySize() {
+    if (!agentWin || agentWin.isDestroyed()) return
+    const { w, h } = expanded ? SIZE.expanded : SIZE.collapsed
+    if (expanded && !expandAnchor) expandAnchor = anchor()
+    const { right, bottom } = expanded ? expandAnchor : (expandAnchor || anchor())
+    if (!expanded) expandAnchor = null
+    agentWin.setBounds(clampToDisplay(right, bottom, w, h), false)
+  }
+
+  function rememberPosition() {
+    if (!agentWin || agentWin.isDestroyed()) return
+    const b = agentWin.getBounds()
+    saveSettings({ right: b.x + b.width, bottom: b.y + b.height })
+  }
+
+  // ---- the floating agent window ----------------------------------------------------
+
+  function createAgentWindow() {
+    const { right, bottom } = anchor()
+    agentWin = new BrowserWindow({
+      ...clampToDisplay(right, bottom, SIZE.collapsed.w, SIZE.collapsed.h),
+      frame: false,
+      transparent: true,
+      resizable: false,
+      movable: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      hasShadow: false,
+      alwaysOnTop: true,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: path.join(__dirname, 'agent-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
     })
-  }, 120)
-  win.on('closed', () => clearInterval(signalTimer))
-}
+    // 'screen-saver' is the highest z-level; 'floating' drops behind fullscreen apps on Windows.
+    agentWin.setAlwaysOnTop(true, 'screen-saver')
+    agentWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    agentWin.setIgnoreMouseEvents(true, { forward: true })
+    agentWin.once('ready-to-show', () => agentWin.showInactive())
 
-ipcMain.handle('window-minimize', () => {
-  const win = mainWin
-  if (win) win.minimize()
-  return true
-})
+    // Only the local agent page may load here; anything else opens in the browser.
+    agentWin.webContents.on('will-navigate', (event, url) => {
+      if (!url.startsWith(`${API_URL}/agent`)) { event.preventDefault(); shell.openExternal(url) }
+    })
+    agentWin.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//.test(url)) shell.openExternal(url)
+      return { action: 'deny' }
+    })
 
-ipcMain.handle('window-maximize', () => {
-  const win = mainWin
-  if (win) {
-    if (win.isMaximized()) win.unmaximize()
-    else win.maximize()
+    const load = () => { if (agentWin && !agentWin.isDestroyed()) agentWin.loadURL(`${API_URL}/agent`) }
+    // The backend may still be starting; keep retrying until it answers.
+    agentWin.webContents.on('did-fail-load', () => setTimeout(load, 3000))
+    load()
+
+    const cursorTimer = setInterval(() => {
+      if (!agentWin || agentWin.isDestroyed()) return clearInterval(cursorTimer)
+      if (agentWin.isVisible()) agentWin.webContents.send('agent-cursor', screen.getCursorScreenPoint())
+    }, 50)
+    // Fullscreen apps re-raise themselves when focused and can cover other topmost windows;
+    // put the agent back on top without taking focus.
+    const topTimer = setInterval(() => {
+      if (!agentWin || agentWin.isDestroyed()) return clearInterval(topTimer)
+      if (agentWin.isVisible() && !agentWin.isFocused()) agentWin.moveTop()
+    }, 1500)
+    agentWin.on('moved', rememberPosition)
+    agentWin.on('closed', () => { clearInterval(cursorTimer); clearInterval(topTimer); agentWin = null })
   }
-  return true
-})
 
-ipcMain.handle('window-close', () => {
-  const win = mainWin
-  if (win) win.hide()
-  return true
-})
+  function showAgent() {
+    if (!agentWin || agentWin.isDestroyed()) createAgentWindow()
+    else agentWin.showInactive()
+  }
 
-function getLocalApiToken() {
-  if (process.env.ASSISTANT_API_TOKEN) return process.env.ASSISTANT_API_TOKEN;
-  try {
-    const fs = require('fs');
-    const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Local');
-    const tokenFile = path.join(localAppData, 'LivingAssistant', 'LivingAssistant', 'api_token');
-    if (fs.existsSync(tokenFile)) {
-      return fs.readFileSync(tokenFile, 'utf8').trim();
+  function sendAction(action) {
+    showAgent()
+    if (agentWin && !agentWin.isDestroyed()) agentWin.webContents.send('agent-menu-action', action)
+  }
+
+  function openDashboard() { shell.openExternal(`${API_URL}/dashboard`) }
+
+  // ---- kill switch: stop everything the assistant is doing, shut the backend down, quit ----
+  // The page holds the API token, so it asks the backend to halt and exit; the shell quits
+  // right after, or on its own if the backend does not answer in time.
+  let killing = false
+  function killSwitch({ confirm = true } = {}) {
+    if (killing) return
+    if (confirm) {
+      const choice = dialog.showMessageBoxSync({
+        type: 'warning', buttons: ['Stop everything and quit', 'Cancel'], defaultId: 1, cancelId: 1,
+        title: 'Kill switch', message: 'Stop the assistant completely?',
+        detail: 'Running chats and background goals are cancelled, models and processes are stopped, and the assistant quits.',
+      })
+      if (choice !== 0) return
     }
-  } catch (_) {}
-  return '';
-}
-
-ipcMain.handle('assistant-config', () => ({
-  baseUrl: process.env.ASSISTANT_API_URL || 'http://127.0.0.1:8787',
-  token: getLocalApiToken(),
-  platform: process.platform,
-}))
-
-ipcMain.handle('companion-show', () => {
-  showAssistant()
-  return Boolean(mainWin)
-})
-
-ipcMain.handle('companion-ignore-mouse', (_event, ignore) => {
-  const win = mainWin
-  if (!win) return false
-  win.setIgnoreMouseEvents(Boolean(ignore), { forward: true })
-  return true
-})
-
-ipcMain.handle('companion-size', (_event, expanded) => {
-  const win = mainWin
-  if (!win) return false
-  if (expanded) {
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
-    const w = Math.min(1380, Math.floor(screenWidth * 0.94))
-    const h = Math.min(880, Math.floor(screenHeight * 0.94))
-    win.setMinimumSize(1024, 680)
-    win.setResizable(true)
-    win.setSize(w, h, true)
-    win.center()
-    win.setAlwaysOnTop(false)
-    win.setIgnoreMouseEvents(false)
-  } else {
-    win.setMinimumSize(100, 100)
-    win.setSize(100, 100, true)
-    win.setResizable(false)
-    win.setAlwaysOnTop(true)
+    killing = true
+    if (agentWin && !agentWin.isDestroyed()) agentWin.webContents.send('agent-menu-action', 'kill')
+    setTimeout(() => app.quit(), 5000)
   }
-  return true
-})
 
-ipcMain.handle('companion-move', (_event, deltaX, deltaY) => {
-  const win = mainWin
-  if (!win) return false
-  const [x, y] = win.getPosition()
-  win.setPosition(Math.round(x + deltaX), Math.round(y + deltaY), false)
-  return true
-})
+  // The backend writes this file when the kill switch shuts it down (from the dashboard, the chat
+  // or here); the shell then quits too, and stops supervising so nothing restarts.
+  const killMarker = path.join(require('os').tmpdir(), 'LivingAssistant', 'killed.json')
+  const startedAt = Date.now()
+  setInterval(() => {
+    try {
+      if (fs.statSync(killMarker).mtimeMs > startedAt && !killing) { killing = true; app.quit() }
+    } catch (_) {}
+  }, 1500)
 
-ipcMain.handle('read-local-media', async (_event, targetPath) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    if (!targetPath || typeof targetPath !== 'string') return null;
-    const cleanPath = targetPath.replace(/^file:\/\/\/?/, '').replace(/\//g, path.sep);
-    if (!fs.existsSync(cleanPath)) return null;
-    const stat = fs.statSync(cleanPath);
-    if (!stat.isFile() || stat.size > 25 * 1024 * 1024) return null; // 25MB max
-    const ext = path.extname(cleanPath).toLowerCase();
-    const mimeMap = {
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.webp': 'image/webp',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-    };
-    const mime = mimeMap[ext] || 'image/jpeg';
-    const data = fs.readFileSync(cleanPath);
-    return `data:${mime};base64,${data.toString('base64')}`;
-  } catch (_) {
-    return null;
-  }
-})
+  // ---- IPC from the agent page ------------------------------------------------------
 
-app.whenReady().then(() => {
-  createWindow()
-  createAgentWindow()
-  createTray()
-  globalShortcut.register('CommandOrControl+Shift+Space', () => {
-    const win = mainWin
-    if (!win) return
-    if (win.isVisible()) win.hide()
-    else {
-      win.show()
-      win.focus()
+  ipcMain.handle('agent-move', (_event, dx, dy) => {
+    if (!agentWin || agentWin.isDestroyed()) return false
+    const b = agentWin.getBounds()
+    agentWin.setBounds(clampToDisplay(b.x + b.width + dx, b.y + b.height + dy, b.width, b.height), false)
+    return true
+  })
+  // Dragging follows the real cursor position: the window is placed where the cursor is now
+  // (minus where it grabbed the orb), so moves never pile up or lag behind.
+  let dragOffset = null
+  ipcMain.handle('agent-drag-start', () => {
+    if (!agentWin || agentWin.isDestroyed()) return false
+    const b = agentWin.getBounds(), p = screen.getCursorScreenPoint()
+    dragOffset = { x: p.x - (b.x + b.width), y: p.y - (b.y + b.height) }
+    return true
+  })
+  ipcMain.handle('agent-drag-move', () => {
+    if (!dragOffset || !agentWin || agentWin.isDestroyed()) return false
+    const b = agentWin.getBounds(), p = screen.getCursorScreenPoint()
+    agentWin.setBounds(clampToDisplay(p.x - dragOffset.x, p.y - dragOffset.y, b.width, b.height), false)
+    return true
+  })
+  ipcMain.handle('agent-drag-end', () => { dragOffset = null; rememberPosition(); return true })
+  ipcMain.handle('agent-save-position', () => { rememberPosition(); return true })
+  ipcMain.handle('agent-click-through', (_event, on) => {
+    if (!agentWin || agentWin.isDestroyed()) return false
+    agentWin.setIgnoreMouseEvents(Boolean(on), { forward: true })
+    return true
+  })
+  ipcMain.handle('agent-expand', (_event, on) => {
+    expanded = Boolean(on)
+    applySize()
+    if (expanded && agentWin) { agentWin.setIgnoreMouseEvents(false); agentWin.focus() }  // typing needs focus
+    return true
+  })
+  ipcMain.handle('agent-open-dashboard', () => { openDashboard(); return true })
+  ipcMain.handle('agent-quit', () => { killing = true; setTimeout(() => app.quit(), 200); return true })
+  // Screen capture for "ask about my screen": the agent hides itself so it is not in the picture.
+  ipcMain.handle('agent-capture-screen', async (event) => {
+    if (!agentWin || agentWin.isDestroyed() || event.sender !== agentWin.webContents) return null
+    const display = screen.getDisplayMatching(agentWin.getBounds())
+    const size = { width: Math.round(display.size.width * display.scaleFactor), height: Math.round(display.size.height * display.scaleFactor) }
+    agentWin.hide()
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: size })
+      const source = sources.find((s) => String(s.display_id) === String(display.id)) || sources[0]
+      return source && !source.thumbnail.isEmpty() ? source.thumbnail.toDataURL() : null
+    } finally {
+      agentWin.showInactive()
+      agentWin.focus()
     }
   })
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  ipcMain.handle('agent-menu', (_event, opts) => {
+    if (!agentWin || agentWin.isDestroyed()) return false
+    Menu.buildFromTemplate([
+      { label: expanded ? 'Close chat' : 'Open chat', click: () => sendAction('toggle-chat') },
+      { label: 'Talk (voice)', click: () => sendAction('talk') },
+      { label: 'Speak replies', type: 'checkbox', checked: Boolean(opts && opts.speakReplies), click: () => sendAction('toggle-speak') },
+      { type: 'separator' },
+      { label: 'Open Dashboard', click: openDashboard },
+      { label: 'Start with Windows', type: 'checkbox', checked: launchAtLogin(), click: (item) => setLaunchAtLogin(item.checked), visible: process.platform !== 'linux' },
+      { label: 'Hide floating agent', click: () => agentWin && agentWin.hide() },
+      { type: 'separator' },
+      { label: 'Kill switch - stop everything', accelerator: 'CommandOrControl+Alt+Shift+K', click: () => killSwitch() },
+    ]).popup({ window: agentWin })
+    return true
   })
-})
 
-app.on('window-all-closed', function () {
-  globalShortcut.unregisterAll()
-  if (process.platform !== 'darwin') app.quit()
-})
+  // ---- launch with the OS (opt-in) ------------------------------------------------------
 
-ipcMain.on('companion-hide', () => {
-  hideAssistant()
-})
+  function loginArgs() { return app.isPackaged ? [] : [path.resolve(__dirname)] }
+  function launchAtLogin() {
+    try { return app.getLoginItemSettings({ args: loginArgs() }).openAtLogin } catch (_) { return false }
+  }
+  function setLaunchAtLogin(on) {
+    try { app.setLoginItemSettings({ openAtLogin: Boolean(on), path: process.execPath, args: loginArgs() }) } catch (_) {}
+    buildTray()
+  }
+
+  // ---- backend supervisor ---------------------------------------------------------------
+  // run.bat starts the backend itself; after a login start or a crash the shell starts it
+  // (hidden) so the agent keeps working. Only a backend this shell started is stopped by it.
+
+  function backendUp() {
+    return new Promise((resolve) => {
+      const req = http.get(`${API_URL}/agent`, { timeout: 2500 }, (res) => { res.resume(); resolve(res.statusCode < 500) })
+      req.on('error', () => resolve(false))
+      req.on('timeout', () => { req.destroy(); resolve(false) })
+    })
+  }
+
+  function pythonPath() {
+    if (process.env.ASSISTANT_PYTHON) return process.env.ASSISTANT_PYTHON
+    const venv = process.platform === 'win32' ? path.join(PROJECT_ROOT, '.venv', 'Scripts', 'python.exe') : path.join(PROJECT_ROOT, '.venv', 'bin', 'python')
+    return fs.existsSync(venv) ? venv : null
+  }
+
+  function startBackend() {
+    const python = pythonPath()
+    if (!python || backendChild) return false
+    const port = new URL(API_URL).port || '8787'
+    const logDir = path.join(app.getPath('userData'), 'logs')
+    fs.mkdirSync(logDir, { recursive: true })
+    const log = fs.openSync(path.join(logDir, 'backend.log'), 'a')
+    backendChild = spawn(python, ['-m', 'uvicorn', 'living_assistant.api:app', '--host', '127.0.0.1', '--port', port], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env, PYTHONPATH: path.join(PROJECT_ROOT, 'src'), PYTHONUNBUFFERED: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+      windowsHide: true,
+      stdio: ['ignore', log, log],
+    })
+    backendChild.on('exit', () => { backendChild = null })
+    return true
+  }
+
+  let downSince = null
+  let backoff = 5000
+  async function superviseBackend() {
+    const up = await backendUp()
+    if (up) {
+      downSince = null
+      backoff = 5000
+    } else {
+      downSince = downSince || Date.now()
+      // Give an external launcher (run.bat) a head start before starting our own backend.
+      if (!killing && !backendChild && Date.now() - downSince > 8000 && settings.superviseBackend !== false) {
+        if (startBackend()) backoff = Math.min(backoff * 2, 120000)
+      }
+    }
+    setTimeout(superviseBackend, up ? 5000 : backoff)
+  }
+
+  // ---- tray -------------------------------------------------------------------------------
+
+  function buildTray() {
+    const image = nativeImage.createFromPath(path.join(PROJECT_ROOT, 'passistant.png'))
+    if (!tray) {
+      tray = new Tray(image.isEmpty() ? nativeImage.createEmpty() : image.resize({ width: 16, height: 16 }))
+      tray.setToolTip('Living Assistant')
+      tray.on('click', () => sendAction('open-chat'))
+    }
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: 'Open chat', click: () => sendAction('open-chat') },
+      { label: 'Talk (voice)', click: () => sendAction('talk') },
+      { label: 'Show floating agent', click: showAgent },
+      { label: 'Hide floating agent', click: () => agentWin && agentWin.hide() },
+      { label: 'Open Dashboard', click: openDashboard },
+      { type: 'separator' },
+      { label: 'Start with Windows', type: 'checkbox', checked: launchAtLogin(), click: (item) => setLaunchAtLogin(item.checked), visible: process.platform !== 'linux' },
+      { label: 'Kill switch - stop everything', click: () => killSwitch() },
+      { label: 'Quit', click: () => app.quit() },
+    ]))
+  }
+
+  app.on('second-instance', () => sendAction('open-chat'))
+
+  app.whenReady().then(() => {
+    createAgentWindow()
+    buildTray()
+    superviseBackend()
+    globalShortcut.register('CommandOrControl+Shift+Space', () => sendAction('toggle-chat'))
+    // Emergency stop from anywhere, no confirmation.
+    globalShortcut.register('CommandOrControl+Alt+Shift+K', () => killSwitch({ confirm: false }))
+    // A monitor unplugged or rescaled: bring the orb back onto a screen that still exists.
+    const replace = () => { applySize(); rememberPosition() }
+    screen.on('display-removed', replace)
+    screen.on('display-metrics-changed', replace)
+  })
+
+  // The agent lives in the tray: closing windows does not quit the app.
+  app.on('window-all-closed', () => {})
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll()
+    if (backendChild) { try { backendChild.kill() } catch (_) {} }
+  })
+}

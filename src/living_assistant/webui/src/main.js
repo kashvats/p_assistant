@@ -465,7 +465,18 @@ class App extends React.Component {
     finally { this.setState({goalBusy: false}); }
   }
   async goalAction(id, action) {
-    try { await this.api(`/goals/${encodeURIComponent(id)}/${action}`, {method: 'POST'}); await this.loadGoals(); }
+    try {
+      if (action === 'delete') {
+        try {
+          await this.api(`/goals/${encodeURIComponent(id)}`, {method: 'DELETE'});
+        } catch (_) {
+          await this.api(`/goals/${encodeURIComponent(id)}/delete`, {method: 'POST'});
+        }
+      } else {
+        await this.api(`/goals/${encodeURIComponent(id)}/${action}`, {method: 'POST'});
+      }
+      await this.loadGoals();
+    }
     catch (e) { this.notify(`Goal ${action} failed: ${e.message}`, true); }
   }
   renderGoals() {
@@ -479,20 +490,23 @@ class App extends React.Component {
       const last = (g.notes || [])[g.notes.length - 1];
       const check = g.last_check;
       const canResume = ['paused', 'blocked', 'cancelled'].includes(g.status);
-      const canCancel = ['queued', 'running'].includes(g.status);
+      const canCancel = ['queued', 'running', 'cancelling'].includes(g.status);
       return h('div', {key: g.id, className: 'rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-1.5'},
         h('div', {className: 'flex items-start gap-2'},
           h('div', {className: 'text-sm flex-1 min-w-0 break-words'}, g.goal),
-          h('span', {className: cx('shrink-0 text-xs px-2 py-0.5 rounded-full border', badge[g.status] || badge.paused, g.status === 'running' && 'animate-pulse')}, g.status)),
+          h('span', {className: cx('shrink-0 text-xs px-2 py-0.5 rounded-full border', badge[g.status] || badge.paused, g.status === 'running' && 'animate-pulse')}, g.status),
+          h('button', {onClick: () => this.goalAction(g.id, 'delete'), title: 'Delete goal card', className: 'text-slate-500 hover:text-rose-400 text-xs px-1'}, '✕')),
         h('div', {className: 'text-xs text-slate-500 flex flex-wrap gap-x-3'},
           h('span', null, `round ${g.rounds}/${g.max_rounds}`),
           g.check_command ? h('span', {className: 'font-mono truncate'}, g.check_command) : null,
           check ? h('span', {className: check.passed ? 'text-emerald-400' : 'text-rose-400'}, check.passed ? 'check passed' : 'check failing') : null),
         last ? h('div', {className: 'text-xs text-slate-400'}, `Latest: ${last.summary}`) : null,
         g.last_error && !['completed', 'running', 'queued'].includes(g.status) ? h('div', {className: 'text-xs text-amber-300 break-words'}, g.last_error) : null,
-        (canResume || canCancel) ? h('div', {className: 'flex gap-2 pt-1'},
+        h('div', {className: 'flex gap-2 pt-1'},
           canResume ? h('button', {onClick: () => this.goalAction(g.id, 'resume'), className: 'px-2.5 py-1 rounded-lg border border-brand-500 bg-brand-600 hover:bg-brand-500 text-xs'}, 'Resume') : null,
-          canCancel ? h('button', {onClick: () => this.goalAction(g.id, 'cancel'), className: 'px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, 'Cancel') : null) : null);
+          canCancel ? h('button', {onClick: () => this.goalAction(g.id, 'cancel'), className: 'px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, 'Cancel') : null,
+          h('button', {onClick: () => this.goalAction(g.id, 'delete'), className: 'px-2.5 py-1 rounded-lg border border-rose-900 bg-rose-950/60 text-rose-300 hover:bg-rose-900 text-xs'}, 'Remove')
+        ));
     }) : h('div', {className: 'text-sm text-slate-500'}, 'No goals yet.');
     const form = h('div', {className: 'space-y-2 mb-3'},
       h('textarea', {rows: 2, value: this.state.goalText, onChange: e => this.setState({goalText: e.target.value}), placeholder: 'e.g. Fix the failing tests in my project', className: 'w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm'}),
@@ -640,9 +654,9 @@ class App extends React.Component {
         const status = event.ok ? 'ok' : (event.approval_id ? 'approval' : 'failed');
         this.setState(prev => {
           const idx = prev.chatTools.findIndex(t => t.tool === event.tool && t.status === 'started');
-          if (idx < 0) return {chatTools: [{tool: event.tool, status, at: Date.now()}, ...prev.chatTools].slice(0, 40)};
+          if (idx < 0) return {chatTools: [{tool: event.tool, status, error: event.error || '', at: Date.now()}, ...prev.chatTools].slice(0, 40)};
           const chatTools = prev.chatTools.slice();
-          chatTools[idx] = {...chatTools[idx], status};
+          chatTools[idx] = {...chatTools[idx], status, error: event.error || ''};
           return {chatTools};
         });
       }
@@ -778,9 +792,28 @@ class App extends React.Component {
   }
   render() {
     // Only the visible page is built, inside an error boundary: one broken page must not blank the app.
-    const pages={overview:()=>this.renderOverview(),models:()=>this.renderModels(),chat:()=>this.renderChat(),skills:()=>this.renderSkills(),agents:()=>this.renderAgents(),approvals:()=>this.renderApprovals(),organize:()=>this.renderOrganize(),security:()=>this.renderSecurity(),activity:()=>this.renderActivity(),career:()=>this.renderCareer()};
+    const pages={overview:()=>this.renderOverview(),models:()=>this.renderModels(),chat:()=>this.renderChat(),skills:()=>this.renderSkills(),agents:()=>this.renderAgents(),approvals:()=>this.renderApprovals(),organize:()=>this.renderOrganize(),security:()=>this.renderSecurity(),activity:()=>this.renderActivity(),career:()=>this.renderCareer(),tools:()=>this.renderTools()};
     const page = pages[this.state.page] ? this.state.page : 'overview';
     return this.renderShell(h(ErrorBoundary,{key:page,name:page},h(PageBody,{render:pages[page]})));
+  }
+  renderTools() {
+    const s = this.state.status || {};
+    const tools = (this.state.skills || []).flatMap(sk => (sk.manifest?.required_tools || []));
+    const uniqueTools = Array.from(new Set(tools));
+    return h('div', {className: 'space-y-4'},
+      h('div', {className: 'flex items-center justify-between'},
+        h('h2', {className: 'text-xl font-bold'}, 'Registered & Built-in Tools'),
+        h('span', {className: 'text-xs text-slate-400'}, `${uniqueTools.length} tools detected`)
+      ),
+      this.card('Active Runtime Tools',
+        uniqueTools.length ? h('div', {className: 'grid sm:grid-cols-2 md:grid-cols-3 gap-3'},
+          uniqueTools.map(t => h('div', {key: t, className: 'p-3 bg-slate-950 border border-slate-800 rounded-xl'},
+            h('div', {className: 'font-mono text-sm text-brand-300 font-semibold'}, t),
+            h('div', {className: 'text-xs text-slate-400 mt-1'}, 'Living Assistant tool registry')
+          ))
+        ) : h('div', {className: 'text-sm text-slate-400'}, 'Tools are managed via Skills and Software Company roles.')
+      )
+    );
   }
   renderSkills() {
     const sel = this.state.selectedSkill;
@@ -1251,21 +1284,26 @@ class App extends React.Component {
 
     const chatPanel = h('div', {className: 'flex flex-col h-[calc(100vh-11rem)] min-h-[26rem]'},
       h('div', {className: 'flex items-center justify-between mb-3'},
-        h('select', {
-          value: this.state.sessionId || '', onChange: e => this.switchConversation(e.target.value),
-          'aria-label': 'Conversation',
-          className: 'max-w-xs truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-300'},
-          (this.state.conversations.some(c => c.id === this.state.sessionId) ? [] : [h('option', {key: 'cur', value: this.state.sessionId || ''}, 'Current conversation')])
-            .concat(this.state.conversations.map(c => h('option', {key: c.id, value: c.id}, `${c.title || 'Untitled'} (${c.message_count || 0})`)))),
+        h('div', {className: 'flex items-center gap-2'},
+          h('select', {
+            value: this.state.sessionId || '', onChange: e => this.switchConversation(e.target.value),
+            'aria-label': 'Conversation',
+            className: 'max-w-xs truncate rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-300'},
+            (this.state.conversations.some(c => c.id === this.state.sessionId) ? [] : [h('option', {key: 'cur', value: this.state.sessionId || ''}, 'Current conversation')])
+              .concat(this.state.conversations.map(c => h('option', {key: c.id, value: c.id}, `${c.title || 'Untitled'} (${c.message_count || 0})`)))),
+          this.state.chatTools.some(t => t.status === 'started') ? h('span', {className: 'inline-flex items-center gap-1.5 text-xs text-sky-400 font-mono px-2 py-0.5 bg-sky-950/70 border border-sky-800 rounded-full'},
+            h('span', {className: 'h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse'}), 'tool executing...') : null),
         h('button', {onClick: () => this.newChat(), className: 'px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs'}, '+ New chat')),
       thread, composer);
 
     const pending = this.state.approvals || [];
     const activity = this.state.chatTools.length
-      ? this.state.chatTools.slice(0, 20).map((x, i) => h('div', {key: i, className: 'flex items-center gap-2 text-xs py-1.5 border-b border-slate-800'},
-          h('span', {className: cx('h-2 w-2 rounded-full shrink-0', x.status === 'started' ? 'bg-sky-400 animate-pulse' : x.status === 'ok' ? 'bg-emerald-400' : x.status === 'approval' ? 'bg-amber-400' : 'bg-rose-400')}),
-          h('span', {className: 'font-mono truncate'}, x.tool),
-          h('span', {className: 'ml-auto text-slate-500 shrink-0'}, x.status === 'started' ? 'running' : x.status)))
+      ? this.state.chatTools.slice(0, 20).map((x, i) => h('div', {key: i, className: 'py-2 border-b border-slate-800 space-y-1'},
+          h('div', {className: 'flex items-center gap-2 text-xs'},
+            h('span', {className: cx('h-2 w-2 rounded-full shrink-0', x.status === 'started' ? 'bg-sky-400 animate-pulse' : x.status === 'ok' ? 'bg-emerald-400' : x.status === 'approval' ? 'bg-amber-400' : 'bg-rose-400')}),
+            h('span', {className: 'font-mono font-semibold truncate text-slate-200'}, x.tool),
+            h('span', {className: cx('ml-auto shrink-0 font-medium', x.status === 'started' ? 'text-sky-400' : x.status === 'ok' ? 'text-emerald-400' : x.status === 'failed' ? 'text-rose-400' : 'text-amber-400')}, x.status === 'started' ? 'running' : x.status)),
+          x.error ? h('div', {className: 'text-xs text-rose-300 bg-rose-950/60 border border-rose-900/60 rounded px-2 py-1 font-mono break-all'}, x.error) : null))
       : h('div', {className: 'text-slate-500 text-sm'}, 'Tool calls will appear here as they run.');
 
     const history = this.state.conversations.length

@@ -25,6 +25,7 @@ def test_cli_package_exposes_expected_root_contract():
         "briefing",
         "browser",
         "calendar",
+        "career",
         "desktop",
         "experience",
         "git",

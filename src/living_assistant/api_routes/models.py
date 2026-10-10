@@ -139,3 +139,4 @@ def model_server_restart(authorization: str | None = Header(default=None)):
     if manager.status().get("external"):
         raise HTTPException(status_code=409, detail="The running model server was not started by the assistant; it will not be restarted.")
     return manager.restart()
+

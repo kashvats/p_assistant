@@ -1,6 +1,6 @@
 system:
   name: "Living Assistant"
-  version: "0.9.2"
+  version: "0.9.3"
   repository: "kashvats/p_assistant"
   nodes:
     - id: "NODE_RUNTIME"
@@ -8,188 +8,455 @@ system:
       file: "src/living_assistant/core/runtime.py"
       responsibility: "Central application runtime composing tools, orchestrator, stores, and background engines."
       state: "ACTIVE"
+      dependencies: ["NODE_TOOL_REGISTRY", "NODE_WORKSPACE", "NODE_MODEL_PROVIDER"]
+
     - id: "NODE_TOOL_REGISTRY"
       type: "service"
       file: "src/living_assistant/tools/registry.py"
       responsibility: "Ordered tool repository preventing duplicate registration and providing lookup."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_ORCHESTRATOR"
       type: "service"
       file: "src/living_assistant/agents/orchestrator.py"
       responsibility: "Main ReAct LLM loop with tool dispatch, context budgeting, and specialist handoffs."
       state: "ACTIVE"
+      dependencies: ["NODE_TOOL_REGISTRY", "NODE_MODEL_PROVIDER", "NODE_APPROVAL_MANAGER", "NODE_WORKSPACE"]
+
     - id: "NODE_APPROVAL_MANAGER"
       type: "security"
       file: "src/living_assistant/core/approval.py"
       responsibility: "Approval store and interactive gate for privileged operations with action hashing."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_WORKSPACE"
       type: "service"
       file: "src/living_assistant/core/workspace.py"
       responsibility: "Filesystem root confinement, path resolution, and security boundary enforcement."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_MODEL_PROVIDER"
       type: "service"
       file: "src/living_assistant/core/model_provider.py"
       responsibility: "Universal model inference management (Ollama, AirLLM layer streaming, and LiteLLM/Universal API routing for Claude, OpenAI, and llama.cpp servers)."
       state: "ACTIVE"
+      dependencies: ["NODE_RESOURCE_GOVERNOR"]
+
     - id: "NODE_ISOLATED_EXECUTOR"
       type: "service"
       file: "src/living_assistant/core/isolated_executor.py"
       responsibility: "Secure subprocess execution boundary for toxic/conflicting external tools (e.g., browser-use, openviking) to prevent event-loop and dependency pollution."
       state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE"]
+
     - id: "NODE_LEGACY_SKILLS"
       type: "service"
       file: "src/living_assistant/core/skills.py"
       responsibility: "Flat JSON prompt-skill matching against trigger keywords."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_WEBUI"
       type: "ui"
       file: "src/living_assistant/webui/src/main.js"
       responsibility: "React single-page dashboard for assistant monitoring, chat, models, and approvals."
       state: "ACTIVE"
+      dependencies: ["NODE_API"]
+
     - id: "NODE_API"
       type: "api"
       file: "src/living_assistant/api.py"
       responsibility: "FastAPI REST endpoints for desktop, workspace, models, and assistant control."
       state: "ACTIVE"
+      dependencies: ["NODE_RUNTIME"]
+
     - id: "NODE_RESOURCE_GOVERNOR"
       type: "system"
       file: "src/living_assistant/system/resource_manager.py"
       responsibility: "Hardware telemetry, process/system load snapshots, GPU backends, and dynamic background task throttling."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_CODEBASE_INDEX"
       type: "service"
       file: "src/living_assistant/system/codebase_index.py"
       responsibility: "Offline semantic index with sparse vector embeddings and resource-governor throttled iteration."
       state: "ACTIVE"
+      dependencies: ["NODE_RESOURCE_GOVERNOR", "NODE_WORKSPACE"]
+
     - id: "NODE_EXTERNAL_INTEGRATIONS"
       type: "integrations"
       file: "src/living_assistant/integrations/external.py"
       responsibility: "Lazy isolation registry for external open-source modules and skill directories."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_BROWSER_USE_INTEGRATION"
       type: "adapter"
       file: "src/living_assistant/integrations/browser_use.py"
       responsibility: "Sandboxed agentic web browser automation adapter."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_OPENVIKING_INTEGRATION"
       type: "adapter"
       file: "src/living_assistant/integrations/openviking.py"
       responsibility: "Hierarchical context and repository indexing integration."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_AGENTMEMORY_INTEGRATION"
       type: "adapter"
       file: "src/living_assistant/integrations/agentmemory.py"
       responsibility: "Persistent key-value agent memory adapter with vector similarity search."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_CODEBASE_MEMORY_INTEGRATION"
       type: "adapter"
       file: "src/living_assistant/integrations/codebase_memory.py"
       responsibility: "Knowledge graph AST code index and architectural decision record management."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_PLATFORM_ENVIRONMENT"
       type: "system"
       file: "src/living_assistant/system/environment.py"
       responsibility: "Cross-platform data/cache/config directories (platformdirs), legacy migration, and isolated uv/venv environment manager."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_KEYRING_VAULT"
       type: "security"
       file: "src/living_assistant/security/keyring_vault.py"
       responsibility: "OS Credential Manager / SecretService integration with PBKDF2-HMAC-SHA256 encrypted file vault and memory fallbacks."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_SKILL_MANAGER"
       type: "service"
       file: "src/living_assistant/skills/manager.py"
       feature_id: "FEAT-19"
       responsibility: "End-to-end custom skill creation, validation, out-of-model permission enforcement, durable action recovery, undo, and execution."
       state: "ACTIVE"
+      dependencies: ["NODE_TOOL_REGISTRY", "NODE_WORKSPACE", "NODE_APPROVAL_MANAGER"]
+
     - id: "NODE_AGENT_MANAGER"
       type: "service"
       file: "src/living_assistant/agents/custom/manager.py"
       feature_id: "FEAT-20"
       responsibility: "Versioned custom agent creation, lifecycle management, orchestrator integration, controlled delegation, loop detection, and scoped memory."
       state: "ACTIVE"
+      dependencies: ["NODE_ORCHESTRATOR", "NODE_TOOL_REGISTRY", "NODE_SKILL_MANAGER"]
+
     - id: "NODE_DISK_CACHE"
       type: "system"
       file: "src/living_assistant/system/disk_cache.py"
       responsibility: "High-performance persistent disk caching layer with namespace partitioning, TTL expiry, and in-memory fallback."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_WATCHDOG_SERVICE"
       type: "system"
       file: "src/living_assistant/system/watchdog_service.py"
       responsibility: "Real-time debounced filesystem event observer with burst coalescing and incremental codebase index updates."
       state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE"]
+
     - id: "NODE_SCHEDULER_SERVICE"
       type: "system"
       file: "src/living_assistant/system/scheduler.py"
       responsibility: "Structured SQLite scheduled task store, persistent reminders, recurring cron jobs, and explicit misfire recovery."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_ARTICLE_EXTRACTOR"
       type: "system"
       file: "src/living_assistant/system/article_extractor.py"
       responsibility: "Robust article and documentation text extractor powered by Trafilatura with metadata extraction, boilerplate stripping, and disk caching."
       state: "ACTIVE"
+      dependencies: ["NODE_DISK_CACHE"]
+
     - id: "NODE_DIAGRAM_DESIGN"
       type: "adapter"
       file: "src/living_assistant/integrations/diagram_design.py"
       responsibility: "Editorial diagram engine with deterministic Mermaid/Draw.io/Excalidraw IR extraction, accessible SVG generation, and safety self-check across 41 diagram types."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_CYBERSECURITY_SKILLS"
       type: "adapter"
       file: "src/living_assistant/integrations/cybersecurity_skills.py"
       responsibility: "Cybersecurity skills catalog adapter with 800+ defensive techniques, threat modeling, and multi-layered OWASP prompt injection auditing."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_GRAFT_MEMORY"
       type: "adapter"
       file: "src/living_assistant/integrations/graft.py"
       responsibility: "Persistent local AI agent memory layer with verified recall, hybrid retrieval, graph exploration, and embedded SQLite FTS5 fallback."
       state: "ACTIVE"
+      dependencies: ["NODE_ISOLATED_EXECUTOR"]
+
     - id: "NODE_RETRY_POLICY"
       type: "core"
       file: "src/living_assistant/core/retry_policy.py"
       responsibility: "Differentiated HTTP retry policy with exponential backoff and decorrelated full jitter for rate-limits and server errors."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_IDEMPOTENCY_STORE"
       type: "core"
       file: "src/living_assistant/core/idempotency.py"
       responsibility: "Thread-safe deduplication store preventing duplicate side-effecting operations across network retries."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_BROWSER_DOWNLOAD_TRACKER"
       type: "desktop"
       file: "src/living_assistant/desktop/download_tracker.py"
       responsibility: "Tracks, verifies completion of, and normalizes browser downloads into workspace with dangerous executable quarantine checks."
       state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE"]
+
     - id: "NODE_SYSTEM_GRAPH_VALIDATOR"
       type: "system"
       file: "src/living_assistant/system/graph_validator.py"
       responsibility: "Validates system.graph.yaml integrity against code reality, duplicate node IDs, dependency cycles, and registered tools."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_CONFIG_VALIDATOR"
       type: "core"
       file: "src/living_assistant/core/config_validator.py"
       responsibility: "Enforces configuration schema boundaries for ports, timeouts, providers, and unresolved environment secrets."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_CONFIG_MANAGER"
       type: "core"
       file: "src/living_assistant/core/config_manager.py"
       responsibility: "Atomic configuration hot-reload coordinator and secret rotation manager with log redaction."
       state: "ACTIVE"
+      dependencies: ["NODE_CONFIG_VALIDATOR"]
+
     - id: "NODE_MIGRATION_MANAGER"
       type: "core"
       file: "src/living_assistant/core/migration.py"
       responsibility: "Transactional schema migration engine guaranteeing data integrity, rollback, and halfway-failure aborts."
       state: "ACTIVE"
+      dependencies: []
+
     - id: "NODE_BACKUP_MANAGER"
       type: "core"
       file: "src/living_assistant/core/backup.py"
       responsibility: "Creates state recovery backups excluding plaintext secrets and safely restores without path traversal."
       state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE"]
+
     - id: "NODE_AUDIT_LOGGER"
       type: "security"
       file: "src/living_assistant/security/audit.py"
       responsibility: "Immutable security audit log maintaining audit trail for privileged operations with sensitive parameter redaction."
       state: "ACTIVE"
+      dependencies: []
 
+    - id: "NODE_COLLIBRI_LLAMA_SERVER"
+      type: "service"
+      file: "src/living_assistant/system/llama_server.py"
+      feature_id: "F2"
+      responsibility: "Managed local llama.cpp inference supervisor providing GPU-accelerated and CPU-fallback model serving, surfaced as LiteLLM endpoint 'openai/collibri'."
+      state: "ACTIVE"
+      dependencies: ["NODE_MODEL_PROVIDER", "NODE_RESOURCE_GOVERNOR"]
+      mapped_tests: ["tests/test_hermes_contractor.py"]
+
+    - id: "NODE_HERMES_CONTRACTOR"
+      type: "agent"
+      file: "src/living_assistant/integrations/hermes_contractor.py"
+      feature_id: "F1"
+      responsibility: "Sole autonomous agent runtime wrapping hermes-agent AIAgent, with 100% of tool calls intercepted and gated through Living Assistant's ToolRegistry with path confinement."
+      state: "ACTIVE"
+      dependencies: ["NODE_TOOL_REGISTRY", "NODE_WORKSPACE", "NODE_APPROVAL_MANAGER"]
+      mapped_tests: ["tests/test_hermes_contractor.py"]
+
+    - id: "NODE_CODEBASE_ONBOARDING"
+      type: "system"
+      file: "src/living_assistant/system/codebase_onboarding.py"
+      feature_id: "F3"
+      responsibility: "Brownfield codebase pickup and onboarding engine parsing AST hierarchies, dependency trees, and synchronizing system.graph.yaml."
+      state: "ACTIVE"
+      dependencies: ["NODE_SYSTEM_GRAPH_VALIDATOR", "NODE_CODEBASE_INDEX", "NODE_CODEBASE_MEMORY_INTEGRATION", "NODE_WORKSPACE"]
+      mapped_tests: ["tests/test_feat_codebase_onboarding.py", "tests/test_onboarding_stress.py"]
+
+    - id: "NODE_ONBOARDING_API"
+      type: "api"
+      file: "src/living_assistant/api_routes/workspace.py"
+      feature_id: "F4"
+      responsibility: "FastAPI REST endpoint POST /projects/onboard triggering asynchronous repository onboarding and graph synchronization."
+      state: "ACTIVE"
+      dependencies: ["NODE_CODEBASE_ONBOARDING", "NODE_WORKSPACE", "NODE_API"]
+      mapped_tests: ["tests/test_feat_codebase_onboarding.py"]
+
+    - id: "NODE_ONBOARDING_CLI"
+      type: "cli"
+      file: "src/living_assistant/cli/commands.py"
+      feature_id: "F4"
+      responsibility: "Typer CLI command 'organism project onboard <path>' for terminal-based brownfield codebase onboarding."
+      state: "ACTIVE"
+      dependencies: ["NODE_CODEBASE_ONBOARDING", "NODE_WORKSPACE"]
+      mapped_tests: ["tests/test_feat_codebase_onboarding.py"]
+
+    - id: "NODE_DIRECTOR"
+      type: "service"
+      file: "src/living_assistant/agents/director.py"
+      feature_id: "F5"
+      responsibility: "Personal Assistant Director classifying requests into 7 domains, enforcing Directive B4 written spec generation and user approval, and routing between direct personal execution and the software company subsystem."
+      state: "ACTIVE"
+      dependencies: ["NODE_ORCHESTRATOR", "NODE_APPROVAL_MANAGER", "NODE_SOFTWARE_COMPANY_WORKFLOW"]
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_SOFTWARE_COMPANY_MODELS"
+      type: "core"
+      file: "src/living_assistant/agents/software_company/models.py"
+      feature_id: "F6"
+      responsibility: "Pydantic domain contracts: CompanyPlan, TaskSpec, DeveloperOutput, QAReport, VerificationVerdict, and LicenseVerdict."
+      state: "ACTIVE"
+      dependencies: []
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_SOFTWARE_COMPANY_TASK_GRAPH"
+      type: "system"
+      file: "src/living_assistant/agents/software_company/task_graph.py"
+      feature_id: "F6"
+      responsibility: "Hierarchical DAG manager enforcing tree depth <= 3, execution budgets, child-before-parent dependency resolution, and task cancellation kill-switches."
+      state: "ACTIVE"
+      dependencies: ["NODE_SOFTWARE_COMPANY_MODELS"]
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_SOFTWARE_COMPANY_ROLES"
+      type: "service"
+      file: "src/living_assistant/agents/software_company/roles.py"
+      feature_id: "F6"
+      responsibility: "Dynamic role profile catalogue of 28 roles across 7 departments activated on demand in Hermes runtime with strict tool permissions."
+      state: "ACTIVE"
+      dependencies: ["NODE_HERMES_CONTRACTOR", "NODE_TOOL_REGISTRY", "NODE_SOFTWARE_COMPANY_MODELS"]
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_SOFTWARE_COMPANY_WORKFLOW"
+      type: "workflow"
+      file: "src/living_assistant/agents/software_company/workflow.py"
+      feature_id: "F6"
+      responsibility: "End-to-end multi-agent execution pipeline: Manager -> Developers -> Independent QA Rejection Gate -> Final Verifier Completion Gate."
+      state: "ACTIVE"
+      dependencies: ["NODE_SOFTWARE_COMPANY_ROLES", "NODE_SOFTWARE_COMPANY_TASK_GRAPH", "NODE_TASK_SCOPED_PERMISSIONS", "NODE_WORKSPACE"]
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_SPECIALIST_ROLES"
+      type: "agent"
+      file: "src/living_assistant/agents/software_company/roles.py"
+      feature_id: "F7"
+      responsibility: "Specialist profiles: Tool Operator for multi-step browser/shell/filesystem pipelines and GitHub Researcher for candidate discovery and license audits (REUSE, ADAPT, DEPEND, INSPIRE, REJECT)."
+      state: "ACTIVE"
+      dependencies: ["NODE_SOFTWARE_COMPANY_ROLES", "NODE_TOOL_REGISTRY", "NODE_WORKSPACE"]
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_TASK_SCOPED_PERMISSIONS"
+      type: "security"
+      file: "src/living_assistant/security/permissions.py"
+      feature_id: "F8"
+      responsibility: "Evaluates ROLE + TASK + ENVIRONMENT + RESOURCE + RISK = ALLOWED ACTIONS, protects frozen test suites, bounds depth/tokens, and coordinates model routing with VRAM leases."
+      state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE", "NODE_APPROVAL_MANAGER", "NODE_MODEL_PROVIDER"]
+      mapped_tests: ["tests/test_feat_director_and_software_company.py"]
+
+    - id: "NODE_CODING_ROUTER"
+      type: "api"
+      file: "src/living_assistant/api_routes/coding.py"
+      feature_id: "F9"
+      responsibility: "Unified AI coding assistant router exposing /coding/generate, /coding/patch, /coding/audit, /coding/repair, /coding/search."
+      state: "ACTIVE"
+      dependencies: ["NODE_API", "NODE_HERMES_CONTRACTOR", "NODE_COLLIBRI_LLAMA_SERVER", "NODE_CODEBASE_ONBOARDING", "NODE_TASK_SCOPED_PERMISSIONS", "NODE_WORKSPACE"]
+      mapped_tests: ["tests/test_feat_coding_router.py"]
+
+    - id: "NODE_GEMINI_KNOWLEDGE_BASE"
+      type: "system"
+      file: "agent/architecture/system.graph.yaml"
+      feature_id: "F10"
+      responsibility: "Authoritative machine-readable knowledge base under agent/ and docs/ continuously mapped and validated by SystemGraphValidator."
+      state: "ACTIVE"
+      dependencies: ["NODE_SYSTEM_GRAPH_VALIDATOR"]
+      mapped_tests: ["tests/test_feat_codebase_onboarding.py"]
+
+    - id: "NODE_WORKSPACE_SNAPSHOTS"
+      type: "system"
+      file: "src/living_assistant/system/workspace_snapshots.py"
+      responsibility: "Source-tree archive snapshot and recovery engine for AI-driven workspace mutation rollback excluding package caches and VCS metadata."
+      state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE"]
+      mapped_tests: ["tests/test_feat12_workspace_snapshots.py"]
+
+    - id: "NODE_GIT_CHANGE_MANAGER"
+      type: "vcs"
+      file: "src/living_assistant/system/git_manager.py"
+      feature_id: "F11"
+      responsibility: "Autonomous Git change manager capturing baselines, managing checkpoints, and performing non-destructive rollbacks."
+      state: "ACTIVE"
+      dependencies: ["NODE_WORKSPACE", "NODE_WORKSPACE_SNAPSHOTS"]
+      mapped_tests:
+        - "tests/test_feat_git_change_manager.py"
+        - "tests/test_m5_challenger2_security_gates.py"
+
+    - id: "NODE_INCIDENT_RECOVERY"
+      type: "security"
+      file: "src/living_assistant/agents/software_company/incident_recovery.py"
+      feature_id: "F12"
+      responsibility: "Human-in-the-loop action gatekeeper and 8-stage incident recovery manager."
+      state: "ACTIVE"
+      dependencies: ["NODE_GIT_CHANGE_MANAGER", "NODE_APPROVAL_MANAGER", "NODE_WORKSPACE"]
+      mapped_tests:
+        - "tests/test_feat_git_change_manager.py"
+        - "tests/test_m5_challenger2_security_gates.py"
+
+    - id: "NODE_FINAL_VERIFIER"
+      type: "governance"
+      file: "src/living_assistant/agents/software_company/roles/verifier.py"
+      feature_id: "F13"
+      responsibility: "Authoritative completion gate verifying all 5 verification pillars (criteria, tests, security, artifacts, git state) before transitioning tasks to COMPLETED."
+      state: "ACTIVE"
+      dependencies: ["NODE_SOFTWARE_COMPANY_ROLES", "NODE_GIT_CHANGE_MANAGER", "NODE_SYSTEM_GRAPH_VALIDATOR"]
+      mapped_tests: ["tests/test_feat_benchmark_and_final_verification.py"]
+
+    - id: "NODE_SOFTWARE_COMPANY_EVAL_BENCHMARK"
+      type: "eval"
+      file: "tests/test_feat_benchmark_and_final_verification.py"
+      feature_id: "F14"
+      responsibility: "Dual-track multi-task evaluation benchmark and authoritative final verifier test harness."
+      state: "ACTIVE"
+      dependencies: ["NODE_SOFTWARE_COMPANY_WORKFLOW", "NODE_FINAL_VERIFIER", "NODE_GIT_CHANGE_MANAGER", "NODE_INCIDENT_RECOVERY"]
+      mapped_tests: ["tests/test_feat_benchmark_and_final_verification.py"]
+
+    - id: "NODE_SOFTWARE_PROJECT_SCAFFOLDING"
+      type: "service"
+      file: "src/living_assistant/tools/software_company_tools.py"
+      feature_id: "F15"
+      responsibility: "General-purpose multi-archetype software scaffolding (Notes, Blog, Expense Tracker, Chat, Contacts, E-Commerce, Custom, Todo) with Product Vision Blueprint discovery, anti-loop clarification, and live multi-agent execution timeline."
+      state: "ACTIVE"
+      dependencies: ["NODE_PROMPT_ENGINEER", "NODE_SOFTWARE_COMPANY_WORKFLOW", "NODE_WORKSPACE", "NODE_TASK_SCOPED_PERMISSIONS"]
+      mapped_tests:
+        - "tests/test_software_company_tools.py"
+        - "workspace/todo_app/tests/test_todo.py"
+
+    - id: "NODE_SKILL_LEARNING_ENGINE"
+      type: "service"
+      file: "src/living_assistant/skills/learning.py"
+      feature_id: "F16"
+      responsibility: "Persistent Skill Learning and Acquisition System: capability gap detection, multi-source procedural learning, 6-stage lifecycle (PROPOSED -> LEARNING -> TESTING -> VERIFIED -> DEPRECATED | FAILED), isolated sandboxed testing, security gating, and publication into persistent catalog."
+      state: "ACTIVE"
+      dependencies: ["NODE_SKILL_MANAGER", "NODE_WORKSPACE", "NODE_TOOL_REGISTRY", "NODE_APPROVAL_MANAGER"]
+      mapped_tests:
+        - "tests/test_skill_learning.py"
 
 

@@ -48,3 +48,9 @@ scratch/
 
 # Security reference corpus lives only in its container volume (host antivirus flags it).
 external-components/Anthropic-Cybersecurity-Skills/
+*.pdf
+/workspace
+/.agents
+/.claude
+/.github
+/benchmarks

@@ -18,12 +18,41 @@ from living_assistant.tools.base import Tool
 
 logger = logging.getLogger("living_assistant.hermes_contractor")
 
-# Allowlist of LA tool names that Hermes may call.  All of these already
-# contain security-guardian approval gates inside their handlers.
-_ALLOWED_TOOL_NAMES = frozenset({
-    "shell_exec", "file_read", "file_write",
-    "git_commit", "playwright_navigate", "playwright_extract",
-})
+# Alias mapping dictionary supporting both canonical Living Assistant tool names
+# and legacy / alias tool names.
+_ALLOWED_TOOL_MAPPING: dict[str, str] = {
+    # Filesystem canonical tools
+    "read_file": "read_file",
+    "write_file": "write_file",
+    "edit_file": "edit_file",
+    "delete_file": "delete_file",
+    "list_files": "list_files",
+    "search_files": "search_files",
+    "preview_write_file": "preview_write_file",
+    # Shell & execution canonical tools
+    "run_command": "run_command",
+    # Git canonical tools
+    "git_commit": "git_commit",
+    "git_diff": "git_diff",
+    "git_status": "git_status",
+    # Browser canonical tools
+    "browser_snapshot": "browser_snapshot",
+
+    # Legacy / alias tool names mapped to canonical names
+    "file_read": "read_file",
+    "file_write": "write_file",
+    "file_delete": "delete_file",
+    "remove_file": "delete_file",
+    "unlink": "delete_file",
+    "create_file": "write_file",
+    "touch": "write_file",
+    "shell_exec": "run_command",
+    "playwright_navigate": "browser_snapshot",
+    "playwright_extract": "browser_snapshot",
+}
+
+# Allowlist of tool names (both canonical and legacy aliases) for backward compatibility
+_ALLOWED_TOOL_NAMES = frozenset(_ALLOWED_TOOL_MAPPING.keys())
 
 
 def _la_tool_to_hermes_schema(tool: Tool) -> dict:
@@ -32,14 +61,26 @@ def _la_tool_to_hermes_schema(tool: Tool) -> dict:
         "type": "function",
         "function": {
             "name": tool.name,
-            "description": tool.description,
-            "parameters": tool.parameters,
+            "description": tool.description or "",
+            "parameters": tool.parameters if isinstance(tool.parameters, dict) else {},
         },
     }
 
 
 def _build_tool_dispatch(tools: list[Tool]) -> dict[str, Tool]:
-    return {t.name: t for t in tools}
+    """
+    Build a dispatch mapping connecting canonical names and all recognized aliases
+    to their corresponding tool instances.
+    """
+    dispatch: dict[str, Tool] = {}
+    for t in tools:
+        canonical = _ALLOWED_TOOL_MAPPING.get(t.name, t.name)
+        dispatch[canonical] = t
+        dispatch[t.name] = t
+        for alias, target in _ALLOWED_TOOL_MAPPING.items():
+            if target == canonical or target == t.name:
+                dispatch[alias] = t
+    return dispatch
 
 
 class HermesContractor:
@@ -51,7 +92,15 @@ class HermesContractor:
     security gates, approval prompts, and resource limits are never bypassed.
     """
 
-    def __init__(self, model_manager, session_id: str, tool_registry: ToolRegistry | None = None):
+    def __init__(
+        self,
+        model_manager=None,
+        session_id: str = "default",
+        tool_registry: ToolRegistry | None = None,
+        base_url: str = "http://127.0.0.1:8080/v1",
+        model_name: str = "openai/collibri",
+        provider: str = "ollama",
+    ):
         try:
             from run_agent import AIAgent  # real hermes-agent entry point
             self._AIAgent = AIAgent
@@ -63,13 +112,22 @@ class HermesContractor:
 
         self.session_id = session_id
         self.mm = model_manager
+        self.base_url = base_url
+        self.model_name = model_name
+        self.provider = provider
 
         # Build the allowed tool set from the registry passed in by the daemon.
         # Falls back to an empty set if no registry is provided so the contractor
         # can still run in read/reasoning-only mode.
         allowed: list[Tool] = []
         if tool_registry is not None:
-            allowed = [t for t in tool_registry.all() if t.name in _ALLOWED_TOOL_NAMES]
+            seen_canonical: set[str] = set()
+            for t in tool_registry.all():
+                canonical = _ALLOWED_TOOL_MAPPING.get(t.name)
+                if canonical is not None:
+                    if canonical not in seen_canonical:
+                        seen_canonical.add(canonical)
+                        allowed.append(t)
         self._dispatch = _build_tool_dispatch(allowed)
         self._tool_schemas = [_la_tool_to_hermes_schema(t) for t in allowed]
 
@@ -79,21 +137,47 @@ class HermesContractor:
             [t.name for t in allowed],
         )
 
-    def _handle_tool_call(self, tool_name: str, arguments: dict) -> Any:
+    def _handle_tool_call(self, tool_name: str, arguments: dict | str) -> Any:
         """Called by the Hermes loop when it wants to invoke a tool."""
-        tool = self._dispatch.get(tool_name)
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except Exception:
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
+
+        canonical_name = _ALLOWED_TOOL_MAPPING.get(tool_name, tool_name)
+        tool = self._dispatch.get(canonical_name) or self._dispatch.get(tool_name)
         if tool is None:
-            logger.warning("[HermesContractor] Blocked disallowed tool request: %s", tool_name)
+            logger.warning("[HermesContractor] Blocked disallowed tool request: %s (resolved: %s)", tool_name, canonical_name)
             return {"ok": False, "error": f"Tool '{tool_name}' is not available to the contractor."}
 
-        logger.info("[HermesContractor] Executing armored tool: %s args=%s", tool_name, list(arguments.keys()))
+        logger.info("[HermesContractor] Executing armored tool: %s (from alias %s) args=%s", canonical_name, tool_name, list(arguments.keys()))
+
+        # Normalize argument aliases for backward compatibility (e.g., file_path -> path, cmd -> command)
+        normalized_args = dict(arguments)
+        if "file_path" in normalized_args and "path" not in normalized_args:
+            normalized_args["path"] = normalized_args.pop("file_path")
+        if "cmd" in normalized_args and "command" not in normalized_args:
+            normalized_args["command"] = normalized_args.pop("cmd")
+
         try:
-            return tool.handler(**arguments)
+            res = tool.handler(**normalized_args)
         except TypeError as exc:
             return {"ok": False, "error": f"Invalid arguments for {tool_name}: {exc}"}
         except Exception as exc:
             logger.error("[HermesContractor] Tool %s raised: %s", tool_name, exc)
             return {"ok": False, "error": str(exc)}
+
+        if isinstance(res, dict) and (res.get("approval_required") or res.get("status") == "PENDING_APPROVAL"):
+            return {
+                "ok": False,
+                "status": "PENDING_APPROVAL",
+                "message": "Action paused for user approval.",
+            }
+
+        return res
 
     def execute_task(self, task: str, context: str, timeout: float = 300.0) -> dict[str, Any]:
         """
@@ -112,19 +196,25 @@ class HermesContractor:
 
         def _run():
             try:
-                agent = self._AIAgent(
-                    provider="ollama",       # local-first; honours privacy guarantee
-                    session_id=self.session_id,
-                    ephemeral_system_prompt=(
+                agent_kwargs: dict[str, Any] = {
+                    "provider": self.provider,
+                    "session_id": self.session_id,
+                    "ephemeral_system_prompt": (
                         "You are an isolated specialist contractor inside the Living Assistant "
                         "ecosystem. Use only the tools provided. Your outputs will be reviewed "
                         "by the Security Guardian before any action reaches the host OS."
                     ),
-                    tool_start_callback=lambda name, args: logger.debug(
+                    "tool_start_callback": lambda name, args: logger.debug(
                         "[HermesContractor] tool_start: %s", name
                     ),
-                    quiet_mode=True,
-                )
+                    "quiet_mode": True,
+                }
+                if self.base_url:
+                    agent_kwargs["base_url"] = self.base_url
+                if self.model_name:
+                    agent_kwargs["model"] = self.model_name
+
+                agent = self._AIAgent(**agent_kwargs)
 
                 # Inject our armored tool schemas into the agent's toolset.
                 # AIAgent accepts custom tool definitions via get_tool_definitions
@@ -142,7 +232,8 @@ class HermesContractor:
                 original_handle = getattr(agent, "handle_function_call", None)
 
                 def patched_handle(name, arguments, **kwargs):
-                    if name in self._dispatch:
+                    canonical_name = _ALLOWED_TOOL_MAPPING.get(name, name)
+                    if canonical_name in self._dispatch or name in self._dispatch:
                         return self._handle_tool_call(name, arguments)
                     if callable(original_handle):
                         return original_handle(name, arguments, **kwargs)

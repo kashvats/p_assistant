@@ -8,6 +8,32 @@
   <link rel="stylesheet" href="/dist/app.css">
 </head>
 <body class="agent-shell">
+  <section id="agent-panel" class="desk-panel" hidden aria-label="Chat with your assistant">
+    <header class="desk-panel-head">
+      <select id="agent-convo" class="desk-select" aria-label="Conversation"></select>
+      <button type="button" id="agent-new" class="desk-icon" title="New conversation" aria-label="New conversation">＋</button>
+      <button type="button" id="agent-speak" class="desk-icon" title="Speak replies" aria-label="Speak replies" aria-pressed="true">🔊</button>
+      <button type="button" id="agent-dash" class="desk-icon" title="Open dashboard" aria-label="Open dashboard">↗</button>
+      <button type="button" id="agent-close" class="desk-icon" title="Close (Esc)" aria-label="Close chat">✕</button>
+    </header>
+    <div id="agent-offline" class="desk-offline" hidden>Assistant is offline - reconnecting…</div>
+    <div id="agent-messages" class="desk-messages" aria-live="polite"></div>
+    <form id="agent-form" class="desk-composer">
+      <div id="agent-attachments" class="desk-attachments" hidden></div>
+      <textarea id="agent-input" rows="1" placeholder="Message your assistant…  (Enter to send, paste or drop files)" aria-label="Message"></textarea>
+      <div class="desk-composer-row">
+        <button type="button" id="agent-mic" class="desk-icon" title="Speak (voice input)" aria-label="Speak">🎙</button>
+        <span id="agent-mic-meter" class="mic-spectrum" hidden aria-hidden="true"></span>
+        <button type="button" id="agent-attach" class="desk-icon" title="Attach files (images, video, PDF, CSV/XLSX, documents)" aria-label="Attach files">📎</button>
+        <button type="button" id="agent-capture" class="desk-icon" title="Capture the screen and ask about it" aria-label="Capture the screen" hidden>📷</button>
+        <input type="file" id="agent-file" multiple hidden>
+        <span class="desk-grow"></span>
+        <button type="button" id="agent-regen" class="desk-btn" hidden title="Ask again and replace the last answer">↻ Regenerate</button>
+        <button type="button" id="agent-stop" class="desk-btn danger" hidden>■ Stop</button>
+        <button type="submit" id="agent-send" class="desk-btn primary">Send ➤</button>
+      </div>
+    </form>
+  </section>
   <div id="agent-bubble" class="desk-bubble" hidden>
     <div id="agent-bubble-text" class="desk-bubble-text" aria-live="polite"></div>
     <div id="agent-bubble-meta" class="desk-bubble-meta"></div>
@@ -18,7 +44,8 @@
   </div>
   <div id="agent-dock" class="desk-dock">
     <canvas id="agent-spectrum" class="desk-spectrum" width="400" height="400" aria-hidden="true"></canvas>
-    <div id="agent-face" class="agent-face md mood-idle" role="button" tabindex="0" aria-label="Living Assistant: click to talk, drag to move, right-click for options">
+    <div id="agent-face" class="agent-face md mood-idle" role="button" tabindex="0"
+         aria-label="Living Assistant: click to chat, double-click to speak, drag to move, right-click for options">
       <span class="agent-ring"></span>
       <span class="eye"><span class="pupil"></span></span>
       <span class="eye"><span class="pupil"></span></span>

@@ -306,6 +306,61 @@ def project_audit(path: str = typer.Argument('.')):
     console.print(ProjectAuditor(rt.workspace).audit(path))
 
 
+@project_app.command('onboard')
+def project_onboard(
+    path: str = typer.Argument('.', help='Repository path to onboard into the assistant knowledge base.'),
+    update_graph: bool = typer.Option(True, '--update-graph/--no-update-graph', help='Generate or update system.graph.yaml.'),
+    json_output: bool = typer.Option(False, '--json', help='Format output as raw JSON.'),
+):
+    target = Path(path).expanduser().resolve()
+    if not target.exists() or not target.is_dir():
+        console.print(f'[red]Directory does not exist:[/red] {target}')
+        raise typer.Exit(1)
+
+    rt = build_runtime(interactive=False)
+    from living_assistant.core.workspace import Workspace
+    from living_assistant.system.codebase_onboarding import CodebaseOnboardingEngine
+
+    try:
+        resolved = rt.workspace.resolve(target)
+        ws = rt.workspace
+    except Exception:
+        ws = Workspace([target])
+        resolved = target
+
+    engine = CodebaseOnboardingEngine(
+        workspace=ws,
+        codebase_index=rt.code_index if hasattr(rt, "code_index") else None,
+    )
+    result = engine.onboard_repository(resolved, update_graph=update_graph)
+
+    if json_output:
+        print(result.model_dump_json(indent=2))
+        return
+
+    if result.status == "FAILED":
+        console.print(f'[red]Onboarding failed:[/red] {result.error}')
+        raise typer.Exit(1)
+
+    table = Table(title=f"Codebase Onboarded: {result.project_name}")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("Status", result.status)
+    table.add_row("Path", result.repo_path)
+    table.add_row("Detected Types", ", ".join(result.detected_types) or "none")
+    table.add_row("Total Files", str(result.ast_summary.get("total_files", 0)))
+    table.add_row(
+        "Classes / Functions",
+        f"{result.ast_summary.get('total_classes', 0)} / {result.ast_summary.get('total_functions', 0)}",
+    )
+    table.add_row("Indexed Symbols", str(result.indexed_symbols))
+    table.add_row("System Graph Nodes", str(result.system_graph_nodes_generated))
+    table.add_row("System Graph Path", result.system_graph_path or "Not updated")
+    table.add_row("Test Framework", str(result.conventions.get("test_framework") or "none"))
+    table.add_row("Package Layout", str(result.conventions.get("package_layout") or "unknown"))
+    console.print(table)
+
+
 @project_app.command('snapshot')
 def project_snapshot(path: str = typer.Argument('.'), reason: str = typer.Option('manual CLI snapshot', '--reason')):
     rt = build_runtime(interactive=False)

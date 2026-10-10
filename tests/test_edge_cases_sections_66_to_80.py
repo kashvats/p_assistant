@@ -45,36 +45,36 @@ def test_section_66_ui_state_representation():
     assert current_state == "tool_failed"
 
 
-def test_section_67_companion_face_circularity():
-    """Section 67: Companion face styles maintain 1:1 aspect ratio and circular border-radius."""
-    css_path = Path("electron-assistant/style.css")
-    assert css_path.exists()
-    content = css_path.read_text(encoding="utf-8")
+# The floating agent (orb + chat panel) is served from the web UI and hosted by the Electron shell.
+AGENT_CSS = Path("src/living_assistant/webui/src/styles.css")
+AGENT_HTML = Path("src/living_assistant/webui/agent.html")
 
-    # Verify Section 67 rules in stylesheet
-    assert "Section 67: Companion Face Circularity" in content
-    assert "aspect-ratio: 1 / 1" in content
-    assert "border-radius: 50%" in content
+
+def test_section_67_companion_face_circularity():
+    """Section 67: The agent face stays a perfect circle at every size."""
+    import re
+
+    content = AGENT_CSS.read_text(encoding="utf-8")
+    face = re.search(r"\.agent-face \{(.*?)\}", content, re.S).group(1)
+    assert "border-radius: 9999px" in face
+    for size in ("sm", "md", "lg"):
+        rule = re.search(rf"\.agent-face\.{size} \{{ width: ([^;]+); height: ([^;]+); \}}", content)
+        assert rule and rule.group(1) == rule.group(2), size  # equal width/height -> circle
 
 
 def test_section_68_ui_animation_reduced_motion():
-    """Section 68: CSS includes prefers-reduced-motion media queries to disable continuous motion."""
-    css_path = Path("electron-assistant/style.css")
-    content = css_path.read_text(encoding="utf-8")
-
+    """Section 68: prefers-reduced-motion disables the face, ring and panel animations."""
+    content = AGENT_CSS.read_text(encoding="utf-8")
     assert "@media (prefers-reduced-motion: reduce)" in content
     assert "animation: none !important" in content
-    assert "animation-duration: 0.001ms !important" in content
 
 
 def test_section_69_and_70_keyboard_and_screen_reader_accessibility():
-    """Sections 69 & 70: Verify keyboard accessibility and screen reader utility class."""
-    css_path = Path("electron-assistant/style.css")
-    content = css_path.read_text(encoding="utf-8")
-
-    # Verify .sr-only class exists for accessible screen reader announcements
-    assert ".sr-only" in content
-    assert "clip: rect(0, 0, 0, 0)" in content
+    """Sections 69 & 70: The orb is keyboard-operable and replies are announced to screen readers."""
+    page = AGENT_HTML.read_text(encoding="utf-8")
+    assert 'id="agent-face"' in page and 'role="button"' in page and 'tabindex="0"' in page
+    assert page.count('aria-live="polite"') >= 2  # the reply bubble and the chat panel
+    assert ":focus-visible" in AGENT_CSS.read_text(encoding="utf-8")
 
 
 # =====================================================================

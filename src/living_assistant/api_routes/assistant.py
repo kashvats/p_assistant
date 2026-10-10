@@ -97,39 +97,7 @@ def activity_stream(
     )
 
 
-@router.post("/chat/stream")
-def chat_stream(
-    req: AskRequest,
-    authorization: str | None = Header(default=None),
-):
-    authorize(authorization)
-    rt = runtime()
-    if req.session_id:
-        rt.sessions.ensure(req.session_id)
-
-    def generate():
-        try:
-            for event in rt.orchestrator.run_stream(
-                req.message,
-                req.context,
-                session_id=req.session_id,
-            ):
-                yield _sse(event, event=str(event.get("type", "message")))
-        except ModelError as exc:
-            error = _model_http_error(exc)
-            yield _sse(
-                {"type": "error", "error": error.detail, "status_code": error.status_code},
-                event="error",
-            )
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-store",
-            "X-Accel-Buffering": "no",
-        },
-    )
+# /chat/stream, stop and regenerate live in api_routes/conversations.py (one conversation system).
 
 
 class GoalRequest(BaseModel):
@@ -185,3 +153,15 @@ def goals_resume(goal_id: str, authorization: str | None = Header(default=None))
 def goals_cancel(goal_id: str, authorization: str | None = Header(default=None)):
     authorize(authorization)
     return _goal_result(_goals().cancel(goal_id))
+
+
+@router.post("/goals/{goal_id}/delete")
+def goals_delete_post(goal_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _goal_result(_goals().delete(goal_id))
+
+
+@router.delete("/goals/{goal_id}")
+def goals_delete(goal_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _goal_result(_goals().delete(goal_id))

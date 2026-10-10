@@ -166,6 +166,7 @@ class LlamaServerManager:
         self.plan: LaunchPlan | None = None
         self.last_error: str | None = None
         self.external = False
+        self.paused: str | None = None
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._watchdog: threading.Thread | None = None
@@ -337,14 +338,36 @@ class LlamaServerManager:
         self.start_watchdog()
         return status
 
+    def pause(self, reason: str = "") -> dict:
+        """Stop the chat model to free memory (e.g. for a large vision model); stays stopped until resume().
+
+        Only a server this manager started can be paused; an external one is never touched.
+        """
+        with self._lock:
+            if self.proc is None or self.proc.poll() is not None:
+                return {**self.status(), "paused": False, "reason": "not managed by the assistant"}
+            self.paused = reason or "paused"
+            self._kill(self.proc)
+            self.proc = None
+        return {**self.status(), "paused": True}
+
+    def resume(self, timeout: float | None = None) -> dict:
+        with self._lock:
+            was_paused, self.paused = self.paused, None
+        if not was_paused:
+            return self.status()
+        return self.ensure_running(timeout)
+
     def start_watchdog(self, interval: float = 15.0) -> None:
-        """Bring the server back if the process we launched dies."""
+        """Bring the server back if the process we launched dies (unless it was paused on purpose)."""
         if self._watchdog and self._watchdog.is_alive():
             return
 
         def loop():
             backoff_until = 0.0
             while not self._stop.wait(interval):
+                if self.paused:
+                    continue
                 owned_dead = self.proc is not None and self.proc.poll() is not None
                 missing = self.proc is None and not self.external and not self.healthy()
                 if (owned_dead or missing) and time.monotonic() >= backoff_until:
@@ -363,6 +386,7 @@ class LlamaServerManager:
             "running": running,
             "managed": self.proc is not None and self.proc.poll() is None,
             "external": self.external and running,
+            "paused": self.paused,
             "plan": self.plan.public() if self.plan else None,
             "last_error": self.last_error,
             "log": str(self.log_path),

@@ -1,4 +1,5 @@
 import hashlib
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -273,8 +274,9 @@ def test_section_88_index_desync_detection(tmp_path):
 
     assert verify_index_freshness(index_record) is True
 
-    # Mutate file
+    # Mutate file and advance mtime to guarantee timestamp tick delta across fast NTFS filesystems
     test_file.write_text("def hello(): return 'mutated'\n", encoding="utf-8")
+    os.utime(test_file, (original_mtime + 2.0, original_mtime + 2.0))
     assert verify_index_freshness(index_record) is False
 
     # Delete file

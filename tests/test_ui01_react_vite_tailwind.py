@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -41,5 +42,7 @@ def test_ui01_vendored_react_versions_match_declared_runtime():
     package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     react = (ROOT / "vendor/react.production.min.js").read_text(encoding="utf-8")
     react_dom = (ROOT / "vendor/react-dom.production.min.js").read_text(encoding="utf-8")
-    assert f'version:"{package["dependencies"]["react"]}"' in react
-    assert f'version:"{package["dependencies"]["react-dom"]}"' in react_dom
+    # React 16 builds embed `version:"x"`, React 18 builds `.version="x"` / `reconcilerVersion:"x"`.
+    for source, name in ((react, "react"), (react_dom, "react-dom")):
+        version = re.escape(package["dependencies"][name])
+        assert re.search(rf'[vV]ersion\s*[:=]\s*"{version}"', source), name

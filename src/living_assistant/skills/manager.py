@@ -204,13 +204,13 @@ class SkillManager:
         lifecycle = self.store.get_lifecycle(skill_id)
         state = lifecycle.get("state") if lifecycle else "DRAFT"
 
-        if not dry_run and state != "ACTIVE":
+        if not dry_run and state not in ("ACTIVE", "VERIFIED"):
             raise PermissionError(
                 f"Skill '{skill_id}' is currently '{state}'. You must review and activate the skill before running with live disk modifications (or run in dry-run mode)."
             )
 
-        # Integrity check: if active, verify files haven't been mutated since approval
-        if state == "ACTIVE":
+        # Integrity check: if active or verified, verify files haven't been mutated since approval
+        if state in ("ACTIVE", "VERIFIED"):
             perm_hash = pkg.manifest.permissions.permission_hash()
             if not self.store.is_approved(skill_id, pkg.manifest.version, perm_hash, pkg_hash):
                 self.store.invalidate_approval(skill_id)

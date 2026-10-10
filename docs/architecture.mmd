@@ -1,37 +1,59 @@
-flowchart LR
-    User["User (Chat / Voice / WebUI / CLI)"] --> Assistant["Living Assistant Core"]
+flowchart TD
+    User["User (Chat / Voice / WebUI / CLI)"] --> Director["Living Assistant Root Product\nPersonal Assistant Director"]
 
-    subgraph LLM_Routing["Model Inference Routing"]
-        Assistant --> ModelManager["Model Manager"]
-        ModelManager --> Ollama["Ollama (Local Fallback)"]
-        ModelManager --> AirLLM["AirLLM (Layer Streaming)"]
-        ModelManager --> LiteLLM["Universal API / LiteLLM (OpenAI, Claude, Collibri)"]
+    subgraph Control_Plane["Living Assistant Control Plane"]
+        Director --> |"Personal / Direct"| Orch["Orchestrator & Skills Engine"]
+        Orch --> SkillLearning["Persistent Skill Learning Engine\n(PROPOSED -> LEARNING -> TESTING -> VERIFIED)"]
+        Director --> |"Coding / Engineering"| SpecGate["Requirements Spec & Approval Gate"]
+        SpecGate --> CompWorkflow["Software Company Workflow"]
+        Security["Security Boundaries & Path Confinement\nWorkspace + ApprovalManager"]
     end
 
-    subgraph CustomSkills["Custom Skills System (FEAT-19)"]
-        SkillCreator["Skill Creator"] --> SkillPackages["Skill Packages\n(manifest.json + SKILL.md)"]
-        SkillPackages --> SkillGuard["Permission Guard & Snapshots"]
-        SkillGuard --> SkillExecutor["Workflow Executor"]
-        SkillExecutor --> ToolAdapters["Portable Tool Adapters\n(Files, Documents, Notifier)"]
+    subgraph Multi_Agent_Org["Software Company Multi-Agent Hierarchy"]
+        CompWorkflow --> Manager["Manager / Technical Lead\n(Task Decomposition & Hierarchical DAG)"]
+        Manager --> Roles["Dynamic Hermes Role Profiles\n(Activated on demand)"]
+        
+        Roles --> Engineering["Engineering: Architect, Backend, Frontend, DB, SRE"]
+        Engineering --> Scaffolding["Multi-Archetype App Scaffolder\n(Notes, Blog, Expense, Chat, Todo)"]
+        Roles --> Specialists["Specialists: Tool Operator, GitHub Researcher"]
+        Roles --> Governance["Governance: Code Reviewer, Security Auditor"]
     end
 
-    subgraph CustomAgents["Custom Agents System (FEAT-20)"]
-        AgentCreator["Agent Creator"] --> AgentPackages["Agent Bundles\n(manifest.json + AGENT.md)"]
-        AgentPackages --> Delegation["Delegation Coordinator & Snapshots"]
-        Delegation --> AgentExecutor["Agent Executor & Loop Detection"]
-        AgentExecutor --> ScopedMemory["Scoped Memory\n(Working, Notes, Knowledge)"]
+    subgraph Security_And_Runtime["Execution Runtime & Permissions"]
+        Roles --> Hermes["Hermes Agent Runtime"]
+        Hermes --> Perms["Task-Scoped Tool Permissions\nROLE + TASK + ENV + RESOURCE + RISK"]
+        Perms --> Tools["Armored Tool Registry\n(read, write, edit, shell, git)"]
+        Tools --> Security
     end
 
-    subgraph Isolation["Secure Execution Boundary (FEAT-21)"]
-        Assistant --> IsolatedExecutor["Isolated Subprocess Executor"]
-        IsolatedExecutor --> ComplexTools["Complex Tools\n(Browser-Use, OpenViking, Edge0)"]
+    subgraph Quality_Verification["Evidence-Based Quality Gates"]
+        FrozenTests["Pre-frozen QA Test Suites"] --> Harness["Independent Test Harness"]
+        Engineering --> |"Changes"| TargetCode["Codebase Workspace"]
+        TargetCode --> Harness
+        Harness --> QAReport["Machine QA Report\n(exit code, log hash, commit SHA)"]
+        QAReport --> |"Failures"| Manager
+        QAReport --> |"Pass"| FinalVerifier["Final Verifier Gate"]
+        FinalVerifier --> |"Artifact Evidence Validated"| Complete["COMPLETED"]
     end
 
-    Assistant --> SkillCreator
-    Assistant --> SkillExecutor
-    Assistant --> AgentCreator
-    Assistant --> AgentExecutor
+    subgraph Coding_Router["AI Coding Assistant Services"]
+        CodingAPI["Unified Coding Router\n/coding/generate | /coding/patch | /coding/audit | /coding/repair"]
+        CodingAPI --> Hermes
+        CodingAPI --> OnboardingEngine["Brownfield Codebase Onboarding Engine"]
+        OnboardingEngine --> SystemGraph["System Architecture Graph\n(system.graph.yaml)"]
+    end
 
-    ToolAdapters --> Host["Host System & Workspaces"]
-    AgentExecutor --> ToolAdapters
-    ComplexTools --> Host
+    subgraph Model_Inference["Model Inference & Hardware Governance"]
+        Perms --> ModelRouter["Dynamic Model Router & VRAM Lease"]
+        ModelRouter --> Collibri["Collibri Local llama.cpp Server\n(<=4GB VRAM Concurrency Safe)"]
+        ModelRouter --> CloudLLM["Universal LiteLLM / Cloud Providers"]
+    end
+
+    subgraph Governance_And_Safety["Version Control Safety & Incident Governance"]
+        CompWorkflow --> ChangeManager["Git Change Manager\n(Baselines, Dual-Layer Checkpoints, Safe Rollbacks)"]
+        ChangeManager --> Snapshots["Workspace Snapshots Subsystem"]
+        Roles --> ActionGatekeeper["Action Gatekeeper\n(Automatic vs Approval-Required vs Prohibited)"]
+        ActionGatekeeper --> Approval["Approval Manager"]
+        ActionGatekeeper --> IncidentManager["8-Stage Incident Recovery Workflow\nDetect -> Diagnose -> Contain -> Rollback -> Repair -> Verify"]
+        IncidentManager --> ChangeManager
+    end

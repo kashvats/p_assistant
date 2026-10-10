@@ -879,32 +879,88 @@ class Orchestrator:
         Preserves:
         1. System prompt (index 0) - essential instructions.
         2. Initial user instruction (index 1).
-        3. Unresolved tasks / latest messages and recent tool calls.
+        3. Most recent messages (tail).
         Older intermediate exchanges are compacted into a single summary message.
+
+        Triggers at 75% of max_tokens so there is headroom for the model response
+        and for tool schemas that are not counted in the message char estimate.
         """
         total_chars = sum(len(str(m.get("content") or "")) for m in messages)
         estimated_tokens = int(total_chars / char_per_token)
-        if estimated_tokens <= max_tokens or len(messages) <= 6:
+        threshold = int(max_tokens * 0.75)
+        if estimated_tokens <= threshold:
             return messages
 
-        head = messages[:2] if len(messages) >= 2 else messages[:1]
-        tail = messages[-4:]
-        middle = messages[len(head):-4]
-        summary_snippets = []
-        for m in middle:
-            role = m.get("role", "unknown")
-            content = str(m.get("content") or "").strip()
-            if content:
-                snippet = content[:150] + ("..." if len(content) > 150 else "")
-                summary_snippets.append(f"[{role}]: {snippet}")
-            tool_calls = m.get("tool_calls")
-            if tool_calls:
-                tool_names = [tc.get("function", {}).get("name", "tool") for tc in tool_calls if isinstance(tc, dict)]
-                summary_snippets.append(f"[tools called]: {', '.join(tool_names)}")
+        # Compact intermediate turns when 5 or more messages exist
+        if len(messages) >= 5:
+            head_n = 2
+            tail_n = min(4, max(1, len(messages) - head_n - 1))
+            head = messages[:head_n]
+            tail = messages[-tail_n:] if tail_n > 0 else []
+            middle = messages[head_n: len(messages) - tail_n if tail_n > 0 else len(messages)]
 
-        summary_content = "Context compacted: " + " | ".join(summary_snippets)
-        summary_msg = {"role": "system", "content": summary_content}
-        return head + [summary_msg] + tail
+            summary_snippets = []
+            for m in middle:
+                role = m.get("role", "unknown")
+                content = str(m.get("content") or "").strip()
+                if content:
+                    snippet = content[:150] + ("..." if len(content) > 150 else "")
+                    summary_snippets.append(f"[{role}]: {snippet}")
+                tool_calls = m.get("tool_calls")
+                if tool_calls:
+                    tool_names = [tc.get("function", {}).get("name", "tool") for tc in tool_calls if isinstance(tc, dict)]
+                    summary_snippets.append(f"[tools called]: {', '.join(tool_names)}")
+
+            summary_content = "Context compacted: " + " | ".join(summary_snippets) if summary_snippets else "Context compacted: earlier tool interactions summarized."
+            summary_msg = {"role": "system", "content": summary_content}
+            messages = head + [summary_msg] + tail
+
+        # If estimated tokens still exceeds threshold (e.g. huge tool results or individual messages),
+        # clamp individual non-system messages to fit within context budget.
+        curr_chars = sum(len(str(m.get("content") or "")) for m in messages)
+        if int(curr_chars / char_per_token) > threshold:
+            per_msg_char_cap = max(2000, int(max_tokens * char_per_token * 0.25))
+            clamped = []
+            for idx, m in enumerate(messages):
+                if idx == 0 and m.get("role") == "system":
+                    clamped.append(m)
+                    continue
+                content_str = str(m.get("content") or "")
+                if len(content_str) > per_msg_char_cap:
+                    m_copy = dict(m)
+                    m_copy["content"] = content_str[:per_msg_char_cap] + "\n... [content truncated to fit context budget]"
+                    clamped.append(m_copy)
+                else:
+                    clamped.append(m)
+            messages = clamped
+
+        return messages
+
+    @staticmethod
+    def _emergency_compact(messages: list[dict], max_tokens: int = 4096, char_per_token: float = 3.5) -> list[dict]:
+        """Aggressive compaction for context-window-exceeded errors: keep only system + last user turn, strictly clamped."""
+        system_msgs = [m for m in messages if m.get("role") == "system"]
+        non_system = [m for m in messages if m.get("role") != "system"]
+        # Keep last 2 non-system messages (the most recent user + any tool result)
+        tail = non_system[-2:] if len(non_system) >= 2 else non_system[-1:]
+        notice = {
+            "role": "system",
+            "content": (
+                "Previous conversation history was dropped because the request exceeded the model's context window. "
+                "Continue from the current user message only."
+            ),
+        }
+        # Strictly truncate content in tail messages so they cannot exceed context budget
+        max_tail_chars = max(1500, min(8000, int(max_tokens * char_per_token * 0.20)))
+        clamped_tail = []
+        for m in tail:
+            m_copy = dict(m)
+            c = str(m.get("content") or "")
+            if len(c) > max_tail_chars:
+                m_copy["content"] = c[:max_tail_chars] + "\n... [truncated due to context limit]"
+            clamped_tail.append(m_copy)
+
+        return system_msgs[:1] + [notice] + clamped_tail
 
     def _finish(self, answer: str, session_id: str | None) -> str:
         if self.sessions and session_id:
@@ -918,11 +974,15 @@ class Orchestrator:
         session_id: str | None,
         pinned_tools: Iterable[str] = (),
         excluded_tools: Iterable[str] = (),
+        source: str = "text",
     ):
         if self.sessions and session_id:
             self.sessions.ensure(session_id)
             prior = self._session_context(session_id)
-            self.sessions.add_message(session_id, "user", user_text)
+            try:
+                self.sessions.add_message(session_id, "user", user_text, source=source)
+            except TypeError:  # session stores without message sources
+                self.sessions.add_message(session_id, "user", user_text)
         else:
             prior = ""
 
@@ -1063,10 +1123,19 @@ class Orchestrator:
         self._tool_telemetry.append(telemetry)
         self._publish("tool.telemetry", **telemetry)
 
-    @staticmethod
-    def _serialized_tool_result(result: Any) -> str:
+    def _tool_result_char_limit(self) -> int:
+        """Dynamic character budget for a single tool output.
+        Prevents a single tool execution from consuming more than ~25% of total context tokens.
+        """
+        return max(3000, min(MAX_TOOL_RESULT_CHARS, int(self.context_tokens * 3.5 * 0.25)))
+
+    @classmethod
+    def _serialized_tool_result(cls, result: Any, max_chars: int = MAX_TOOL_RESULT_CHARS) -> str:
         try:
-            return json.dumps(result, default=str)[:MAX_TOOL_RESULT_CHARS]
+            raw = json.dumps(result, default=str)
+            if len(raw) > max_chars:
+                return raw[:max_chars] + f"\n... [tool result truncated: {len(raw)} chars exceeded budget {max_chars}]"
+            return raw
         except Exception:
             return json.dumps(
                 {"ok": False, "error": "Tool result could not be serialized."}
@@ -1097,10 +1166,12 @@ class Orchestrator:
         session_id: str | None = None,
         pinned_tools: Iterable[str] = (),
         excluded_tools: Iterable[str] = (),
+        source: str = "text",
     ) -> str:
         """Blocking variant of run_stream(); both share one execution engine."""
         final = ""
-        for event in self.run_stream(user_text, context, session_id=session_id, pinned_tools=pinned_tools, excluded_tools=excluded_tools):
+        for event in self.run_stream(user_text, context, session_id=session_id, pinned_tools=pinned_tools,
+                                     excluded_tools=excluded_tools, source=source):
             kind = event.get("type")
             if kind == "final":
                 final = str(event.get("text") or "")
@@ -1119,8 +1190,12 @@ class Orchestrator:
         session_id: str | None = None,
         pinned_tools: Iterable[str] = (),
         excluded_tools: Iterable[str] = (),
+        source: str = "text",
     ):
-        """Yield structured streaming events without bypassing the tool loop."""
+        """Yield structured streaming events without bypassing the tool loop.
+
+        ``source`` records how the user spoke to the assistant (text, voice, goal...).
+        """
 
         run_id, history_project = self._history_start(
             user_text,
@@ -1184,6 +1259,7 @@ class Orchestrator:
             session_id,
             pinned_tools=pinned_tools,
             excluded_tools=excluded_tools,
+            source=source,
         )
         history_project = project_hint or history_project
         trace: list[dict[str, Any]] = []
@@ -1229,33 +1305,78 @@ class Orchestrator:
                     provider = self.mm.provider
                     request = dict(tools=schemas, keep_alive=keep_alive, options={"num_ctx": self.context_tokens})
                     stream = getattr(provider, "chat_stream", None)
-                    chunks = (
-                        stream(self.model, messages, **request)
-                        if callable(stream)
-                        else [provider.chat(self.model, messages, **request)]
-                    )
-                    for chunk in chunks:
-                        if not isinstance(chunk, dict):
-                            continue
+                    try:
+                        chunks = (
+                            stream(self.model, messages, **request)
+                            if callable(stream)
+                            else [provider.chat(self.model, messages, **request)]
+                        )
+                        for chunk in chunks:
+                            if not isinstance(chunk, dict):
+                                continue
 
-                        last_usage_chunk = chunk
-                        msg_part = chunk.get("message") or {}
-                        if not isinstance(msg_part, dict):
-                            continue
+                            last_usage_chunk = chunk
+                            msg_part = chunk.get("message") or {}
+                            if not isinstance(msg_part, dict):
+                                continue
 
-                        text = str(msg_part.get("content") or "")
-                        if text:
-                            content_parts.append(text)
-                            yield {"type": "token", "text": text}
+                            text = str(msg_part.get("content") or "")
+                            if text:
+                                content_parts.append(text)
+                                yield {"type": "token", "text": text}
 
-                        for call in msg_part.get("tool_calls") or []:
+                            for call in msg_part.get("tool_calls") or []:
+                                try:
+                                    key = json.dumps(call, sort_keys=True, default=str)
+                                except Exception:
+                                    key = repr(call)
+                                if key not in seen_calls:
+                                    seen_calls.add(key)
+                                    tool_calls.append(call)
+                    except Exception as _ctx_exc:
+                        _ctx_str = str(_ctx_exc)
+                        if (
+                            "ContextWindowExceeded" in _ctx_str
+                            or "context_length_exceeded" in _ctx_str
+                            or "context size" in _ctx_str.lower()
+                            or "exceed_context_size_error" in _ctx_str
+                            or "context window" in _ctx_str.lower()
+                        ):
+                            logger.warning(
+                                "Context window exceeded (%s tokens estimated); applying emergency compaction and retrying.",
+                                int(sum(len(str(m.get("content") or "")) for m in messages) / 3.5),
+                            )
+                            yield {"type": "status", "status": "compacting_context"}
+                            messages = self._emergency_compact(messages, max_tokens=self.context_tokens)
                             try:
-                                key = json.dumps(call, sort_keys=True, default=str)
-                            except Exception:
-                                key = repr(call)
-                            if key not in seen_calls:
-                                seen_calls.add(key)
-                                tool_calls.append(call)
+                                chunks = (
+                                    stream(self.model, messages, **request)
+                                    if callable(stream)
+                                    else [provider.chat(self.model, messages, **request)]
+                                )
+                                for chunk in chunks:
+                                    if not isinstance(chunk, dict):
+                                        continue
+                                    last_usage_chunk = chunk
+                                    msg_part = chunk.get("message") or {}
+                                    if not isinstance(msg_part, dict):
+                                        continue
+                                    text = str(msg_part.get("content") or "")
+                                    if text:
+                                        content_parts.append(text)
+                                        yield {"type": "token", "text": text}
+                                    for call in msg_part.get("tool_calls") or []:
+                                        try:
+                                            key = json.dumps(call, sort_keys=True, default=str)
+                                        except Exception:
+                                            key = repr(call)
+                                        if key not in seen_calls:
+                                            seen_calls.add(key)
+                                            tool_calls.append(call)
+                            except Exception as _retry_exc:
+                                raise ModelError(f"Context window exceeded even after compaction: {redact_secrets(_retry_exc, 500)}") from _retry_exc
+                        else:
+                            raise
 
                     # --- Fallback Tool Extraction for local models (e.g. Qwen2.5 1.5b) ---
                     # If the model didn't use native tool_calls but emitted JSON objects in content.
@@ -1382,7 +1503,7 @@ class Orchestrator:
                                 "role": "tool",
                                 "tool_name": name,
                                 "tool_call_id": call.get("id"),
-                                "content": self._serialized_tool_result(result),
+                                "content": self._serialized_tool_result(result, max_chars=self._tool_result_char_limit()),
                             }
                         )
                         self._publish(
@@ -1448,7 +1569,7 @@ class Orchestrator:
                             "role": "tool",
                             "tool_name": name,
                             "tool_call_id": call.get("id"),
-                            "content": self._serialized_tool_result(result),
+                            "content": self._serialized_tool_result(result, max_chars=self._tool_result_char_limit()),
                         }
                     )
 
@@ -1487,6 +1608,12 @@ class Orchestrator:
                         if result.get("approval_id") and (result.get("approval_required") or result.get("pending")):
                             tool_event["approval_id"] = result["approval_id"]
                             tool_event["approval_message"] = redact_secrets(str(result.get("message") or ""), 300)
+                        # Files a tool produced or was asked to show (downloads, show_file). The chat
+                        # route checks them against the workspace before any UI displays them.
+                        files = {k: result[k] for k in ("media", "path", "file", "saved_to", "destination")
+                                 if ok_result and result.get(k) and not result.get("quarantined")}
+                        if files:
+                            tool_event["files"] = files
                     yield tool_event
 
                     # Record call in TaskState for cross-step loop detection

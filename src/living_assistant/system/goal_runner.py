@@ -102,6 +102,11 @@ class GoalStore:
             c.execute(f"UPDATE goals SET {cols} WHERE id=?", (*fields.values(), gid))
         return self.get(gid)
 
+    def delete(self, gid: str) -> bool:
+        with self._lock, self._conn() as c:
+            cur = c.execute("DELETE FROM goals WHERE id=?", (gid,))
+            return cur.rowcount > 0
+
     def interrupted(self) -> list[dict]:
         with self._conn() as c:
             rows = c.execute("SELECT * FROM goals WHERE status IN ('queued','running')").fetchall()
@@ -176,9 +181,17 @@ class GoalRunner:
         if record is None:
             return {"ok": False, "error": f"Unknown goal {gid}."}
         self._cancel.add(gid)
-        if record["status"] not in ACTIVE:
+        if record["status"] not in ACTIVE or gid not in self._threads:
             return {"ok": True, **self.store.update(gid, status="cancelled")}
         return {"ok": True, **self.store.update(gid, status="cancelling")}
+
+    def delete(self, gid: str) -> dict:
+        record = self.store.get(gid)
+        if record is None:
+            return {"ok": False, "error": f"Unknown goal {gid}."}
+        self._cancel.add(gid)
+        deleted = self.store.delete(gid)
+        return {"ok": deleted}
 
     def resume_interrupted(self) -> list[str]:
         resumed = []

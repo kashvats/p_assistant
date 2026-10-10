@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class AskRequest(BaseModel):
     message: str
     context: str = ""
-    session_id: str | None = None
+    session_id: str | None = None  # omitted: continue the shared active conversation
+    source: str = "text"  # how the user asked: text | voice
+    images: list[str] = Field(default_factory=list, max_length=4)  # attached image ids (POST /attachments)
+    files: list[str] = Field(default_factory=list, max_length=8)  # attached file ids (POST /files/upload)
 
 
 class ApprovalDecision(BaseModel):
@@ -176,3 +181,145 @@ class PeerDelegateRequest(BaseModel):
     role: str = Field(default="general", max_length=32)
     task: str = Field(min_length=1, max_length=30000)
     context: str = Field(default="", max_length=50000)
+
+
+class ProjectOnboardRequest(BaseModel):
+    path: str = Field(default=".", description="Filesystem path to the repository to onboard.", strict=True)
+    update_graph: bool = Field(default=True, description="Whether to generate or update system.graph.yaml.", strict=True)
+
+
+# =============================================================================
+# Feature F9: Unified AI Coding Assistant Schemas
+# =============================================================================
+
+
+class CodingGenerateRequest(BaseModel):
+    task: str | None = Field(default=None, max_length=20000, description="Task description or coding instructions.")
+    prompt: str | None = Field(default=None, max_length=20000, description="Prompt or coding instructions.")
+    context: str = Field(default="", max_length=50000, description="Relevant code or context snippet.")
+    language: str | None = Field(default=None, max_length=32, description="Target programming language.")
+    target_path: str | None = Field(default=None, max_length=500, description="Optional target file path to generate into.")
+    provider: str = Field(default="ollama", max_length=32, description="Model provider (e.g. ollama, collibri, openai).")
+    model: str | None = Field(default=None, max_length=128, description="Specific model name (e.g. openai/collibri).")
+    timeout: float = Field(default=300.0, ge=1.0, le=600.0, description="Execution timeout in seconds.")
+
+
+class CodingGenerateResponse(BaseModel):
+    ok: bool
+    output: str = ""
+    code: str = ""
+    language: str | None = None
+    model: str | None = None
+    contractor: str = "hermes_agent"
+    target_path: str | None = None
+    error: str | None = None
+
+
+class CodingPatchRequest(BaseModel):
+    path: str = Field(default="", max_length=500, description="Target file path in workspace to patch.")
+    content: str | None = Field(default=None, description="Proposed new file content.")
+    proposed: str | None = Field(default=None, description="Proposed new file content.")
+    patch_mode: str = Field(default="full_file", description="Patch mode: 'full_file' or 'semantic'.")
+    dry_run: bool | None = Field(default=None, description="If True, performs AST analysis without writing to disk.")
+    apply: bool | None = Field(default=None, description="If True, applies patch to disk.")
+    strict_ast: bool = Field(default=True, description="If True, blocks deletion/removal of existing symbols.")
+    backup: bool = Field(default=True, description="Whether to take a workspace snapshot before writing.")
+
+
+class CodingPatchResponse(BaseModel):
+    ok: bool
+    path: str
+    applied: bool = False
+    diff: str = ""
+    added_symbols: list[str] = Field(default_factory=list)
+    changed_symbols: list[str] = Field(default_factory=list)
+    removed_symbols: list[str] = Field(default_factory=list)
+    ast_checked: bool = False
+    syntax_error: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class CodingAuditRequest(BaseModel):
+    path: str = Field(default=".", max_length=500, description="Workspace directory or file path to audit.")
+    depth: str = Field(default="standard", description="Audit depth: 'standard' (ProjectAuditor) or 'deep' (ProjectAuditor + OnboardingEngine).")
+    max_files: int = Field(default=1500, ge=1, le=10000, description="Max files to scan.")
+
+
+class CodingAuditResponse(BaseModel):
+    ok: bool
+    path: str
+    health_score: float = 0.0
+    files_scanned: int = 0
+    bounded: bool = True
+    scan: dict[str, Any] = Field(default_factory=dict)
+    dependencies: dict[str, Any] = Field(default_factory=dict)
+    lint: dict[str, Any] = Field(default_factory=dict)
+    dead_code: dict[str, Any] = Field(default_factory=dict)
+    security: dict[str, Any] = Field(default_factory=dict)
+    deep_analysis: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class CodingRepairRequest(BaseModel):
+    path: str | None = Field(default=None, max_length=500, description="Target file path with syntax or test failures.")
+    error_context: str | None = Field(default=None, max_length=50000, description="Error message, stack trace, or test failure logs.")
+    failed_evaluation_id: str | None = Field(default=None, max_length=128, description="Existing evaluation ID if repairing an existing failed evaluation.")
+    test_commands: list[str] = Field(default_factory=list, description="Optional verification commands to run.")
+    max_cycles: int = Field(default=3, ge=1, le=5, description="Max repair loop iterations (1-5).")
+    evaluation_id: str | None = Field(default=None, max_length=128, description="Existing evaluation ID if repairing an existing failed evaluation.")
+    auto_apply: bool = Field(default=False, description="Whether to apply repaired candidate to disk if verified.")
+
+
+class CodingRepairResponse(BaseModel):
+    ok: bool
+    path: str = ""
+    status: str = "failed"  # "repaired" | "candidate_generated" | "failed" | "pending_approval"
+    failed_evaluation_id: str | None = None
+    cycles_run: int = 0
+    cycles_completed: int = 0
+    diff: str | None = None
+    repaired_content: str | None = None
+    passed: bool = False
+    verification_passed: bool = False
+    approval_required: bool = False
+    plan: dict[str, Any] | None = None
+    attempts: list[dict[str, Any]] = Field(default_factory=list)
+    error: str | None = None
+
+
+class CodingSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000, description="Search terms, code query, or API identifier.")
+    source: str = Field(default="all", description="Search domain: 'local', 'web', or 'all'.")
+    path: str = Field(default=".", max_length=500, description="Workspace path for local codebase search.")
+    limit: int = Field(default=10, ge=1, le=50, description="Max results per search domain.")
+    images: bool = Field(default=False, description="Whether to search for image results.")
+    web_provider: str = Field(default="auto", description="Web search provider: 'auto', 'searxng', etc.")
+
+
+class CodingSearchResponse(BaseModel):
+    ok: bool
+    query: str = ""
+    provider: str = "searxng"
+    count: int = 0
+    local_results: list[dict[str, Any]] = Field(default_factory=list)
+    web_results: list[dict[str, Any]] = Field(default_factory=list)
+    results: list[dict[str, Any]] = Field(default_factory=list)
+    total_results: int = 0
+    sources_searched: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class CodingExplainRequest(BaseModel):
+    command: str = Field(default="", max_length=4000, description="Shell command to explain.")
+
+
+class CodingExplainResponse(BaseModel):
+    ok: bool
+    command: str = ""
+    risk_level: str = "medium"
+    allowed: bool = True
+    summary: str = ""
+    requires_approval: bool = False
+    policy_reason: str = ""
+    executable: str | None = None
+    error: str | None = None

@@ -1,0 +1,116 @@
+"""
+Software Company Multi-Agent Hierarchy & Dynamic Roles module.
+"""
+
+from living_assistant.agents.software_company.models import (
+    AuditLogEntry,
+    AuditRecord,
+    CompanyPlan,
+    CompanyTask,
+    CompanyWorkflowResult,
+    CriteriaEvidence,
+    DeveloperOutput,
+    ExecutionBudget,
+    GitHubCandidate,
+    GitHubResearchReport,
+    LicenseVerdict,
+    QAFailureDetail,
+    QAReport,
+    RoleDepartment,
+    RoleProfile,
+    SpecStatus,
+    TaskBudget,
+    TaskNode,
+    TaskSpec,
+    ToolExecutionStep,
+    ToolOperatorReport,
+    VerificationVerdict,
+    WorkflowStatus,
+)
+from living_assistant.agents.software_company.profiles import (
+    ProfileError,
+    ProfileLoader,
+    ProfileNotFoundError,
+    ProfileValidationError,
+)
+from living_assistant.agents.software_company.roles import (
+    ALL_ROLES,
+    RoleRegistry,
+    default_role_registry,
+)
+from living_assistant.agents.software_company.task_graph import (
+    BudgetExceededError,
+    HierarchicalTaskGraph,
+    MaxDepthExceededError,
+    TaskGraphError,
+)
+from living_assistant.agents.software_company.workflow import (
+    CompanyWorkflow,
+    ForgedQAReportViolation,
+    FrozenTestViolationError,
+    QARejectionError,
+    QARetryLimitExceededError,
+    QARunnerHarness,
+    SoftwareCompanyWorkflow,
+    SpecNotApprovedError,
+    TaskScopedToolFactory,
+    TestHarness,
+    UnauthorizedCompletionViolation,
+    VerificationError,
+    WorkflowError,
+)
+
+__all__ = [
+    # Models
+    "AuditLogEntry",
+    "AuditRecord",
+    "CompanyPlan",
+    "CompanyTask",
+    "CompanyWorkflowResult",
+    "CriteriaEvidence",
+    "DeveloperOutput",
+    "ExecutionBudget",
+    "GitHubCandidate",
+    "GitHubResearchReport",
+    "LicenseVerdict",
+    "QAFailureDetail",
+    "QAReport",
+    "RoleDepartment",
+    "RoleProfile",
+    "SpecStatus",
+    "TaskBudget",
+    "TaskNode",
+    "TaskSpec",
+    "ToolExecutionStep",
+    "ToolOperatorReport",
+    "VerificationVerdict",
+    "WorkflowStatus",
+    # Roles
+    "ALL_ROLES",
+    "RoleRegistry",
+    "default_role_registry",
+    # Profiles
+    "ProfileError",
+    "ProfileLoader",
+    "ProfileNotFoundError",
+    "ProfileValidationError",
+    # Task Graph
+    "BudgetExceededError",
+    "HierarchicalTaskGraph",
+    "MaxDepthExceededError",
+    "TaskGraphError",
+    # Workflow
+    "CompanyWorkflow",
+    "ForgedQAReportViolation",
+    "FrozenTestViolationError",
+    "QARejectionError",
+    "QARetryLimitExceededError",
+    "QARunnerHarness",
+    "SoftwareCompanyWorkflow",
+    "SpecNotApprovedError",
+    "TaskScopedToolFactory",
+    "TestHarness",
+    "UnauthorizedCompletionViolation",
+    "VerificationError",
+    "WorkflowError",
+]

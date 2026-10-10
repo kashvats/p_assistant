@@ -30,7 +30,8 @@ function copyTree(source, destination) {
   const source = `${baseCss}
 ${customCss}`;
   const manual = fs.readFileSync(path.join(root, 'tailwind.candidates.txt'), 'utf8');
-  const app = fs.readFileSync(path.join(root, 'src', 'main.js'), 'utf8');
+  const app = fs.readdirSync(path.join(root, 'src')).filter((f) => f.endsWith('.js'))
+    .map((f) => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join(' ');
   const strings = [...app.matchAll(/(['"])(.*?)\1/gs)].map((match) => match[2]).join(' ');
   const candidates = `${manual} ${strings}`.split(/\s+/).map(x => x.trim()).filter(Boolean);
   const result = await compile(source);

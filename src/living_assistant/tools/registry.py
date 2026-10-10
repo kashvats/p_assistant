@@ -37,6 +37,9 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return list(self._tools)
 
+    def list_tools(self) -> dict[str, Tool]:
+        return dict(self._tools)
+
     def __len__(self) -> int:
         return len(self._tools)
 

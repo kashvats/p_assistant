@@ -144,7 +144,10 @@ class SkillStore:
         return dict(row) if row else None
 
     def set_state(self, skill_id: str, state: str) -> bool:
-        valid_states = {"DRAFT", "ACTIVE", "DISABLED", "ARCHIVED"}
+        valid_states = {
+            "DRAFT", "ACTIVE", "DISABLED", "ARCHIVED",
+            "PROPOSED", "LEARNING", "TESTING", "VERIFIED", "DEPRECATED", "FAILED"
+        }
         if state not in valid_states:
             raise ValueError(f"Invalid skill state '{state}'. Must be one of {valid_states}")
         now = dt.datetime.now().isoformat(timespec="seconds")

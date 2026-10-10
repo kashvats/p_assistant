@@ -7,6 +7,13 @@
       "runtimeArgs": ["-m", "uvicorn", "living_assistant.api:app", "--host", "127.0.0.1", "--port", "8787"],
       "port": 8787,
       "url": "http://127.0.0.1:8787"
+    },
+    {
+      "name": "living-assistant-preview",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-c", "import os, uvicorn; uvicorn.run('living_assistant.api:app', host='127.0.0.1', port=int(os.environ.get('PORT', '8788')))"],
+      "port": 8788,
+      "autoPort": true
     }
   ]
 }
