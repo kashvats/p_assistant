@@ -66,3 +66,19 @@ def test_filler_executes_submit_only_with_valid_approval(tmp_path):
     result_approved = filler.execute_submission(rec.id, approval_token="good_tok")
     assert result_approved["ok"] is True
     assert tracker.get_application(rec.id).status == ApplicationStatus.APPLIED
+
+
+def test_filler_works_with_the_real_approval_manager(tmp_path):
+    from living_assistant.core.approval import ApprovalManager, ApprovalStore
+
+    tracker = ApplicationTracker(db_path=tmp_path / "test.db")
+    rec = tracker.create_application(ParsedJob(title="Engineer", company="Acme", url="https://boards.greenhouse.io/acme/jobs/1",
+                                               platform=ATSPlatform.GREENHOUSE, description="Python"))
+    approval = ApprovalManager(interactive=False, store=ApprovalStore(tmp_path / "a.sqlite3"))
+    filler = JobFormFiller(browser_controller=MagicMock(), approval_manager=approval, tracker=tracker)
+    preview = filler.stage_application(rec.id, CandidateProfile(full_name="Sam Smith", email="sam@example.com"))
+    assert preview.approval_token  # a pending approval was created for the user
+    assert filler.execute_submission(rec.id, preview.approval_token)["ok"] is False  # not approved yet
+    approval.store.resolve(preview.approval_token, True)
+    assert filler.execute_submission(rec.id, preview.approval_token)["ok"] is True
+    assert tracker.get_application(rec.id).status == ApplicationStatus.APPLIED

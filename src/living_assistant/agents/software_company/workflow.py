@@ -317,6 +317,10 @@ class TaskScopedToolFactory:
         return registry
 
 
+# The role-scoped tool factory under the name the workflow's role layer uses.
+WorkflowRoleToolFactory = TaskScopedToolFactory
+
+
 class QARunnerHarness:
     """
     Independent test runner harness.

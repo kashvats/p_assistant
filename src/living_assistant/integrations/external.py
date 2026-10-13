@@ -148,8 +148,15 @@ class ExternalIntegrationRegistry:
                 info["available"] = False
                 info["activation"] = "reference-only"
             if not info["enabled"] and not spec.reference_only:
-                info["available"] = False
-                info["activation"] = "disabled"
+                # Only mark as disabled if no configuration path is present.
+                # If external files/directory exist, component is available for enablement.
+                configured_path = item.get("path")
+                if not configured_path:
+                    info["available"] = False
+                    info["activation"] = "disabled"
+                # If path is configured but not yet enabled, leave available=False
+                # so the UI can show "configured but disabled" rather than silently
+                # hiding the component.
             if info["enabled"] and info["available"] is False and not spec.reference_only:
                 info["activation"] = "unavailable"
             result[spec.name] = info

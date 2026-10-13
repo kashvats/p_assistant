@@ -46,7 +46,7 @@ def _workspace_repo_cwd(workspace: Workspace, path: str) -> tuple[Path | None, d
         return None, {
             'ok': False,
             'blocked': True,
-            'error': 'Git repository root is outside allowed workspace roots.',
+            'error': 'Git repository root is outside allowed workspace roots. Pass cwd= a repository inside the workspace or a registered project.',
         }
     return cwd, None
 

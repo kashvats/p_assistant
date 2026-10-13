@@ -423,6 +423,7 @@ class Orchestrator:
         self.model_usage = model_usage
 
         self.jev = JevClient()
+        self.skill_library = None  # SKILL.md skills; set by the runtime
 
         duplicate_names = self._duplicate_tool_names(tools)
         if duplicate_names:
@@ -802,6 +803,15 @@ class Orchestrator:
     # ---------------------------------------------------------------------
 
     def _skill_context(self, user_text: str) -> str:
+        block = ""
+        if self.skill_library is not None:
+            try:
+                block = self.skill_library.prompt_block(user_text)
+            except Exception:
+                block = ""  # a damaged skill folder must not break chat
+        return block + self._registry_skill_context(user_text)
+
+    def _registry_skill_context(self, user_text: str) -> str:
         if not self.skills:
             return ""
         matched = self.skills.match(user_text)
@@ -928,13 +938,27 @@ class Orchestrator:
                 content_str = str(m.get("content") or "")
                 if len(content_str) > per_msg_char_cap:
                     m_copy = dict(m)
-                    m_copy["content"] = content_str[:per_msg_char_cap] + "\n... [content truncated to fit context budget]"
+                    m_copy["content"] = Orchestrator._clamp_text(content_str, per_msg_char_cap)
                     clamped.append(m_copy)
                 else:
                     clamped.append(m)
             messages = clamped
 
         return messages
+
+    @staticmethod
+    def _clamp_text(text: str, cap: int, label: str = "content truncated to fit context budget") -> str:
+        """Shorten a message to ``cap`` chars without losing what matters most: the [CURRENT REQUEST]
+        section (kept whole when it fits) and the end of the message, cutting from the middle."""
+        if len(text) <= cap:
+            return text
+        note = f"\n... [{label}]\n"
+        request_at = text.rfind("[CURRENT REQUEST]")
+        if request_at != -1 and len(text) - request_at <= int(cap * 0.8):
+            tail = text[request_at:]
+            return text[:max(0, cap - len(tail) - len(note))] + note + tail
+        head = int(cap * 0.4)
+        return text[:head] + note + text[-(cap - head - len(note)):]
 
     @staticmethod
     def _emergency_compact(messages: list[dict], max_tokens: int = 4096, char_per_token: float = 3.5) -> list[dict]:
@@ -957,7 +981,7 @@ class Orchestrator:
             m_copy = dict(m)
             c = str(m.get("content") or "")
             if len(c) > max_tail_chars:
-                m_copy["content"] = c[:max_tail_chars] + "\n... [truncated due to context limit]"
+                m_copy["content"] = Orchestrator._clamp_text(c, max_tail_chars, "truncated due to context limit")
             clamped_tail.append(m_copy)
 
         return system_msgs[:1] + [notice] + clamped_tail
@@ -986,9 +1010,13 @@ class Orchestrator:
         else:
             prior = ""
 
-        skill_ctx = self._skill_context(user_text)
+        # Company employees carry only their own skill portfolio (company skill isolation), never the global list.
+        skill_ctx = "" if "[COMPANY EMPLOYEE:" in (context or "") else self._skill_context(user_text)
         experience_ctx = self._experience_context(user_text, context)
         active_tool_names = self._initial_tool_names(user_text, context, prior)
+        if "[INSTALLED SKILLS THAT MAY FIT" in skill_ctx:
+            active_tool_names = self._merge_tool_names(["skill_read"], active_tool_names, self.tools,
+                                                       max_tools=MAX_ACTIVE_TOOLS)
         if pinned_tools:
             # Callers such as long-running goals need their core tools regardless of ranking.
             active_tool_names = self._merge_tool_names(
@@ -1059,12 +1087,15 @@ class Orchestrator:
             return args, res
 
         try:
+            args = {k: v for k, v in args.items() if not str(k).startswith("_")}  # internal arguments come from here only
             if name == "delegate_agent":
                 res = tool.handler(
                     **args,
                     _session_id=session_id,
                     _run_id=run_id,
                 )
+            elif self._wants_session(tool):
+                res = tool.handler(**args, _session_id=session_id)
             else:
                 res = tool.handler(**args)
             self._record_telemetry(name, start_time, res, None, run_id or session_id)
@@ -1089,6 +1120,32 @@ class Orchestrator:
             err_cat = type(exc).__name__
             self._record_telemetry(name, start_time, res, err_cat, run_id or session_id)
             return args, res
+
+    @staticmethod
+    def _is_looping(parts: list[str], repeats: int = 5) -> bool:
+        """The same non-empty line produced ``repeats`` times in a row at the end of the reply."""
+        lines = [l.strip() for l in "".join(parts)[-4000:].split("\n") if l.strip()]
+        if len(lines) < repeats + 1:  # the last line may still be growing
+            return False
+        tail = lines[-(repeats + 1):-1]
+        return len(tail[0]) >= 8 and all(l == tail[0] for l in tail)
+
+    @staticmethod
+    def _drop_repeats(text: str) -> str:
+        out: list[str] = []
+        for line in text.split("\n"):
+            if line.strip() and out and line.strip() == out[-1].strip():
+                continue
+            out.append(line)
+        return "\n".join(out).rstrip() + "\n"
+
+    @staticmethod
+    def _wants_session(tool: Tool) -> bool:
+        """Tools that act on the current conversation (e.g. skill_learn) declare a ``_session_id`` parameter."""
+        try:
+            return "_session_id" in inspect.signature(tool.handler).parameters
+        except (TypeError, ValueError):
+            return False
 
     def _record_telemetry(
         self,
@@ -1191,11 +1248,14 @@ class Orchestrator:
         pinned_tools: Iterable[str] = (),
         excluded_tools: Iterable[str] = (),
         source: str = "text",
+        max_steps: int | None = None,
     ):
         """Yield structured streaming events without bypassing the tool loop.
 
         ``source`` records how the user spoke to the assistant (text, voice, goal...).
+        ``max_steps`` overrides the per-request tool-step budget (company employees building software).
         """
+        step_budget = max(1, int(max_steps or self.max_steps))
 
         run_id, history_project = self._history_start(
             user_text,
@@ -1253,12 +1313,13 @@ class Orchestrator:
                 }
                 return
 
+        excluded_set = set(excluded_tools or ())
         messages, active_tool_names, project_hint = self._prepare(
             user_text,
             context,
             session_id,
             pinned_tools=pinned_tools,
-            excluded_tools=excluded_tools,
+            excluded_tools=excluded_set,
             source=source,
         )
         history_project = project_hint or history_project
@@ -1277,7 +1338,7 @@ class Orchestrator:
         }
 
         try:
-            for step in range(self.max_steps):
+            for step in range(step_budget):
                 messages = self.compact_context(messages, max_tokens=self.context_tokens)
                 schemas = self._schemas_for(active_tool_names)
 
@@ -1324,6 +1385,17 @@ class Orchestrator:
                             if text:
                                 content_parts.append(text)
                                 yield {"type": "token", "text": text}
+                                if "\n" in text and self._is_looping(content_parts):
+                                    # Small local models sometimes repeat one line forever: stop and keep one copy.
+                                    content_parts[:] = [self._drop_repeats("".join(content_parts))]
+                                    logger.warning("[Model] repetition loop detected; generation stopped")
+                                    close = getattr(chunks, "close", None)
+                                    if callable(close):
+                                        try:
+                                            close()
+                                        except Exception:
+                                            pass
+                                    break
 
                             for call in msg_part.get("tool_calls") or []:
                                 try:
@@ -1481,6 +1553,17 @@ class Orchestrator:
                     args = fn.get("arguments") or {}
 
                     logger.debug("[Tool execution] Model requested tool: %s with args: %s", name, args)
+
+                    # Excluded tools are a permission boundary (e.g. company employees, verifiers), not a hint:
+                    # the model can name them even when they were never offered, or after tool discovery.
+                    if name in excluded_set:
+                        result = {"ok": False, "blocked": True,
+                                  "error": f"'{name}' is not available to you in this context. Use your other tools."}
+                        messages.append({"role": "tool", "tool_name": name, "tool_call_id": call.get("id"),
+                                         "content": self._serialized_tool_result(result, max_chars=self._tool_result_char_limit())})
+                        self._publish("tool.blocked", session_id=session_id, tool=name, reason="excluded in this context")
+                        yield {"type": "tool", "tool": name, "status": "completed", "ok": False, "error": result["error"]}
+                        continue
 
                     # --- CROSS-STEP LOOP DETECTION ---
                     if name and task_state.is_stuck(name, args if isinstance(args, dict) else {}):
@@ -1715,7 +1798,7 @@ class Orchestrator:
 
         done = "\n".join(f"- {line}" for line in task_state.audit_summary(8)) or "- (no tool calls completed)"
         answer = (
-            f"I used all {self.max_steps} steps available for one request before finishing.\n\n"
+            f"I used all {step_budget} steps available for one request before finishing.\n\n"
             f"Done so far:\n{done}\n\n"
             "This looks like a bigger job. Say \"continue as a goal\" and I will keep working on it in the "
             "background, round after round, until it is finished (or start it under Long-running goals)."

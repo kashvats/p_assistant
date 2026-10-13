@@ -12,6 +12,7 @@ class AskRequest(BaseModel):
     source: str = "text"  # how the user asked: text | voice
     images: list[str] = Field(default_factory=list, max_length=4)  # attached image ids (POST /attachments)
     files: list[str] = Field(default_factory=list, max_length=8)  # attached file ids (POST /files/upload)
+    agent: str | None = Field(default=None, max_length=80)  # "<agent id>" or "team:<id>"; omitted: the conversation's agent
 
 
 class ApprovalDecision(BaseModel):

@@ -2,6 +2,7 @@
 import { loadPlotly } from './chart_loader.js';
 import { ACCEPT, extractFiles, fileChip, kindOf, mediaList, uploadFile } from './chatmedia.js';
 import { Markdown } from './markdown.js';
+import { SkillLibraryPanel } from './skill_library.js';
 import { makeResourceSample, resourceSampleLabel, resourceSeries } from './resource_chart_data.js';
 const React = globalThis.React;
 const ReactDOM = globalThis.ReactDOM;
@@ -9,8 +10,7 @@ const Prism = globalThis.Prism;
 const h = React.createElement;
 
 const NAV = [
-  ['overview', '🏠 Overview'], ['models', 'Models'], ['chat', '💬 Chat'], ['career', '💼 Career & Jobs'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'],
-  ['organize', '📅 Calendar & Todos'], ['security', '🔒 Security'], ['activity', '📊 Activity'], ['tools', '🔧 Tools'],
+  ['overview', '🏠 Overview'], ['models', 'Models'], ['chat', '💬 Chat'], ['career', '💼 Career & Jobs'], ['skills', '⚡ Skills'], ['agents', '🧠 Agents'], ['approvals', '✅ Approvals'], ['organize', '📅 Calendar & Todos'], ['security', '🔒 Security'], ['activity', '📊 Activity'], ['tools', '🔧 Tools'],
 ];
 
 function cx(...parts) { return parts.filter(Boolean).join(' '); }
@@ -130,8 +130,9 @@ class App extends React.Component {
     this.pollers = []; this.activityController = null; this.approvalSeen = new Set(); this.chatController = null;
   }
   componentDidMount() {
-    this.onHash = () => this.setState({page: hashPage()}); window.addEventListener('hashchange', this.onHash);
-    this.refreshAll(); this.startActivityStream(); this.loadActiveConversation();
+    // Embedded in the new shell (shell.js): the shell picks the page and runs the live streams.
+    if (!this.props.embedded) { this.onHash = () => this.setState({page: hashPage()}); window.addEventListener('hashchange', this.onHash); }
+    this.refreshAll(); if (!this.props.embedded) { this.startActivityStream(); this.loadActiveConversation(); }
     this.pollers.push(setInterval(() => this.loadStatus(), 2500));
     this.pollers.push(setInterval(() => this.loadApprovals(), 5000));
     this.pollers.push(setInterval(() => this.loadUsage(), 10000));
@@ -149,6 +150,8 @@ class App extends React.Component {
       el.scrollTop = el.scrollHeight;
     }
   }
+  get apiFn() { return this._apiFn || (this._apiFn = (u, o) => this.api(u, o)); }
+  get notifyFn() { return this._notifyFn || (this._notifyFn = (t, e) => this.notify(t, e)); }
   authHeaders(extra = {}) { return Object.assign({}, extra, this.state.token ? {Authorization: `Bearer ${this.state.token}`} : {}); }
   async api(url, opt = {}) {
     let response;
@@ -793,8 +796,11 @@ class App extends React.Component {
   render() {
     // Only the visible page is built, inside an error boundary: one broken page must not blank the app.
     const pages={overview:()=>this.renderOverview(),models:()=>this.renderModels(),chat:()=>this.renderChat(),skills:()=>this.renderSkills(),agents:()=>this.renderAgents(),approvals:()=>this.renderApprovals(),organize:()=>this.renderOrganize(),security:()=>this.renderSecurity(),activity:()=>this.renderActivity(),career:()=>this.renderCareer(),tools:()=>this.renderTools()};
-    const page = pages[this.state.page] ? this.state.page : 'overview';
-    return this.renderShell(h(ErrorBoundary,{key:page,name:page},h(PageBody,{render:pages[page]})));
+    const want = this.props.embedded ? this.props.page : this.state.page;
+    const page = pages[want] ? want : 'overview';
+    const body = h(ErrorBoundary,{key:page,name:page},h(PageBody,{render:pages[page]}));
+    if (this.props.embedded) return h('div', null, body, this.state.toast ? h('div', {className: 'fixed bottom-4 right-4 z-50 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm'}, this.state.toast) : null);
+    return this.renderShell(body);
   }
   renderTools() {
     const s = this.state.status || {};
@@ -959,9 +965,13 @@ class App extends React.Component {
         ) : null,
       ))) : this.card(null, h('div', {className: 'text-slate-500 py-12 text-center'}, 'Select a skill from the left or generate a new draft to inspect details.'));
 
-    return h('div', {className: 'grid md:grid-cols-12 gap-3'},
-      h('div', {className: 'md:col-span-5'}, leftCol),
-      h('div', {className: 'md:col-span-7'}, rightCol),
+    return h('div', null,
+      h(SkillLibraryPanel, {api: this.apiFn, notify: this.notifyFn, card: (t, b) => this.card(t, b)}),
+      h('h2', {className: 'text-sm font-semibold text-slate-400 mt-2 mb-2'}, 'Skill packages (manifest skills with steps and permissions)'),
+      h('div', {className: 'grid md:grid-cols-12 gap-3'},
+        h('div', {className: 'md:col-span-5'}, leftCol),
+        h('div', {className: 'md:col-span-7'}, rightCol),
+      ),
     );
   }
   renderAgents() {
@@ -1673,4 +1683,7 @@ function ItemList({rows, kind, onAction}) {
 }
 
 if (!React || !ReactDOM) throw new Error('React runtime is unavailable.');
-ReactDOM.render(h(App), document.getElementById('root'));
+// The classic dashboard mounts itself only on its own page; the new shell imports App for its system pages.
+export { App as ClassicApp };
+const classicRoot = document.getElementById('root');
+if (classicRoot && classicRoot.dataset.app !== 'shell') ReactDOM.render(h(App), classicRoot);

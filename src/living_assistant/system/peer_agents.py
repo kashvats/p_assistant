@@ -224,7 +224,10 @@ class PeerAgentManager:
             self._peers = {k: v for k, v in self._peers.items() if float(v.get("last_seen", 0)) >= cutoff}
             peers = [dict(v) for v in self._peers.values()]
         peers.sort(key=lambda p: (not p.get("trusted", False), -self._score(p), p.get("name", "")))
-        return {"ok": bool(start.get("ok")), "status": start, "peer_id": self.peer_id, "peers": peers}
+        out = {"ok": bool(start.get("ok")), "status": start, "peer_id": self.peer_id, "peers": peers}
+        if not out["ok"]:
+            out["error"] = start.get("error") or "Peer discovery could not start."
+        return out
 
     @staticmethod
     def _score(peer: dict[str, Any]) -> float:

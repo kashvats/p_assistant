@@ -46,6 +46,7 @@ class IncidentSeverity(str, enum.Enum):
 
 class IncidentStage(str, enum.Enum):
     DETECTED = "detected"
+    ANALYZING = "analyzing"  # root-cause analysis under way (between detection and diagnosis)
     DIAGNOSED = "diagnosed"
     CONTAINED = "contained"
     ROLLED_BACK = "rolled_back"

@@ -36,10 +36,7 @@ def test_preload_exposes_only_the_agent_bridge():
     assert "require('fs')" not in preload and "shell" not in preload
 
 
-def test_electron_version_is_pinned_consistently():
-    declared = json.loads((SHELL / "package.json").read_text(encoding="utf-8"))["devDependencies"]["electron"]
+def test_run_bat_no_longer_starts_the_desktop_companion():
+    # Removed 2026-10-12 at the user's request: the orb used ~370 MB the local model needs.
     run_bat = Path("run.bat").read_text(encoding="utf-8")
-    assert re.fullmatch(r"\d+\.\d+\.\d+", declared)
-    assert f'set "ELECTRON_VERSION={declared}"' in run_bat
-    assert "electron-runtime-%ELECTRON_VERSION%" in run_bat
-    assert "node_modules\\electron\\install.js" in run_bat  # binary download when npm skips postinstall
+    assert "ELECTRON_EXE" not in run_bat and "npm.cmd install" not in run_bat

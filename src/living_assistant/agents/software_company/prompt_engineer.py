@@ -498,7 +498,7 @@ class PromptEngineerAgent:
     def scaffold_project_files(
         self,
         prompt: str,
-        target_dir: str = "workspace/todo_app",
+        target_dir: str = "workspace",
         framework: str = "FastAPI (Python)",
         database: str = "SQLite",
         auth: str = "PyJWT",
@@ -522,10 +522,26 @@ class PromptEngineerAgent:
             return self._scaffold_contacts_app()
         elif key == "ecommerce":
             return self._scaffold_ecommerce_app()
+        elif key == "todo":
+            return self._scaffold_todo_app()
         elif key == "custom":
             return self._scaffold_custom_app(arch)
         else:
-            return self._scaffold_todo_app()
+            # Dynamic custom archetype - use the detected arch's slug/key for naming
+            project_name = arch["name"]
+            slug = arch["slug"]
+            return {
+                "project_info": f"Custom {project_name} project",
+                "selected_stack": {
+                    "framework": framework,
+                    "database": database,
+                    "auth": auth,
+                },
+                "key_features": arch["default_features"],
+                "project_name": f"{slug}_app",
+                "target_workspace_dir": target_dir,
+                "message": "Custom archetype detected. Use the project creation wizard for full scaffolding.",
+            }
 
     def _scaffold_todo_app(self) -> Dict[str, str]:
         """Scaffolds complete Todo Management application."""

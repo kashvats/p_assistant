@@ -1,6 +1,8 @@
 from __future__ import annotations
 from pathlib import Path
 
+from living_assistant.core.scope import current_scope, within
+
 class WorkspaceViolation(PermissionError):
     pass
 
@@ -11,6 +13,15 @@ class Workspace:
             root.mkdir(parents=True, exist_ok=True)
 
     def resolve(self, path: str | Path, base: str | Path | None = None) -> Path:
+        scope = current_scope()
+        resolved = self._resolve(path, base if base else scope)
+        if scope is not None and not within(resolved, scope):
+            # a company employee's turn: only its project folder is reachable
+            raise WorkspaceViolation(f"Path is outside this project's folder ({scope}): {resolved}. "
+                                     f"Use a path inside {scope}.")
+        return resolved
+
+    def _resolve(self, path: str | Path, base: str | Path | None = None) -> Path:
         raw_str = str(path).strip() if path is not None else ""
         base_path = Path(base).expanduser().resolve() if base else self.roots[0]
 

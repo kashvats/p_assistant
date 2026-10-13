@@ -32,7 +32,9 @@ ${customCss}`;
   const manual = fs.readFileSync(path.join(root, 'tailwind.candidates.txt'), 'utf8');
   const app = fs.readdirSync(path.join(root, 'src')).filter((f) => f.endsWith('.js'))
     .map((f) => fs.readFileSync(path.join(root, 'src', f), 'utf8')).join(' ');
-  const strings = [...app.matchAll(/(['"])(.*?)\1/gs)].map((match) => match[2]).join(' ');
+  // Split on whitespace and quotes rather than pairing quotes: an escaped apostrophe in a string
+  // (e.g. 'member\'s') would shift quote pairing and silently drop every class after it.
+  const strings = app.split(/[\s'"`]+/).join(' ');
   const candidates = `${manual} ${strings}`.split(/\s+/).map(x => x.trim()).filter(Boolean);
   const result = await compile(source);
   const css = result.build([...new Set(candidates)]) + `\n\n/* App-specific production-safe primitives */\n.markdown-body p{margin:.35rem 0 .7rem}.markdown-body h1,.markdown-body h2,.markdown-body h3{font-weight:700;margin:.9rem 0 .4rem}.markdown-body ul,.markdown-body ol{padding-left:1.4rem;margin:.45rem 0}.markdown-body ul{list-style:disc}.markdown-body ol{list-style:decimal}.markdown-body blockquote{border-left:3px solid #475569;padding-left:.75rem;color:#cbd5e1}.markdown-body a{color:#8ba8ff;text-decoration:underline}.markdown-body pre{margin:.65rem 0}.markdown-body code:not(pre code){background:#0f172a;border:1px solid #1e293b;border-radius:.35rem;padding:.08rem .3rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}\n`;

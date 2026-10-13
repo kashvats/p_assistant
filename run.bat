@@ -13,10 +13,6 @@ set "TEMP_DIR=%TEMP%\LivingAssistant"
 if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%" >nul 2>&1
 set "REQ_FILE=%TEMP_DIR%\requirements-%RANDOM%-%RANDOM%.txt"
 set "TOKEN_FILE=%TEMP_DIR%\api-token-%RANDOM%-%RANDOM%.txt"
-set "ELECTRON_VERSION=44.4.5"
-rem One folder per Electron version: upgrading installs beside the old runtime instead of over it.
-set "ELECTRON_RUNTIME_DIR=%TEMP_DIR%\electron-runtime-%ELECTRON_VERSION%"
-set "ELECTRON_EXE=%ELECTRON_RUNTIME_DIR%\node_modules\electron\dist\electron.exe"
 
 echo ========================================================
 echo                 LIVING ASSISTANT
@@ -44,27 +40,6 @@ if not exist "%PROJECT_ROOT%src\living_assistant\webui\index.html" (
 
 if not exist "%PROJECT_ROOT%src\living_assistant\webui\vendor\plotly.min.js" (
     echo [ERROR] Plotly dashboard runtime is missing.
-    pause
-    exit /b 1
-)
-
-if not exist "%PROJECT_ROOT%electron-assistant\package.json" (
-    echo [ERROR] Desktop companion files were not found.
-    pause
-    exit /b 1
-)
-
-where node >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Node.js is required for the hovering desktop companion.
-    echo Install Node.js 18 or newer and run this file again.
-    pause
-    exit /b 1
-)
-
-where npm.cmd >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] npm was not found. Reinstall Node.js with npm enabled.
     pause
     exit /b 1
 )
@@ -175,7 +150,6 @@ echo.
 powershell.exe -NoProfile -Command "try { $null = (New-Object System.Net.Sockets.TcpClient).Connect('%HOST%', %PORT%); exit 0 } catch { exit 1 }" >nul 2>&1
 if not errorlevel 1 (
     echo Living Assistant is already running.
-    if exist "%ELECTRON_EXE%" start "" "%ELECTRON_EXE%" "%PROJECT_ROOT%electron-assistant"
     echo Opening dashboard in your browser...
     start "" "%URL%"
     pause
@@ -194,32 +168,7 @@ echo.
 
 start "" powershell.exe -NoProfile -WindowStyle Hidden -Command "$u='%URL%'; for($i=0;$i -lt 60;$i++){try{$r=Invoke-RestMethod -Uri $u -TimeoutSec 1; if($r){Start-Process $u; exit}}catch{}; Start-Sleep -Seconds 1}"
 
-if not exist "%ELECTRON_EXE%" (
-    echo Installing desktop companion runtime...
-    if not exist "%ELECTRON_RUNTIME_DIR%" mkdir "%ELECTRON_RUNTIME_DIR%" >nul 2>&1
-    pushd "%ELECTRON_RUNTIME_DIR%"
-    if not exist "package.json" (
-        >package.json echo {"private":true,"dependencies":{"electron":"%ELECTRON_VERSION%"}}
-    )
-    call npm.cmd install --no-audit --no-fund --package-lock=false
-    if errorlevel 1 (
-        popd
-        echo [ERROR] Could not install the desktop companion runtime.
-        pause
-        exit /b 1
-    )
-    rem Some npm setups skip Electron's postinstall, which downloads the actual binary.
-    if not exist "%ELECTRON_EXE%" call node.exe node_modules\electron\install.js
-    popd
-    if not exist "%ELECTRON_EXE%" (
-        echo [ERROR] The desktop companion runtime downloaded but electron.exe is missing.
-        pause
-        exit /b 1
-    )
-)
-
-echo Starting hovering desktop companion...
-start "" "%ELECTRON_EXE%" "%PROJECT_ROOT%electron-assistant"
+rem The hovering desktop companion (electron-assistant) is no longer started: it cost RAM the local model needs.
 
 "%VENV_PY%" -m uvicorn living_assistant.api:app --host %HOST% --port %PORT%
 

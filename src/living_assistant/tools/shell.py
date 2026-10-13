@@ -4,7 +4,9 @@ import psutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 from .base import Tool
-from living_assistant.security.security_policy import classify_command
+from living_assistant.system.workspace_snapshots import SnapshotTooLarge
+from living_assistant.security.security_policy import Risk, classify_command
+from living_assistant.core.scope import commands_trusted, current_scope, within
 from living_assistant.security.safe_commands import explain_command
 from living_assistant.core.approval import ApprovalManager
 from living_assistant.core.workspace import Workspace
@@ -226,6 +228,10 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
         try:
             result = snapshot_manager.create_for_path(path, reason)
             return result.get('snapshot_id'), None
+        except SnapshotTooLarge:
+            # A command's folder too large to snapshot (e.g. the whole workspace) must not make the shell
+            # unusable; risky commands still need approval, and file tools keep their per-file backups.
+            return None, None
         except Exception as exc:
             return None, {'ok': False, 'blocked': True, 'error': f'Pre-change workspace snapshot failed: {exc}'}
 
@@ -239,7 +245,10 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
                 "ok": False, "blocked": True, "reason": decision.reason,
                 "risk": decision.risk.value, "explanation": explanation,
             }
-        if decision.requires_approval:
+        # A project the user trusted: ordinary build/test commands inside its folder run without asking.
+        trusted = (decision.requires_approval and commands_trusted() and current_scope() is not None
+                   and decision.risk in (Risk.EXECUTE, Risk.WRITE_WORKSPACE) and within(cwdp, current_scope()))
+        if decision.requires_approval and not trusted:
             req = approval.request(
                 command, approval_reason(decision, explanation), decision.risk.value
             )

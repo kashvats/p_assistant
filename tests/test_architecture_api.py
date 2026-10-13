@@ -62,7 +62,8 @@ def test_api_is_split_into_domain_routers_without_duplicate_routes():
         methods = tuple(sorted(getattr(route, "methods", ()) or ()))
         route_keys.append((path, methods))
 
-    assert len(route_keys) in {200, 201, 202}
+    # +9 skill library, +10 agents & teams (api_routes/experts.py), +13 companies (api_routes/companies.py)
+    assert len(route_keys) in {232, 233, 234}
     assert len(route_keys) == len(set(route_keys))
 
 

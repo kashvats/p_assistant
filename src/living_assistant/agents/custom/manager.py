@@ -277,3 +277,26 @@ class AgentManager:
         pkg = AgentPackage.import_zip(zip_path, target_dir)
         self.store.register_agent(pkg.manifest, pkg.agent_md, initial_state="DRAFT")
         return pkg
+
+    def match_active_agents(self, text: str, limit: int = 3) -> list[dict[str, Any]]:
+        """Match user text against active agent triggers using specificity and priority."""
+        low = text.lower()
+        active = self.list_agents(state="ACTIVE")
+        scored = []
+        for item in active:
+            triggers = item.get("triggers", [])
+            matching_triggers = [t for t in triggers if t and t.lower() in low]
+            if matching_triggers:
+                max_len = max(len(t) for t in matching_triggers)
+                max_words = max(len(t.split()) for t in matching_triggers)
+                manifest = item.get("manifest") or {}
+                priority = int(manifest.get("priority", 50) or 50)
+                score = (priority, max_words, max_len)
+                scored.append((score, item))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item for _, item in scored[:limit]]
+
+    def resolve_agent_trigger(self, text: str) -> dict[str, Any] | None:
+        """Resolve ambiguous matches to the single most specific/highest priority active agent."""
+        matches = self.match_active_agents(text, limit=1)
+        return matches[0] if matches else None

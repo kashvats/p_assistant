@@ -108,8 +108,19 @@ def _read_files(rt, message: str, file_ids: list[str]) -> tuple[str, list[str]]:
               "to show a file or table in the chat call show_file."), frames
 
 
+def agent_turn(rt, session_id: str | None, requested: str | None = None) -> tuple[str, tuple, tuple]:
+    """(agent/team context, pinned tools, excluded tools) for the agent or team this conversation talks to."""
+    store = getattr(rt, "experts", None)
+    if store is None:
+        return "", (), ("team_ask",)
+    target = store.bind(session_id, requested) if (requested and session_id) else store.bound(session_id)
+    context, team = store.context_for(target)
+    return context, (("team_ask",) if team else ()), (() if team else ("team_ask",))
+
+
 def stream_turn(rt, message: str, context: str, session_id: str | None, source: str = "text",
-                images: list[str] | None = None, files: list[str] | None = None) -> StreamingResponse:
+                images: list[str] | None = None, files: list[str] | None = None,
+                agent: str | None = None) -> StreamingResponse:
     from living_assistant.api_routes.assistant import _model_http_error, _sse
     from living_assistant.core import chat_files
 
@@ -137,6 +148,7 @@ def stream_turn(rt, message: str, context: str, session_id: str | None, source: 
         emit = events.put
         current: list[str] = []
         shown: list[dict] = []
+        steps: list[dict] = []  # what the agent did, saved with the reply so a reloaded chat still shows it
         finished = False
         stream = None
         try:
@@ -154,10 +166,17 @@ def stream_turn(rt, message: str, context: str, session_id: str | None, source: 
                 context = (context + "\n\n" + seen).strip() if context else seen
                 if stop.is_set():
                     return
+            persona, pinned, excluded = agent_turn(rt, session_id, agent)
+            if persona:
+                context = (persona + "\n\n" + context).strip() if context else persona
             try:
-                stream = rt.orchestrator.run_stream(message, context, session_id=session_id, source=source)
-            except TypeError:  # orchestrators that do not record message sources
-                stream = rt.orchestrator.run_stream(message, context, session_id=session_id)
+                stream = rt.orchestrator.run_stream(message, context, session_id=session_id, source=source,
+                                                    pinned_tools=pinned, excluded_tools=excluded)
+            except TypeError:  # orchestrators without tool pinning: keep the message source if they record it
+                try:
+                    stream = rt.orchestrator.run_stream(message, context, session_id=session_id, source=source)
+                except TypeError:
+                    stream = rt.orchestrator.run_stream(message, context, session_id=session_id)
             for event in stream:
                 if stop.is_set():
                     break
@@ -166,7 +185,20 @@ def stream_turn(rt, message: str, context: str, session_id: str | None, source: 
                     current.clear()
                 elif kind == "token":
                     current.append(str(event.get("text") or ""))
-                elif kind == "tool" and event.get("files"):
+                if kind == "tool":
+                    if event.get("status") == "started":
+                        steps.append({"tool": event.get("tool"), "args": str(event.get("args") or "")[:300], "status": "running"})
+                    else:
+                        status = "ok" if event.get("ok") else ("approval" if event.get("approval_id") else "failed")
+                        outcome = {"status": status, "error": str(event.get("error") or "")[:300],
+                                "approval_id": event.get("approval_id"), "approval_message": event.get("approval_message")}
+                        for item in reversed(steps):
+                            if item["tool"] == event.get("tool") and item["status"] == "running":
+                                item.update(outcome)
+                                break
+                        else:
+                            steps.append({"tool": event.get("tool"), **outcome})
+                if kind == "tool" and event.get("files"):
                     raw = event.pop("files")
                     media = chat_files.media_from_result({"ok": True, **raw}, getattr(rt, "workspace", None))
                     if media:
@@ -176,11 +208,14 @@ def stream_turn(rt, message: str, context: str, session_id: str | None, source: 
                     finished = True
                     if shown:
                         event = {**event, "media": shown[:12]}
-                        if session_id:
-                            try:  # the reply keeps its files when the conversation is reloaded
-                                rt.sessions.merge_last_meta(session_id, "assistant", {"media": shown[:12]})
-                            except Exception:
-                                pass
+                    if session_id and (shown or steps):
+                        try:  # the reply keeps its files and steps when the conversation is reloaded
+                            meta = {"steps": steps[-40:]} if steps else {}
+                            if shown:
+                                meta["media"] = shown[:12]
+                            rt.sessions.merge_last_meta(session_id, "assistant", meta)
+                        except Exception:
+                            pass
                 emit(_sse(event, event=str(kind or "message")))
             if stop.is_set() and not finished:
                 emit(_sse({"type": "stopped", "session_id": session_id, "partial": "".join(current)}, event="stopped"))
@@ -234,6 +269,11 @@ def chat_stream(req: AskRequest, authorization: str | None = Header(default=None
     images = [i for i in req.images if IMAGE_MARKER.fullmatch(f"[image {i}]")]
     files = [f for f in (chat_files.info(i) for i in req.files) if f]
     message = attach_files(attach_images(req.message, images), files)
+    if req.agent:
+        try:
+            agent_turn(rt, session_id, req.agent)  # validate (and remember) the agent before the turn starts
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc).strip("'\""))
     return stream_turn(rt, message, req.context, session_id, req.source, images, [f["id"] for f in files])
 
 

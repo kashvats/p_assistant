@@ -120,7 +120,7 @@ def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | Non
         except WorkspaceViolation as exc:
             return {'ok': False, 'error': str(exc)}
         if not p.exists():
-            return {'ok': False, 'error': f'File not found: {path}'}
+            return {'ok': False, 'error': f'File not found: {path}. To create a new file use write_file(path, content).'}
         if p.is_dir():
             return {'ok': False, 'error': f'Path is a directory: {path}'}
 
@@ -263,9 +263,9 @@ def build_filesystem_tools(workspace: Workspace, approval: ApprovalManager | Non
              {'type':'object','properties':{'path':{'type':'string'}},'required':['path']}, read_file),
         Tool('preview_write_file', 'Preview the unified diff for a proposed text-file write without changing the file. Sensitive files require approval.',
              {'type':'object','properties':{'path':{'type':'string'},'content':{'type':'string'}},'required':['path','content']}, preview_write_file),
-        Tool('write_file', 'Write text inside an approved workspace. Sensitive files always require explicit approval.',
+        Tool('write_file', 'Create a new file or save/overwrite a file with text content inside an approved workspace (missing folders are created). Sensitive files always require explicit approval.',
              {'type':'object','properties':{'path':{'type':'string'},'content':{'type':'string'}},'required':['path','content']}, write_file),
-        Tool('edit_file', 'Edit a text file inside an approved workspace by replacing an exact string match (old_str) with new text (new_str).',
+        Tool('edit_file', 'Change part of an EXISTING text file by replacing an exact string match (old_str) with new text (new_str). For a new file use write_file.',
              {'type':'object','properties':{'path':{'type':'string'},'old_str':{'type':'string'},'new_str':{'type':'string'}},'required':['path','old_str','new_str']}, edit_file),
         Tool('delete_file', 'Delete a file or directory inside an approved workspace. Setting recursive=True deletes directories and their contents. Root workspace directories cannot be deleted.',
              {'type':'object','properties':{'path':{'type':'string'},'recursive':{'type':'boolean','default':False}},'required':['path']}, delete_file),

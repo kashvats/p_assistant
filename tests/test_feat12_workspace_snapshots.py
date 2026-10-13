@@ -202,3 +202,38 @@ def test_cli_exposes_single_command_restore_path():
     project_group = next(group.typer_instance for group in app.registered_groups if group.name == 'project')
     commands = {getattr(command, 'name', None) or command.callback.__name__ for command in project_group.registered_commands}
     assert {'snapshot', 'snapshots', 'snapshot-restore'} <= commands
+
+
+def test_a_change_snapshots_its_project_not_the_whole_workspace(tmp_path):
+    root, ws, mgr = _manager(tmp_path)
+    (root / 'big').mkdir()
+    for i in range(30):
+        (root / 'big' / f'{i}.bin').write_bytes(b'x' * 50_000)
+    app = root / 'apps' / 'todo'
+    (app / 'src').mkdir(parents=True)
+    (app / 'package.json').write_text('{}', encoding='utf-8')
+    (app / 'src' / 'main.js').write_text('v1', encoding='utf-8')
+    assert mgr.project_root_for(app / 'src' / 'main.js') == app.resolve()
+    snap = mgr.create_for_path(app / 'src' / 'main.js', 'edit')
+    assert snap['file_count'] == 2  # the project only, not big/
+    assert mgr.create_for_path(root / 'notes' / 'new.txt', 'create')['snapshot_id'] is None  # nothing to back up yet
+
+
+def test_a_file_in_a_too_large_folder_is_backed_up_on_its_own(tmp_path):
+    root = tmp_path / 'project'
+    root.mkdir()
+    ws = Workspace([root])
+    for i in range(6):
+        (root / f'big{i}.bin').write_bytes(b'x' * 300_000)
+    target = root / 'notes.txt'
+    target.write_text('keep me', encoding='utf-8')
+    (root / 'other.txt').write_text('untouched', encoding='utf-8')
+    mgr = WorkspaceSnapshotManager(ws, root=tmp_path / 'snapshots', db_path=tmp_path / 'db.sqlite3', max_total_bytes=1_000_000)
+    tools = {tool.name: tool for tool in build_filesystem_tools(ws, snapshot_manager=mgr)}
+    result = tools['write_file'].handler('notes.txt', 'changed')
+    assert result['ok'] is True and result['snapshot_id']
+    (root / 'other.txt').write_text('changed later', encoding='utf-8')
+    mgr.restore(result['snapshot_id'])
+    assert target.read_text() == 'keep me'
+    assert (root / 'other.txt').read_text() == 'changed later'  # a one-file backup never clears the folder
+    assert all((root / f'big{i}.bin').exists() for i in range(6))

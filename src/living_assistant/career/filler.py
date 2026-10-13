@@ -87,22 +87,8 @@ class JobFormFiller:
 
         fields = self.map_form_fields(profile, record.platform)
 
-        # Pre-submit approval request
-        reason = f"Apply to {record.company} for {record.title} ({record.url})"
-        token = ""
-
-        if hasattr(self.approval_manager, "require_approval"):
-            res = self.approval_manager.require_approval(
-                "career_submit_application",
-                {"app_id": app_id, "company": record.company, "title": record.title, "url": record.url},
-            )
-            token = res.get("token", "") if isinstance(res, dict) else str(res)
-        elif hasattr(self.approval_manager, "request"):
-            res = self.approval_manager.request("career_submit_application", reason)
-            token = res.get("id", "") if isinstance(res, dict) else ""
-        elif hasattr(self.approval_manager, "create"):
-            res = self.approval_manager.create("career_submit_application", reason)
-            token = res.get("id", "") if isinstance(res, dict) else ""
+        # Pre-submit approval request: the user approves it (Approvals page), then execute_submission runs.
+        token = self._request_approval(app_id, record)
 
         # Update tracker
         self.tracker.update_status(app_id, ApplicationStatus.READY_FOR_REVIEW)
@@ -119,6 +105,33 @@ class JobFormFiller:
             approval_token=token,
         )
 
+    APPROVAL_ACTION = "career_submit_application"
+
+    @staticmethod
+    def _reason(record) -> str:
+        return f"Apply to {record.company} for {record.title} ({record.url})"
+
+    def _request_approval(self, app_id: str, record) -> str:
+        """Ask for approval to submit; returns the approval id the user approves."""
+        manager = self.approval_manager
+        if manager is None:
+            return ""
+        if hasattr(manager, "require_approval"):  # token-style approval services
+            res = manager.require_approval(self.APPROVAL_ACTION, {"app_id": app_id, "company": record.company,
+                                                                  "title": record.title, "url": record.url})
+            return str(res.get("token", "")) if isinstance(res, dict) else str(res or "")
+        # The assistant's ApprovalManager: creates a pending approval (or consumes one the user already gave).
+        res = manager.request(self.APPROVAL_ACTION, self._reason(record), "execute")
+        return str(res.get("approval_id") or res.get("id") or "") if isinstance(res, dict) else ""
+
+    def _approved(self, token: str, record) -> bool:
+        manager = self.approval_manager
+        if hasattr(manager, "verify_approval"):
+            return bool(manager.verify_approval(token))
+        # ApprovalManager: asking again for the same action consumes the approval the user gave (once).
+        res = manager.request(self.APPROVAL_ACTION, self._reason(record), "execute")
+        return bool(isinstance(res, dict) and res.get("allowed"))
+
     def execute_submission(
         self, app_id: str, approval_token: str
     ) -> dict[str, Any]:
@@ -133,23 +146,11 @@ class JobFormFiller:
                 "error": "No approval manager configured; submission cannot be verified.",
             }
 
-        # Verify approval
-        approved = False
-        if hasattr(self.approval_manager, "verify_approval"):
-            approved = bool(self.approval_manager.verify_approval(approval_token))
-        elif hasattr(self.approval_manager, "consume_preapproval"):
-            token_val = self.approval_manager.consume_preapproval(
-                "career_submit_application",
-                f"Apply to {record.company} for {record.title} ({record.url})",
-                "execute",
-            )
-            approved = token_val is not None
-
-        if not approved:
+        if not self._approved(approval_token, record):
             return {
                 "ok": False,
                 "app_id": app_id,
-                "error": "Approval denied or token invalid; application was not submitted.",
+                "error": "Approval denied or token expired/invalid; application was not submitted.",
             }
 
         # If browser controller has live session/submit method, execute it

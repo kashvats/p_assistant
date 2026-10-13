@@ -34,7 +34,7 @@ def test_ui01_production_assets_are_local_only():
     assert "https://" not in html
     assert "http://" not in html
     assert "/vendor/react.production.min.js" in html
-    assert "/src/main.js" in html
+    assert "/src/shell.js" in html  # the app shell (it imports main.js for the system pages)
     assert (ROOT / "dist/app.css").stat().st_size > 1000
 
 

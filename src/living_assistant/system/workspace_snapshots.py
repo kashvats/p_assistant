@@ -22,6 +22,13 @@ _EXCLUDED_DIRS = {
     'htmlcov', '.cache', '.turbo', '.living-assistant-backups',
 }
 _MANIFEST_NAME = '.living-assistant-snapshot.json'
+# A folder with one of these is a project: changes inside it snapshot that project, not the whole workspace.
+_PROJECT_MARKERS = ('.git', 'pyproject.toml', 'package.json', 'setup.py', 'setup.cfg', 'Cargo.toml', 'go.mod',
+                    'requirements.txt', 'pom.xml', 'build.gradle', 'composer.json', 'Gemfile', '.living-assistant-project')
+
+
+class SnapshotTooLarge(RuntimeError):
+    """The folder to snapshot exceeds the configured file/size limits."""
 _SCHEMA = '''
 CREATE TABLE IF NOT EXISTS workspace_snapshots(
   id TEXT PRIMARY KEY,
@@ -79,7 +86,7 @@ class WorkspaceSnapshotManager:
         self.max_total_bytes = max(1_000_000, min(int(max_total_bytes), 20_000_000_000))
         self.retention_per_root = max(1, min(int(retention_per_root), 500))
 
-    def project_root_for(self, path: str | Path) -> Path:
+    def workspace_root_for(self, path: str | Path) -> Path:
         resolved = self.workspace.resolve(path)
         candidates: list[Path] = []
         for root in self.workspace.roots:
@@ -91,6 +98,24 @@ class WorkspaceSnapshotManager:
         if not candidates:
             raise WorkspaceViolation(f'No approved workspace root contains {resolved}')
         return max(candidates, key=lambda item: len(item.parts))
+
+    def project_root_for(self, path: str | Path) -> Path:
+        """The smallest folder that is a recovery point for a change at ``path``: the nearest project
+        (a folder with .git, package.json, pyproject.toml, ...) inside the workspace, else the folder of the
+        file (or the folder itself). Snapshotting the whole workspace for one file does not scale."""
+        resolved = self.workspace.resolve(path)
+        ws_root = self.workspace_root_for(resolved)
+        start = resolved if resolved.is_dir() else resolved.parent
+        while not start.exists() and start != ws_root:
+            start = start.parent
+        current = start
+        while True:
+            if any((current / marker).exists() for marker in _PROJECT_MARKERS):
+                return current
+            if current == ws_root or ws_root not in current.parents:
+                break
+            current = current.parent
+        return start
 
     @staticmethod
     def _safe_symlink(path: Path, root: Path) -> bool:
@@ -119,9 +144,20 @@ class WorkspaceSnapshotManager:
                     yield candidate
 
     def create_for_path(self, path: str | Path, reason: str) -> dict:
-        return self.create(self.project_root_for(path), reason)
+        """Recovery point before changing ``path``. A file that does not exist yet needs none (removing it is
+        the undo). If the project is too large to snapshot, an existing file is backed up on its own."""
+        target = self.workspace.resolve(path)
+        if not target.exists() and not target.is_symlink():
+            return {'ok': True, 'snapshot_id': None, 'note': 'new file or folder: nothing to back up'}
+        try:
+            return self.create(self.project_root_for(target), reason)
+        except SnapshotTooLarge:
+            if not target.is_file():
+                raise
+            return self.create(target.parent, reason + ' (this file only; its project is too large to snapshot)',
+                               only=[target])
 
-    def create(self, project_root: str | Path, reason: str = 'manual snapshot') -> dict:
+    def create(self, project_root: str | Path, reason: str = 'manual snapshot', only: list[Path] | None = None) -> dict:
         root = self.workspace.resolve(project_root)
         if not root.is_dir():
             raise ValueError(f'Snapshot root is not a directory: {root}')
@@ -140,7 +176,8 @@ class WorkspaceSnapshotManager:
             temp_path = Path(handle.name)
         try:
             with tarfile.open(temp_path, 'w:gz', dereference=False) as tar:
-                for path in self._iter_entries(root):
+                entries = [Path(p) for p in only] if only is not None else self._iter_entries(root)
+                for path in entries:
                     rel = path.relative_to(root).as_posix()
                     if path.is_symlink():
                         if not self._safe_symlink(path, root):
@@ -155,7 +192,7 @@ class WorkspaceSnapshotManager:
                     except OSError:
                         continue
                     if file_count + 1 > self.max_files or total_bytes + size > self.max_total_bytes:
-                        raise RuntimeError('Workspace snapshot exceeds configured file/size limits; refusing mutation without a complete recovery point.')
+                        raise SnapshotTooLarge('Workspace snapshot exceeds configured file/size limits; refusing mutation without a complete recovery point.')
                     tar.add(path, arcname=rel, recursive=False)
                     manifest_files.append(rel)
                     file_count += 1
@@ -168,6 +205,7 @@ class WorkspaceSnapshotManager:
                     'reason': safe_reason,
                     'files': manifest_files,
                     'excluded_dirs': sorted(_EXCLUDED_DIRS),
+                    'partial': only is not None,  # only these files: restoring must not clear the folder
                 }
                 payload = json.dumps(manifest, sort_keys=True).encode('utf-8')
                 info = tarfile.TarInfo(_MANIFEST_NAME)
@@ -297,12 +335,22 @@ class WorkspaceSnapshotManager:
         if not archive.is_file():
             raise FileNotFoundError(f'Snapshot archive is missing: {snapshot_id}')
 
-        safety = self.create(root, reason=f'pre-restore safety snapshot before {snapshot_id}')
+        try:
+            safety = self.create(root, reason=f'pre-restore safety snapshot before {snapshot_id}')
+        except SnapshotTooLarge:
+            safety = {'snapshot_id': None}
         with tempfile.TemporaryDirectory(prefix='living-assistant-restore-') as temp_dir:
             temp_root = Path(temp_dir)
+            partial = False
             with tarfile.open(archive, 'r:gz') as tar:
                 members = tar.getmembers()
                 self._validate_members(members)
+                manifest_member = next((m for m in members if m.name == _MANIFEST_NAME), None)
+                if manifest_member is not None:
+                    try:
+                        partial = bool(json.load(tar.extractfile(manifest_member)).get('partial'))
+                    except (ValueError, AttributeError, OSError):
+                        partial = False
                 extract_members = [member for member in members if member.name != _MANIFEST_NAME]
                 # Prefer the hardened stdlib extraction filter where available,
                 # while retaining Python 3.11 compatibility after our own validation.
@@ -310,7 +358,8 @@ class WorkspaceSnapshotManager:
                     tar.extractall(temp_root, members=extract_members, filter='data')
                 except TypeError:
                     tar.extractall(temp_root, members=extract_members)
-            self._clear_managed_source(root)
+            if not partial:
+                self._clear_managed_source(root)
             for current, dirnames, filenames in os.walk(temp_root, topdown=True, followlinks=False):
                 current_path = Path(current)
                 rel = current_path.relative_to(temp_root)

@@ -161,6 +161,9 @@ class Runtime:
     llama_server: Any = None
     goals: Any = None
     vision: Any = None  # callable returning the VisionEngine, or None when vision is disabled
+    skill_library: Any = None  # SKILL.md skills (living_assistant.skills.library)
+    experts: Any = None  # agents, agent templates and teams (living_assistant.experts.store)
+    companies: Any = None  # AI companies and their projects (living_assistant.companies.engine)
 
     def halt(self, reason: str = "kill switch") -> dict:
         """Kill switch: stop every activity the assistant has running, then release models and processes.
@@ -743,6 +746,54 @@ def build_runtime(interactive: bool = True) -> Runtime:
     skills.manager = skill_manager
     tool_registry.extend(build_skill_tools(skill_manager))
 
+    # SKILL.md skills (the format Octop, SkillHub and public skill repositories use): installed under the
+    # data folder, offered to the model by name/description, loaded with skill_read, learned with skill_learn.
+    from living_assistant.skills.library import SkillLibrary
+    from living_assistant.skills.library_tools import build_skill_library_tools
+    from living_assistant.tools.webtools import network_gate as _skill_gate
+    skill_library = SkillLibrary(
+        data_dir() / 'skill_library', complete=_complete,
+        network_gate=lambda url: ((_skill_gate(url, 'skill install', approval) or {}).get('error')))
+
+    def _page_text(url: str) -> str:
+        page = _web['web_extract_article'](url)
+        if not isinstance(page, dict) or not page.get('ok'):
+            raise RuntimeError((page or {}).get('error') or f'could not read {url}')
+        return str(page.get('text') or '')
+
+    tool_registry.extend(build_skill_library_tools(
+        skill_library, approval=approval, read_text=lambda path: ws.read_text(path, max_chars=200_000),
+        fetch_text=_page_text,
+        session_text=lambda sid: '\n'.join(f"{m['role']}: {str(m['content'])[:3000]}" for m in sessions.recent_messages(sid, 40))))
+
+    # Agents, templates (Octop's expert library) and teams; team leads hand work to members with team_ask.
+    from living_assistant.experts.store import ExpertStore
+    from living_assistant.experts.tools import build_expert_tools
+    experts = ExpertStore(data_dir() / 'experts.json', skill_library=skill_library)
+    if 'PYTEST_CURRENT_TEST' not in os.environ:
+        experts.ensure_starters()
+    _expert_orchestrator: dict = {}
+    tool_registry.extend(build_expert_tools(experts, lambda: _expert_orchestrator['o'],
+                                            publish=lambda event, **data: events_bus.publish(event, **data)))
+
+    # AI companies: departments of employee agents that plan, do and independently verify projects.
+    from living_assistant.companies.engine import CompanyEngine
+    from living_assistant.companies.store import CompanyStore
+    from living_assistant.companies.tools import build_company_tools
+    from living_assistant.experts.store import persona_text
+
+    def _approval_status(approval_id: str):
+        row = approvals.conn.execute("SELECT status FROM approvals WHERE id=?", (approval_id,)).fetchone()
+        return row[0] if row else None
+
+    companies = CompanyEngine(
+        CompanyStore(data_dir() / 'companies.sqlite3', publish=lambda event, **data: events_bus.publish(event, **data)),
+        workspace_root=ws.roots[0], get_orchestrator=lambda: _expert_orchestrator.get('o'), complete=_complete,
+        skill_library=skill_library, approval_status=_approval_status, persona=persona_text,
+        max_parallel=int(cfg.get('companies', {}).get('max_parallel', 1)), resolve_folder=_goal_cwd,
+        request_approval=lambda action, reason: approval.request(action, reason, 'execute'))
+    tool_registry.extend(build_company_tools(lambda: companies))
+
     from living_assistant.agents.custom import AgentManager, AgentStore, build_agent_tools
     agent_store = AgentStore(approvals.path)
     agent_manager = AgentManager(
@@ -780,14 +831,18 @@ def build_runtime(interactive: bool = True) -> Runtime:
                               keep_alive=keep_alive,max_steps=int(pcfg['max_tool_steps']),context_tokens=context_tokens,
                               skills=skills,resource_manager=resources,session_store=(sessions if bool(session_cfg.get('enabled',True)) else None),
                               max_session_messages=int(session_cfg.get('max_context_messages',24)), experiences=experiences, event_bus=events_bus, run_history=run_history, model_usage=model_usage)
+    orchestrator.skill_library = skill_library
+    _expert_orchestrator['o'] = orchestrator
     mobile_bridge=MobileBridge(cfg, connector_manager, orchestrator)
     _goal_orchestrator['o'] = orchestrator
     if bool(cfg.get('goals', {}).get('auto_resume', True)) and 'PYTEST_CURRENT_TEST' not in os.environ:
         threading.Thread(target=goals.resume_interrupted, name='goal-resume', daemon=True).start()
+    if 'PYTEST_CURRENT_TEST' not in os.environ:
+        companies.start()  # recovers tasks interrupted by a restart and runs the project scheduler
     return Runtime(cfg,profile,hw,ws,snapshots,memory,projects,groups,group_controller,processes,approvals,
                    approval,watches,skills,notifier,resources,quarantine,voice,routines,improvements,evaluations,repairs,canaries,browser,
                    personal,calendar,sessions,connectors,connector_manager,briefings,guardian,security_sensors,experiences,knowledge_gaps,run_history,model_usage,code_index,planner,events_bus,orchestrator,mobile_bridge,peers,mm,desktop_controller,integrations,openviking_adapter,agentmemory_adapter,codebase_memory_adapter,
                    diagram=diagram_adapter,cybersecurity=cybersecurity_adapter,graft=graft_adapter,openmontage=openmontage_adapter,edge0=edge0_adapter,agency_agents=agency_agents_adapter,scientific_skills=scientific_skills_adapter,awesome_harness=awesome_harness_adapter,awesome_agent_tools=awesome_agent_tools_adapter,
                    skill_manager=skill_manager,agent_manager=agent_manager,scheduler=scheduler,llama_server=llama_server,goals=goals,
-                   vision=vision_engine if vision_enabled else None)
+                   vision=vision_engine if vision_enabled else None, skill_library=skill_library, experts=experts, companies=companies)
 

@@ -51,6 +51,9 @@ from living_assistant.api_routes.schemas import (
 )
 from living_assistant.api_routes.security import router as security_router
 from living_assistant.api_routes.skills import router as skills_router
+from living_assistant.api_routes.skill_library import router as skill_library_router
+from living_assistant.api_routes.experts import router as experts_router
+from living_assistant.api_routes.companies import router as companies_router
 from living_assistant.api_routes.system import router as system_router
 from living_assistant.api_routes.ui import router as ui_router
 from living_assistant.api_routes.workspace import router as workspace_router
@@ -136,6 +139,9 @@ app.include_router(personal_router)
 app.include_router(security_router)
 app.include_router(improvements_router)
 app.include_router(integrations_router)
+app.include_router(skill_library_router)
+app.include_router(experts_router)
+app.include_router(companies_router)
 app.include_router(skills_router)
 app.include_router(agents_router)
 app.include_router(career_router)

@@ -305,10 +305,11 @@ class PersonalAssistantDirector:
             )
 
         if is_coding:
-            refined = self.prompt_engineer.rewrite_prompt(prompt, target_dir="workspace/todo_app")
+            refined = self.prompt_engineer.rewrite_prompt(prompt)
+            project_dir = (context or {}).get("project_path") or refined.target_workspace_dir or "workspace"
             goal = CompanyGoal(
                 goal=refined.refined_prompt,
-                project_path=(context or {}).get("project_path") or "workspace/todo_app",
+                project_path=project_dir,
                 requirements=refined.key_features,
                 priority="normal",
                 auto_verify=True,

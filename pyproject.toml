@@ -98,7 +98,7 @@ organism = "living_assistant.cli:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 [tool.setuptools.package-data]
-living_assistant = ["default_config.yaml", "default_skills.json", "webui/*.html", "webui/src/*.js", "webui/src/*.css", "webui/dist/*.css", "webui/vendor/*.js", "webui/vendor/*.css", "webui/vendor/*.md", "webui/*.json", "webui/*.js", "webui/*.txt", "webui/*.cjs"]
+living_assistant = ["default_config.yaml", "default_skills.json", "builtin_skills/*/SKILL.md", "builtin_skills/**/*", "experts/library/**/*", "webui/*.html", "webui/src/*.js", "webui/src/*.css", "webui/dist/*.css", "webui/vendor/*.js", "webui/vendor/*.css", "webui/vendor/*.md", "webui/*.json", "webui/*.js", "webui/*.txt", "webui/*.cjs"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

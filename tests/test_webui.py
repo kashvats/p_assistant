@@ -15,7 +15,7 @@ def _dashboard_source() -> str:
 
 
 def _app_source() -> str:
-    # main.js plus the Markdown renderer it imports (shared with the research server's page)
+    # main.js plus the Markdown renderer it imports
     src = resources.files("living_assistant").joinpath("webui/src")
     return src.joinpath("main.js").read_text(encoding="utf-8") + src.joinpath("markdown.js").read_text(encoding="utf-8")
 
@@ -46,7 +46,7 @@ def test_dashboard_route_serves_hardened_local_ui(monkeypatch):
     response = client.get("/dashboard")
     assert response.status_code == 200
     assert 'id="root"' in response.text
-    assert "/dashboard-assets/src/main.js" in response.text
+    assert "/dashboard-assets/src/shell.js" in response.text
     assert response.headers["x-frame-options"] == "DENY"
     csp = response.headers["content-security-policy"]
     assert "default-src 'self'" in csp
