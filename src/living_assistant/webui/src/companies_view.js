@@ -18,7 +18,7 @@ const COLUMNS = [
 const STATE_WORDS = { draft: 'waiting on others', blocked: 'blocked', ready: 'ready', assigned: 'assigned', in_progress: 'working',
   review: 'automated checks', verification: 'being verified', completed: 'verified', cancelled: 'cancelled', needs_user_input: 'needs you', failed: 'failed' };
 const MODES = [['supervised', 'Supervised', 'You approve the plan before work starts'], ['balanced', 'Balanced', 'Starts right away; risky actions still ask you'],
-  ['autonomous', 'Autonomous', 'Starts right away, retries more on its own; approvals still apply']];
+  ['autonomous', 'Autonomous', 'No approvals inside the project folder: build/test commands, test runs and package installs into the project\'s own environment. Anything outside the folder, system, admin or destructive still asks or is blocked.']];
 
 function initials(name) { return String(name || '?').split(/\s+/).map(s => s[0]).join('').slice(0, 2).toUpperCase(); }
 function Person({ p, size = 26, stacked = false }) {
@@ -339,7 +339,7 @@ function ProjectPage({ api, notify, id, tick }) {
       h('div', { className: 'flex flex-wrap items-start gap-3' },
         h('div', { className: 'min-w-0 flex-1' },
           h('div', { className: 'flex items-center gap-2' }, h('h1', { className: 'truncate text-xl font-semibold' }, p.name), h(Badge, { tone: PROJECT_TONE[p.status] }, PROJECT_WORDS[p.status] || p.status), h(Badge, {}, p.mode),
-            p.trust_commands ? h(Badge, { tone: 'amber' }, 'commands trusted') : null, p.existing_folder ? h(Badge, { tone: 'sky' }, 'existing project') : null),
+            p.mode === 'autonomous' ? h(Badge, { tone: 'amber' }, 'no approvals in project folder') : p.trust_commands ? h(Badge, { tone: 'amber' }, 'commands trusted') : null, p.existing_folder ? h(Badge, { tone: 'sky' }, 'existing project') : null),
           h('div', { className: 'mt-1 text-xs text-zinc-500' }, v.companies.map(c => c.name).join(' + '), ' · ', h('code', { className: 'text-zinc-400' }, p.workspace))),
         p.status === 'awaiting_plan_approval' ? h(Button, { variant: 'success', icon: 'check', onClick: () => act('approve') }, 'Approve plan') : null,
         p.status === 'running' ? h(Button, { icon: 'stop', onClick: () => act('pause') }, 'Pause') : null,

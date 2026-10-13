@@ -761,7 +761,9 @@ class CompanyEngine:
         pending_args: dict[str, list[dict]] = {}  # "started" events carry the args, "completed" ones the result
         # The tools run inside this scope (the stream is consumed here, in this thread): paths resolve in the
         # project folder and nothing outside it is reachable.
-        with project_scope(project["workspace"], trust_commands=bool(project.get("trust_commands"))):
+        autonomous = project.get("mode") == "autonomous"
+        with project_scope(project["workspace"], trust_commands=bool(project.get("trust_commands")) or autonomous,
+                           allow_installs=autonomous):
             stream = orchestrator.run_stream(brief, self.employee_context(employee, project), session_id=None,
                                              pinned_tools=pinned, excluded_tools=excluded, source="company",
                                              max_steps=STEPS.get(role, 20))
@@ -928,7 +930,7 @@ class CompanyEngine:
     def tests_allowed(self, project: dict) -> bool:
         """Running a project's tests executes AI-written code: allowed when the user trusted the project's
         commands or approved test runs for it (asked once per project, never per task)."""
-        if project.get("trust_commands") or project.get("checks_approved"):
+        if project.get("trust_commands") or project.get("checks_approved") or project.get("mode") == "autonomous":
             return True
         approval_id = project.get("checks_approval_id")
         if approval_id and self.approval_status(approval_id) == "approved":

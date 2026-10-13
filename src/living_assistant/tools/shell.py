@@ -6,7 +6,15 @@ from typing import TYPE_CHECKING
 from .base import Tool
 from living_assistant.system.workspace_snapshots import SnapshotTooLarge
 from living_assistant.security.security_policy import Risk, classify_command
-from living_assistant.core.scope import commands_trusted, current_scope, within
+import re
+from living_assistant.core.scope import commands_trusted, current_scope, installs_allowed, within
+
+# A package install into the project's own environment: its venv's pip, or a local (non-global) npm install.
+PROJECT_INSTALL = re.compile(
+    r"^\s*(?:\.?venv|env)[\\/](?:Scripts|bin)[\\/](?:python(?:\.exe)?\s+-m\s+pip|pip3?(?:\.exe)?)\s+install\s"
+    r"|^\s*npm(?:\.cmd)?\s+(?:install|i|ci)\b(?!.*(?:\s-g\b|--global))", re.I)
+ANY_INSTALL = re.compile(r"\b(?:pip3?(?:\.exe)?|npm(?:\.cmd)?|pnpm|yarn|poetry|conda|choco|winget|scoop|gem|cargo|go)\s+"
+                         r"(?:install|i|ci|add|get)\b", re.I)
 from living_assistant.security.safe_commands import explain_command
 from living_assistant.core.approval import ApprovalManager
 from living_assistant.core.workspace import Workspace
@@ -247,7 +255,14 @@ def build_shell_tools(workspace: Workspace, approval: ApprovalManager, config: d
             }
         # A project the user trusted: ordinary build/test commands inside its folder run without asking.
         trusted = (decision.requires_approval and commands_trusted() and current_scope() is not None
-                   and decision.risk in (Risk.EXECUTE, Risk.WRITE_WORKSPACE) and within(cwdp, current_scope()))
+                   and decision.risk in (Risk.EXECUTE, Risk.WRITE_WORKSPACE) and within(cwdp, current_scope())
+                   and not ANY_INSTALL.search(command))  # installs are never "ordinary" commands
+        # Autonomous projects also install packages into their OWN environment (venv pip, local npm) without
+        # asking; system-wide/global installs, privileged, system and destructive commands still ask.
+        if (decision.requires_approval and not trusted and installs_allowed() and current_scope() is not None
+                and within(cwdp, current_scope()) and PROJECT_INSTALL.search(command)
+                and decision.risk not in (Risk.PRIVILEGED, Risk.SYSTEM_CHANGE, Risk.DESTRUCTIVE)):
+            trusted = True
         if decision.requires_approval and not trusted:
             req = approval.request(
                 command, approval_reason(decision, explanation), decision.risk.value

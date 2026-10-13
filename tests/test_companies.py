@@ -366,6 +366,44 @@ def test_failures_become_company_lessons_and_employees_know_the_os(tmp_path):
     assert "Lessons from earlier work" in context and "This machine:" in context
 
 
+def test_autonomous_scope_installs_only_into_the_project_environment(tmp_path):
+    from living_assistant.core.scope import project_scope
+    from living_assistant.core.workspace import Workspace
+    from living_assistant.tools.shell import PROJECT_INSTALL, ProcessRegistry, build_shell_tools
+    assert PROJECT_INSTALL.search(r"venv\Scripts\pip install -r requirements.txt")
+    assert PROJECT_INSTALL.search(r".venv\Scripts\python -m pip install flask")
+    assert PROJECT_INSTALL.search("npm install")
+    assert not PROJECT_INSTALL.search("pip install flask")  # system-wide pip
+    assert not PROJECT_INSTALL.search("npm install -g left-pad")  # global npm
+
+    class Approvals:
+        asked = []
+
+        def request(self, action, reason, kind="execute", **_):
+            self.asked.append(action)
+            return {"allowed": False, "approval_id": "a"}
+
+    ws = Workspace([tmp_path / "ws"])
+    proj = tmp_path / "ws" / "p"
+    proj.mkdir(parents=True)
+    approvals = Approvals()
+    run = {t.name: t.handler for t in build_shell_tools(ws, approvals, {}, ProcessRegistry(tmp_path / "x.json"))}["run_command"]
+    with project_scope(proj, trust_commands=True, allow_installs=True):
+        out = run(command=r"venv\Scripts\pip install -r requirements.txt")  # no venv here: runs and fails, unasked
+        assert not out.get("approval_required")
+        run(command="pip install flask")  # system-wide install still asks
+    assert approvals.asked == ["pip install flask"]
+
+
+def test_autonomous_projects_run_tests_without_asking(tmp_path):
+    engine = make_engine(tmp_path, FakeOrchestrator())
+    asked = []
+    engine.request_approval = lambda action, reason: asked.append(action) or {"allowed": False, "approval_id": "t"}
+    co = engine.create_from_template("software")
+    project = engine.start_project("Build a hello script with docs", co["id"], mode="autonomous", background=False)
+    assert asked == [] and engine.tests_allowed(engine.store.project(project["id"]))
+
+
 def test_parsers():
     assert extract_json("<think>{no}</think> sure: ```json\n{\"a\": 1}\n```") == {"a": 1}
     assert extract_json('text {"b": {"c": "}"}} more') == {"b": {"c": "}"}}

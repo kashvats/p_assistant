@@ -14,6 +14,12 @@ from pathlib import Path
 
 _scope: ContextVar[Path | None] = ContextVar("workspace_scope", default=None)
 _trust_commands: ContextVar[bool] = ContextVar("workspace_trust_commands", default=False)
+_allow_installs: ContextVar[bool] = ContextVar("workspace_allow_installs", default=False)
+
+
+def installs_allowed() -> bool:
+    """Autonomous projects: package installs into the project's own environment run without asking."""
+    return _allow_installs.get()
 
 
 def current_scope() -> Path | None:
@@ -30,11 +36,13 @@ def within(path: Path, root: Path) -> bool:
 
 
 @contextmanager
-def project_scope(folder: str | Path, trust_commands: bool = False):
+def project_scope(folder: str | Path, trust_commands: bool = False, allow_installs: bool = False):
     scope_token = _scope.set(Path(folder).resolve())
     trust_token = _trust_commands.set(bool(trust_commands))
+    install_token = _allow_installs.set(bool(allow_installs))
     try:
         yield
     finally:
         _scope.reset(scope_token)
         _trust_commands.reset(trust_token)
+        _allow_installs.reset(install_token)
