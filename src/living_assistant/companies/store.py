@@ -373,6 +373,8 @@ class CompanyStore:
         allowed = {"status", "spec", "report", "error", "name", "mode", "trust_commands", "checks_approved",
                    "checks_approval_id"}
         changes = {k: v for k, v in fields.items() if k in allowed}
+        if "mode" in changes and changes["mode"] not in MODES:
+            raise ValueError(f"mode must be one of {', '.join(MODES)}")
         if "status" in changes and changes["status"] not in PROJECT_STATES:
             raise ValueError(f"Unknown project status {changes['status']!r}")
         if changes:

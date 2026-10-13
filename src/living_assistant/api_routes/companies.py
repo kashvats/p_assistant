@@ -119,6 +119,16 @@ def project_create(body: ProjectBody, authorization: str | None = Header(default
                  trust_commands=body.trust_commands, folder=body.folder)
 
 
+class ModeBody(BaseModel):
+    mode: str = Field(min_length=1, max_length=20)
+
+
+@router.put("/projects/{project_id}/mode")
+def project_mode(project_id: str, body: ModeBody, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _call(_engine().set_mode, project_id, body.mode)
+
+
 @router.post("/projects/{project_id}/{action}")
 def project_action(project_id: str, action: str, authorization: str | None = Header(default=None)):
     authorize(authorization)

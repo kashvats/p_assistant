@@ -404,6 +404,24 @@ def test_autonomous_projects_run_tests_without_asking(tmp_path):
     assert asked == [] and engine.tests_allowed(engine.store.project(project["id"]))
 
 
+def test_switching_a_running_project_to_autonomous_releases_approval_waits(tmp_path):
+    engine = make_engine(tmp_path, FakeOrchestrator())
+    co = engine.create_from_template("software")
+    project = engine.start_project("Build a hello script with docs", co["id"], background=False)
+    task = engine.store.tasks(project["id"])[0]
+    for s in ("ready", "assigned", "in_progress"):
+        engine.store.transition(task["id"], s)
+    engine.store.update_task(task["id"], approval_id="ap", attempts=1)
+    engine.store.transition(task["id"], "needs_user_input")
+    engine.store.set_project(project["id"], status="needs_user_input")
+    with pytest.raises(ValueError):
+        engine.set_mode(project["id"], "reckless")
+    out = engine.set_mode(project["id"], "autonomous")
+    assert out["mode"] == "autonomous" and out["status"] == "running"
+    task = engine.store.task(task["id"])
+    assert task["state"] == "ready" and task["attempts"] == 0 and not task["approval_id"]
+
+
 def test_parsers():
     assert extract_json("<think>{no}</think> sure: ```json\n{\"a\": 1}\n```") == {"a": 1}
     assert extract_json('text {"b": {"c": "}"}} more') == {"b": {"c": "}"}}

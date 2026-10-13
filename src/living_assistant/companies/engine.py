@@ -607,6 +607,21 @@ class CompanyEngine:
 
     # ---- control -------------------------------------------------------------------------
 
+    def set_mode(self, project_id: str, mode: str) -> dict:
+        """Change a project's mode while it runs. Switching to autonomous also releases tasks that were only
+        waiting for an approval autonomous mode no longer needs (they re-run without using an attempt)."""
+        project = self.store.set_project(project_id, mode=mode)  # validates the mode
+        self.store.event("mode_changed", project_id=project_id, company_id=project["lead_company"], mode=mode)
+        if mode == "autonomous":
+            for task in self.store.tasks(project_id):
+                if task["state"] == "needs_user_input" and task.get("approval_id") and not self.store.unmet_dependencies(task):
+                    self.store.update_task(task["id"], approval_id=None, attempts=max(0, int(task["attempts"]) - 1))
+                    self.store.transition(task["id"], "ready", actor="user", reason="switched to autonomous mode")
+            if project["status"] == "needs_user_input":
+                project = self.store.set_project(project_id, status="running", error=None)
+        self.wake()
+        return self.store.project(project_id)
+
     def pause(self, project_id: str) -> dict:
         return self.store.set_project(project_id, status="paused")
 
