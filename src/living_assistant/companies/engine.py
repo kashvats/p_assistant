@@ -642,6 +642,15 @@ class CompanyEngine:
                 self.store.transition(task["id"], "cancelled", actor="user", reason="project cancelled")
         return self.store.set_project(project_id, status="cancelled")
 
+    def delete_project(self, project_id: str) -> dict:
+        try:
+            self.cancel(project_id)
+        except Exception:
+            pass
+        res = self.store.delete_project(project_id)
+        self.wake()
+        return res
+
     def retry_task(self, task_id: str, note: str = "") -> dict:
         task = self.store.task(task_id)
         if task["state"] not in ("failed", "needs_user_input", "blocked"):

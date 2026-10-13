@@ -263,12 +263,30 @@ function Overview({ api, notify, data, reload }) {
       h('p', { className: 'mt-2 line-clamp-2 text-xs text-zinc-400' }, c.description))))
       : h(Card, {}, h(Empty, { icon: 'briefcase', title: 'No companies yet', text: 'Start from a template - the Software Development Company has every department from product to verification - or describe your own.',
         action: h(Button, { variant: 'primary', icon: 'plus', onClick: () => setNewCompany(true) }, 'Create a company') })),
-    h(Card, { title: 'Projects', pad: true }, data.projects.length ? h('div', { className: 'divide-y divide-zinc-800' }, data.projects.map(p => h('a', { key: p.id, href: `#/companies/${p.id}`,
-      className: 'flex items-center gap-3 py-2.5 hover:bg-zinc-900/60' },
-      h('div', { className: 'min-w-0 flex-1' }, h('div', { className: 'truncate text-sm' }, p.name),
+    h(Card, { title: 'Projects', pad: true }, data.projects.length ? h('div', { className: 'divide-y divide-zinc-800' }, data.projects.map(p => h('div', { key: p.id,
+      className: 'group flex items-center gap-3 py-2.5 hover:bg-zinc-900/60' },
+      h('a', { href: `#/companies/${p.id}`, className: 'min-w-0 flex-1' },
+        h('div', { className: 'truncate text-sm hover:underline' }, p.name),
         h('div', { className: 'text-[11px] text-zinc-500' }, `${(companies.find(c => c.id === p.lead_company) || {}).name || 'company'} · ${p.mode} · ${timeAgo(p.updated_at)}`)),
       h('div', { className: 'w-40' }, h(Progress, { progress: p.progress })),
-      h(Badge, { tone: PROJECT_TONE[p.status] }, PROJECT_WORDS[p.status] || p.status)))) : h('div', { className: 'py-4 text-center text-sm text-zinc-500' }, 'No projects yet.')),
+      h(Badge, { tone: PROJECT_TONE[p.status] }, PROJECT_WORDS[p.status] || p.status),
+      h(Button, { variant: 'ghost', size: 'icon', icon: 'trash', title: 'Delete project', className: 'opacity-0 group-hover:opacity-100',
+        onClick: async (e) => {
+          e.stopPropagation();
+          if (!confirm(`Delete project "${p.name}"?`)) return;
+          try {
+            try {
+              await api(`/companies/projects/${p.id}`, { method: 'DELETE' });
+            } catch (err) {
+              if (String(err.message || '').includes('405')) {
+                await api(`/companies/projects/${p.id}/delete`, { method: 'POST' });
+              } else {
+                throw err;
+              }
+            }
+            notify('Project deleted.'); reload();
+          } catch (err) { notify(err.message, true); }
+        } })))) : h('div', { className: 'py-4 text-center text-sm text-zinc-500' }, 'No projects yet.')),
     h(NewCompany, { open: newCompany, onClose: () => setNewCompany(false), api, notify, templates: data.templates, onCreated: c => { setNewCompany(false); reload(); location.hash = `/companies/${c.id}`; } }),
     h(NewProject, { open: newProject, onClose: () => setNewProject(false), api, notify, companies, onCreated: p => { setNewProject(false); reload(); location.hash = `/companies/${p.id}`; } }));
 }
@@ -301,18 +319,45 @@ function CompanyPage({ api, notify, id, skills, companies, reloadAll, tick }) {
         h('div', { className: 'mb-2 flex items-start gap-2' },
           h('div', { className: 'min-w-0 flex-1' }, h('div', { className: 'text-sm font-semibold' }, d.name), h('div', { className: 'line-clamp-2 text-[11px] text-zinc-500' }, d.mission)),
           h(Button, { variant: 'ghost', size: 'icon', icon: 'plus', title: 'Hire', onClick: () => setEdit({ dep: d }) })),
-        h('div', { className: 'space-y-1.5' }, staff.map(e => h('button', { key: e.id, onClick: () => setEdit({ emp: e, dep: d }),
-          className: 'block w-full rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 text-left hover:border-zinc-600' },
-          h('div', { className: 'flex items-center gap-2 text-sm' }, h(Person, { p: e, stacked: true }),
-            h('span', { className: 'flex-1' }), e.level !== 'specialist' ? h(Badge, { tone: e.level === 'director' ? 'indigo' : 'sky' }, e.level) : null,
-            e.workload ? h(Badge, { tone: 'amber' }, `${e.workload} task${e.workload > 1 ? 's' : ''}`) : null),
-          e.reports_to && people[e.reports_to] ? h('div', { className: 'mt-0.5 pl-8 text-[10px] text-zinc-500' }, `reports to ${people[e.reports_to].name}`) : null,
-          h('div', { className: 'mt-1.5 flex flex-wrap gap-1 pl-8' }, (e.portfolio || e.skills).filter(s => s.layer !== 'company').map(s => h(SkillChip, { key: s.name, s })))))),
+        h('div', { className: 'space-y-1.5' }, staff.map(e => h('div', { key: e.id,
+          className: 'group flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950/60 p-2 hover:border-zinc-600' },
+          h('button', { onClick: () => setEdit({ emp: e, dep: d }), className: 'min-w-0 flex-1 text-left' },
+            h('div', { className: 'flex items-center gap-2 text-sm' }, h(Person, { p: e, stacked: true }),
+              h('span', { className: 'flex-1' }), e.level !== 'specialist' ? h(Badge, { tone: e.level === 'director' ? 'indigo' : 'sky' }, e.level) : null,
+              e.workload ? h(Badge, { tone: 'amber' }, `${e.workload} task${e.workload > 1 ? 's' : ''}`) : null),
+            e.reports_to && people[e.reports_to] ? h('div', { className: 'mt-0.5 pl-8 text-[10px] text-zinc-500' }, `reports to ${people[e.reports_to].name}`) : null,
+            h('div', { className: 'mt-1.5 flex flex-wrap gap-1 pl-8' }, (e.portfolio || e.skills).filter(s => s.layer !== 'company').map(s => h(SkillChip, { key: s.name, s })))),
+          h(Button, { variant: 'ghost', size: 'icon', icon: 'trash', title: 'Remove', className: 'opacity-0 group-hover:opacity-100',
+            onClick: async (ev) => {
+              ev.stopPropagation();
+              if (!confirm(`Remove ${e.name} from ${c.name}?`)) return;
+              try { await api(`/companies/${id}/employees/${e.id}`, { method: 'DELETE' }); notify('Removed.'); load(); reloadAll(); } catch (err) { notify(err.message, true); }
+            } })))),
         staff.length ? null : h('div', { className: 'py-3 text-center text-xs text-zinc-500' }, 'Nobody yet.'));
     })),
     h('div', { className: 'grid gap-4 lg:grid-cols-[1fr_22rem]' },
-      h(Card, { title: 'Projects' }, c.projects.length ? h('div', { className: 'divide-y divide-zinc-800' }, c.projects.map(p => h('a', { key: p.id, href: `#/companies/${p.id}`, className: 'flex items-center gap-3 py-2' },
-        h('span', { className: 'flex-1 truncate text-sm' }, p.name), h('div', { className: 'w-32' }, h(Progress, { progress: p.progress })), h(Badge, { tone: PROJECT_TONE[p.status] }, PROJECT_WORDS[p.status])))) : h('div', { className: 'text-sm text-zinc-500' }, 'No projects yet.')),
+      h(Card, { title: 'Projects' }, c.projects.length ? h('div', { className: 'divide-y divide-zinc-800' }, c.projects.map(p => h('div', { key: p.id,
+        className: 'group flex items-center gap-3 py-2 hover:bg-zinc-900/60' },
+        h('a', { href: `#/companies/${p.id}`, className: 'flex-1 truncate text-sm hover:underline' }, p.name),
+        h('div', { className: 'w-32' }, h(Progress, { progress: p.progress })),
+        h(Badge, { tone: PROJECT_TONE[p.status] }, PROJECT_WORDS[p.status]),
+        h(Button, { variant: 'ghost', size: 'icon', icon: 'trash', title: 'Delete project', className: 'opacity-0 group-hover:opacity-100',
+          onClick: async (e) => {
+            e.stopPropagation();
+            if (!confirm(`Delete project "${p.name}"?`)) return;
+            try {
+              try {
+                await api(`/companies/projects/${p.id}`, { method: 'DELETE' });
+              } catch (err) {
+                if (String(err.message || '').includes('405')) {
+                  await api(`/companies/projects/${p.id}/delete`, { method: 'POST' });
+                } else {
+                  throw err;
+                }
+              }
+              notify('Project deleted.'); load(); reloadAll();
+            } catch (err) { notify(err.message, true); }
+          } })))) : h('div', { className: 'text-sm text-zinc-500' }, 'No projects yet.')),
       h(Card, { title: 'Recent activity' }, h(Timeline, { rows: c.events }))),
     h(EmployeeDrawer, { open: !!edit, onClose: () => setEdit(null), api, notify, company: c, employee: edit && edit.emp, department: edit && edit.dep, skills,
       onSaved: () => { setEdit(null); load(); reloadAll(); } }),
@@ -348,7 +393,22 @@ function ProjectPage({ api, notify, id, tick }) {
         p.status === 'awaiting_plan_approval' ? h(Button, { variant: 'success', icon: 'check', onClick: () => act('approve') }, 'Approve plan') : null,
         p.status === 'running' ? h(Button, { icon: 'stop', onClick: () => act('pause') }, 'Pause') : null,
         ['paused', 'needs_user_input', 'failed'].includes(p.status) ? h(Button, { variant: 'primary', icon: 'refresh', onClick: () => act('resume') }, 'Resume') : null,
-        !['delivered', 'cancelled'].includes(p.status) ? h(Button, { variant: 'danger', icon: 'x', onClick: () => confirm('Cancel this project?') && act('cancel') }, 'Cancel') : null),
+        !['delivered', 'cancelled'].includes(p.status) ? h(Button, { variant: 'danger', icon: 'x', onClick: () => confirm('Cancel this project?') && act('cancel') }, 'Cancel') : null,
+        h(Button, { variant: 'danger', icon: 'trash', title: 'Delete project', onClick: async () => {
+          if (!confirm(`Delete project "${p.name}"? This cannot be undone.`)) return;
+          try {
+            try {
+              await api(`/companies/projects/${id}`, { method: 'DELETE' });
+            } catch (err) {
+              if (String(err.message || '').includes('405')) {
+                await api(`/companies/projects/${id}/delete`, { method: 'POST' });
+              } else {
+                throw err;
+              }
+            }
+            notify('Project deleted.'); location.hash = '/companies';
+          } catch (err) { notify(err.message, true); }
+        } }, 'Delete')),
       h(Progress, { progress: p.progress }),
       p.error ? h('div', { className: 'rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100' }, p.error) : null,
       p.status === 'planning' ? h('div', { className: 'flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-100' }, h(Spinner, {}), 'The project director is writing the specification and plan…') : null,

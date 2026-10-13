@@ -129,11 +129,23 @@ def project_mode(project_id: str, body: ModeBody, authorization: str | None = He
     return _call(_engine().set_mode, project_id, body.mode)
 
 
+@router.delete("/projects/{project_id}")
+def project_delete(project_id: str, authorization: str | None = Header(default=None)):
+    authorize(authorization)
+    return _call(_engine().delete_project, project_id)
+
+
 @router.post("/projects/{project_id}/{action}")
 def project_action(project_id: str, action: str, authorization: str | None = Header(default=None)):
     authorize(authorization)
     engine = _engine()
-    actions = {"approve": engine.approve_plan, "pause": engine.pause, "resume": engine.resume, "cancel": engine.cancel}
+    actions = {
+        "approve": engine.approve_plan,
+        "pause": engine.pause,
+        "resume": engine.resume,
+        "cancel": engine.cancel,
+        "delete": engine.delete_project,
+    }
     if action not in actions:
         raise HTTPException(status_code=404, detail="Unknown project action.")
     return _call(actions[action], project_id)

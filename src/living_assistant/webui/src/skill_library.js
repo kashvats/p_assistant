@@ -102,6 +102,7 @@ export function SkillLibraryPanel({ api, notify, card }) {
       open.builtin ? null : edit
         ? h('button', { onClick: saveEdit, disabled: !!busy, className: btnPrimary }, 'Save')
         : h('button', { onClick: () => setEdit({ description: open.description || '', instructions: open.instructions || '' }), className: btn }, 'Edit'),
+      open.builtin ? null : h('button', { onClick: () => remove(open.skill), className: 'rounded-xl border border-rose-800 bg-rose-950/60 px-3 py-1.5 text-xs text-rose-300 hover:bg-rose-900', title: 'Delete skill' }, 'Delete'),
       h('button', { onClick: () => { setOpen(null); setEdit(null); }, className: btn }, 'Close')),
     edit ? h('input', { value: edit.description, onChange: e => setEdit({ ...edit, description: e.target.value }), className: input })
       : h('div', { className: 'text-xs text-slate-400' }, open.description),

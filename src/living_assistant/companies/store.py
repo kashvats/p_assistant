@@ -368,6 +368,16 @@ class CompanyStore:
             raise KeyError(f"No project {project_id!r}")
         return row
 
+    def delete_project(self, project_id: str) -> dict:
+        project = self.project(project_id)
+        with self._lock:
+            for table in ("tasks", "records", "events"):
+                self.conn.execute(f"DELETE FROM {table} WHERE project_id=?", (project_id,))
+            self.conn.execute("DELETE FROM projects WHERE id=?", (project_id,))
+            self.conn.commit()
+        self.event("project_deleted", company_id=project["lead_company"], project_id=project_id, name=project["name"])
+        return {"ok": True, "deleted": project_id}
+
     def set_project(self, project_id: str, **fields) -> dict:
         project = self.project(project_id)
         allowed = {"status", "spec", "report", "error", "name", "mode", "trust_commands", "checks_approved",

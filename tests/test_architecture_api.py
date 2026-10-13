@@ -63,7 +63,7 @@ def test_api_is_split_into_domain_routers_without_duplicate_routes():
         route_keys.append((path, methods))
 
     # +9 skill library, +10 agents & teams (api_routes/experts.py), +13 companies (api_routes/companies.py)
-    assert len(route_keys) in {233, 234, 235}  # +1 project mode switch
+    assert len(route_keys) in {233, 234, 235, 236}  # +1 project mode switch, +1 project delete
     assert len(route_keys) == len(set(route_keys))
 
 

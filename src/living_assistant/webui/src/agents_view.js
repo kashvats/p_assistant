@@ -9,7 +9,7 @@ const { useState, useEffect } = React;
 const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#14b8a6', '#64748b'];
 const ICON_CHOICES = ['bot', 'sparkles', 'brain', 'code', 'briefcase', 'book', 'globe', 'search', 'edit', 'calendar', 'shield', 'trendingUp', 'heart', 'graduation', 'terminal', 'users'];
 
-function AgentEditor({ open, value, personalities, skills, onClose, onSave }) {
+function AgentEditor({ open, value, personalities, skills, onClose, onSave, onDelete }) {
   const [f, setF] = useState(value);
   const [saving, setSaving] = useState(false);
   useEffect(() => { setF(value); }, [value, open]);
@@ -18,6 +18,8 @@ function AgentEditor({ open, value, personalities, skills, onClose, onSave }) {
   const toggleSkill = (name) => set('skills', (f.skills || []).includes(name) ? f.skills.filter(s => s !== name) : [...(f.skills || []), name]);
   const save = async () => { setSaving(true); try { await onSave(f); } finally { setSaving(false); } };
   return h(Drawer, { open, title: f.id ? `Edit ${f.name}` : 'New agent', onClose, footer: [
+    f.id && !f.builtin && onDelete ? h(Button, { key: 'd', variant: 'danger', icon: 'trash', onClick: () => { onClose(); onDelete(f); } }, 'Delete') : null,
+    h('div', { key: 'sp', className: 'flex-1' }),
     h(Button, { key: 'c', onClick: onClose }, 'Cancel'),
     h(Button, { key: 's', variant: 'primary', icon: 'check', disabled: !String(f.name || '').trim() || saving, onClick: save }, saving ? 'Saving…' : 'Save agent')] },
     h('div', { className: 'space-y-5' },
@@ -46,7 +48,7 @@ function AgentEditor({ open, value, personalities, skills, onClose, onSave }) {
         h('input', { className: input, value: f.welcome || '', onChange: e => set('welcome', e.target.value) }))));
 }
 
-function TeamEditor({ open, value, agents, onClose, onSave }) {
+function TeamEditor({ open, value, agents, onClose, onSave, onDelete }) {
   const [f, setF] = useState(value);
   const [saving, setSaving] = useState(false);
   useEffect(() => { setF(value); }, [value, open]);
@@ -55,6 +57,8 @@ function TeamEditor({ open, value, agents, onClose, onSave }) {
   const toggle = (id) => set('members', (f.members || []).includes(id) ? f.members.filter(m => m !== id) : [...(f.members || []), id]);
   const save = async () => { setSaving(true); try { await onSave(f); } finally { setSaving(false); } };
   return h(Drawer, { open, title: f.id ? `Edit ${f.name}` : 'New team', onClose, footer: [
+    f.id && onDelete ? h(Button, { key: 'd', variant: 'danger', icon: 'trash', onClick: () => { onClose(); onDelete(f); } }, 'Delete') : null,
+    h('div', { key: 'sp', className: 'flex-1' }),
     h(Button, { key: 'c', onClick: onClose }, 'Cancel'),
     h(Button, { key: 's', variant: 'primary', icon: 'check', disabled: !String(f.name || '').trim() || (f.members || []).length < 2 || saving, onClick: save }, saving ? 'Saving…' : 'Save team')] },
     h('div', { className: 'space-y-5' },
@@ -244,6 +248,6 @@ export function AgentsView({ api, notify, data, reload, onChat }) {
       h('div', { className: 'relative w-64' }, h(Icon, { name: 'search', size: 14, className: 'absolute left-3 top-2.5 text-zinc-500' }),
         h('input', { className: input + ' pl-8', value: query, onChange: e => setQuery(e.target.value), placeholder: 'Search…' }))),
     body,
-    h(AgentEditor, { open: !!editAgent, value: editAgent, personalities: data.personalities || [], skills, onClose: () => setEditAgent(null), onSave: saveAgent }),
-    h(TeamEditor, { open: !!editTeam, value: editTeam, agents, onClose: () => setEditTeam(null), onSave: saveTeam }));
+    h(AgentEditor, { open: !!editAgent, value: editAgent, personalities: data.personalities || [], skills, onClose: () => setEditAgent(null), onSave: saveAgent, onDelete: a => del('agents', a) }),
+    h(TeamEditor, { open: !!editTeam, value: editTeam, agents, onClose: () => setEditTeam(null), onSave: saveTeam, onDelete: t => del('teams', t) }));
 }

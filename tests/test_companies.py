@@ -422,6 +422,20 @@ def test_switching_a_running_project_to_autonomous_releases_approval_waits(tmp_p
     assert task["state"] == "ready" and task["attempts"] == 0 and not task["approval_id"]
 
 
+def test_delete_project(tmp_path):
+    engine = make_engine(tmp_path, FakeOrchestrator())
+    co = engine.create_from_template("software")
+    project = engine.start_project("Build a test feature", co["id"], background=False)
+    assert any(p["id"] == project["id"] for p in engine.store.projects())
+    assert len(engine.store.tasks(project["id"])) > 0
+    res = engine.delete_project(project["id"])
+    assert res["ok"] is True and res["deleted"] == project["id"]
+    assert not any(p["id"] == project["id"] for p in engine.store.projects())
+    assert len(engine.store.tasks(project["id"])) == 0
+    with pytest.raises(KeyError):
+        engine.store.project(project["id"])
+
+
 def test_parsers():
     assert extract_json("<think>{no}</think> sure: ```json\n{\"a\": 1}\n```") == {"a": 1}
     assert extract_json('text {"b": {"c": "}"}} more') == {"b": {"c": "}"}}
